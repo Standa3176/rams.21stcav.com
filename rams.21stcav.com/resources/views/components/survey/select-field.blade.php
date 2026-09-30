@@ -22,7 +22,7 @@
     <label class="block text-xs font-medium text-gray-600 mb-1">{{ $label }}</label>
     <select x-model="{{ $parent }}.{{ $field }}"
             class="w-full border border-gray-300 rounded-xl px-3 py-3 text-base bg-white
-                   focus:outline-none focus:ring-2 focus:ring-[#178A95] focus:border-transparent
+                   focus:outline-none focus:ring-2 focus:ring-[#016E82] focus:border-transparent
                    min-h-[44px]">
         <option value="">{{ $placeholder }}</option>
         @foreach ($options as $val => $display)

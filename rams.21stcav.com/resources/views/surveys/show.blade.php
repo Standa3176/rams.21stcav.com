@@ -4,17 +4,128 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <meta name="theme-color" content="#0B3C45">
+    <meta name="theme-color" content="#014C5A">
     <title>Site Survey — {{ $survey->project_name }}</title>
 
     {{-- Tailwind CDN — play build processes arbitrary classes at runtime via MutationObserver --}}
     <script src="https://cdn.tailwindcss.com"></script>
+    {{-- ══ 21ST CENTURY AV BRAND PALETTE — quick task 260930-sv2 ═══════════════
+
+         THIS IS A BLADE COMMENT, NOT A JS ONE, AND THAT IS DELIBERATE. A
+         comment inside `<script>` is DELIVERED to the browser; a Blade comment
+         is stripped at compile time. Two things follow. First, this page is used
+         on mobile data in plant rooms and risers, so several KB of prose only a
+         developer reads stays out of the download. Second, the note below has to
+         NAME the superseded hex values to be useful, and naming them in shipped
+         bytes is exactly what `SurveyLinkBrandingTest` bans — the test asserts
+         the old palette cannot return, and a comment counts.
+
+         THE VALUES ARE THE HOUSE BRAND'S OWN, read from this repo's single
+         source of truth, `.planning/reference/21cav-rams-skill/scripts/brand.js`
+         lines 8-18 (TEAL 01889F, TEAL_DARK 016E82, GOLD D4AF37, TEXT 1A1A1A, and
+         so on) — not sampled from a screenshot. What stood here before
+         (#178A95 teal, #C9922A gold, #0B3C45 dark) was NEAR the brand and
+         matched none of it, which is why this link never looked like the rest of
+         the application.
+
+         ⚠ THE TOKEN NAMES ARE BOUND TO THE *TEXT-SAFE* SHADE ON PURPOSE.
+         `brand.teal` is #016E82, NOT the headline #01889F, because all 96
+         existing uses of `*-brand-teal` in this file include `text-brand-teal`
+         on white and `bg-brand-teal text-white`. Measured on white:
+
+             #01889F   4.18:1   FAILS AA for normal text (passes as a mark)
+             #016E82   5.91:1   PASSES AA
+
+         Binding the NAME to #016E82 makes every one of those 96 usages
+         compliant WITHOUT editing a single class, and the two AA failures this
+         page actually shipped are fixed by the same move:
+
+             white on #178A95 (old teal buttons)   4.11:1  FAILED  ->  5.91:1
+             white on #C9922A (old gold buttons)   2.75:1  FAILED  ->  5.99:1
+
+         The headline hues are not lost — they are `mark` and `glint`, and they
+         are DECORATIVE ONLY (the header device, the gold hairline). #D4AF37 on
+         white is 2.10:1, so gold is never text and never sits behind text;
+         `brand.gold` is the gold INK #7A6011 (5.99:1 on white), which is what
+         the gold badges and buttons use.
+
+         ══ FONTS: NOTHING IS FETCHED OVER THE NETWORK — A DELIBERATE CHOICE ══
+
+         This page already blocks on two third-party CDNs (Tailwind and Alpine).
+         A Google Fonts link element would make that three, plus the font files,
+         and a font request that never resolves is a blank page on a bad
+         connection — which is the normal case in a plant room. Self-hosting
+         would need an asset pipeline, and this page is standalone: no Vite
+         entry, no build step.
+
+         So: no webfont of any kind. Poppins and Verdana Pro are NAMED FIRST, so
+         any device that already has them (the office machines do, from the RAMS
+         Word pipeline) gets the real brand faces at zero network cost. Everyone
+         else lands on the next entry, and the fallback was chosen to be
+         acceptable on its own: VERDANA SHIPS ON WINDOWS, macOS AND iOS, so the
+         heading face is the real brand face on almost every device an engineer
+         carries, and Android falls back to DejaVu Sans / Roboto, a close
+         humanist match. The body face degrades to the platform UI font.
+
+         FOUR TOKENS, NOT SEVEN. Only `dark`, `teal`, `gold` and `sand` are
+         declared, because only those four are used as Tailwind classes (8, 101,
+         15 and 2 usages). The two DECORATIVE hues - headline teal #01889F and
+         warm gold #D4AF37 - are used exclusively inside the `<style>` block, in
+         gradients that no colour utility could express anyway, so they live
+         there as literals rather than as tokens nothing references. A tinted
+         `wash` token was dropped for the same reason: the page already gets its
+         teal tints from `bg-brand-teal/5` and `/10`, which derive from the ONE
+         teal token instead of introducing a second, near-duplicate value.
+
+         ONE MECHANISM FOR THE FONTS, NOT TWO. The faces are set by element
+         rules in the `<style>` block below, and there is deliberately NO
+         `fontFamily` entry in the Tailwind config: `font-head` / `font-body`
+         were used as classes nowhere in this file, and neither is `font-sans`,
+         so nothing competes with the body rule. An unused config block would be
+         a second, silent definition for a later author to drift against.
+
+         THE FULL CONTRAST LEDGER — every pairing shipped, with its computed
+         ratio — is in `.planning/quick/260930-sv2-*/SUMMARY.md`.
+
+         ⚠ THE CSS CLASS PREFIX IN THIS FILE IS `sv-`, NEVER `cav-`.
+         `cav-` IS THE COCKPIT'S NAMESPACE, not a 21CAV brand prefix — the header
+         of `resources/css/cav-tokens.css` spells out that it means
+         "cockpit-scoped". `FlagOffBehaviourUnchangedTest::assertNoCockpitFootprint()`
+         bans five cockpit markers from the PUBLIC token pages, and a class
+         attribute opening with that prefix is one of them. The first draft of
+         this work used it for the band and the section spines and turned that
+         test red, correctly. `sv-` was verified free in this file before use.
+
+         ⚠ AND BEWARE WHAT A COMMENT *SHIPS*. A comment inside `<style>` or
+         `<script>` is delivered to the browser, so quoting a banned marker
+         verbatim in one is enough to fail that same test — which is exactly how
+         the second draft failed. Developer prose belongs in a Blade comment like
+         this one.
+
+         ⚠ DO NOT WRITE A LITERAL BLADE AT-DIRECTIVE IN THIS FILE, not even
+         inside a comment. Blade compiles one wherever it appears, including
+         inside a JS or CSS comment; the first draft of this block named one and
+         500'd the page. Same family as the trap where an at-php inside a Blade
+         comment still compiles. --}}
     <script>
         tailwind.config = {
             theme: {
                 extend: {
                     colors: {
-                        brand: { dark: '#0B3C45', teal: '#178A95', gold: '#C9922A' },
+                        brand: {
+                            /* Header and band fill. White on it = 9.62:1. */
+                            dark:  '#014C5A',
+                            /* Structure + ALL teal text and teal-filled buttons.
+                               5.91:1 on white; white on it 5.91:1. */
+                            teal:  '#016E82',
+                            /* Gold INK - gold text and gold-filled buttons.
+                               5.99:1 on white; white on it 5.99:1. */
+                            gold:  '#7A6011',
+                            /* The eyebrow on the band. 8.23:1 on #014C5A. */
+                            sand:  '#F5EDD6',
+                            /* NO `mark`/`glint`/`wash` ENTRIES ON PURPOSE - see
+                               the "four tokens, not seven" note above. */
+                        },
                     },
                 },
             },
@@ -23,22 +134,94 @@
 
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
 
-    {{-- Single functional style rule required by Alpine.js --}}
-    <style>[x-cloak] { display: none !important; }</style>
+    <style>
+        /* Functional rule required by Alpine.js. */
+        [x-cloak] { display: none !important; }
+
+        /* == THE CLASS PREFIX HERE IS `sv-`, THE SURVEY LINK'S OWN ============
+           It is never the cockpit's prefix. Full reasoning is in the Blade
+           comment above the palette (Blade comments do not ship; this one does,
+           which is the whole point).
+
+           == BRAND TYPOGRAPHY =================================================
+           Element rules are safe here because this page is STANDALONE: it
+           extends no layout and imports no application CSS, so nothing outside
+           this file can inherit any of it. See the font note above for why no
+           webfont is fetched. */
+        body {
+            font-family: 'Poppins', 'Segoe UI', Roboto, -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+            -webkit-text-size-adjust: 100%;
+        }
+        h1, h2, h3, .sv-head {
+            font-family: Verdana, 'Verdana Pro', 'DejaVu Sans', 'Trebuchet MS', 'Segoe UI', sans-serif;
+            letter-spacing: -0.008em;
+        }
+
+        /* == THE HOUSE DEVICE =================================================
+           An angled teal/gold shape in the header band. PURELY DECORATIVE: it
+           carries no state and no information, which is why it may use the
+           headline hues that fail as text. It is `aria-hidden`, so it is not in
+           the accessibility tree, and it sits behind the content at z-index 0
+           so no text is ever drawn on top of the gold. */
+        .sv-band { position: relative; overflow: hidden; }
+        .sv-band > * { position: relative; z-index: 1; }
+        .sv-device {
+            position: absolute; inset: 0; z-index: 0; pointer-events: none;
+            background:
+                linear-gradient(115deg, transparent 58%, #01889F 58%, #01889F 76%, transparent 76%),
+                linear-gradient(115deg, transparent 78%, #D4AF37 78%, #D4AF37 82%, transparent 82%);
+            opacity: 0.45;
+        }
+        /* The brand's gold hairline, closing the header band. Decorative. */
+        .sv-hairline {
+            height: 3px;
+            background: linear-gradient(90deg, #D4AF37 0%, #D4AF37 38%, #01889F 38%, #01889F 100%);
+        }
+
+        /* == SECTION MARKERS =================================================
+           A teal spine on each section heading. STRUCTURE, NOT STATUS: it is
+           identical on every section regardless of whether anything has been
+           filled in, so it can never be mistaken for progress. 3px of #01889F
+           on white is 4.18:1, comfortably over the 3:1 non-text floor. */
+        .sv-spine { position: relative; padding-left: 0.625rem; }
+        .sv-spine::before {
+            content: ''; position: absolute; left: 0; top: 0.1em; bottom: 0.1em;
+            width: 3px; border-radius: 2px; background: #01889F;
+        }
+    </style>
 </head>
 
-<body class="bg-gray-100 min-h-screen" x-data="surveyWizard()" x-cloak>
+<body class="bg-[#F8F8F8] min-h-screen" x-data="surveyWizard()" x-cloak>
 
 {{-- ═══════════════════════════════════════════════════════════
      HEADER — sticky, shows project info + step progress bar
 ════════════════════════════════════════════════════════════ --}}
-<header class="bg-brand-dark text-white px-4 pt-4 pb-3 sticky top-0 z-20 shadow-md">
+{{-- ── 21ST BRANDING (260930-sv2) ──────────────────────────────────────────
+     `.sv-band` + `.sv-device` put the house angled teal/gold shape behind
+     the masthead, and `.sv-hairline` closes the band with the brand's gold
+     rule. BOTH ARE DECORATIVE and `aria-hidden`; the device sits at z-index 0
+     under the content, so no text is ever drawn on top of gold (#D4AF37 on
+     white is 2.10:1 and could not carry text).
+
+     THREE CONTRAST FIXES CAME OUT OF THE SAME PASS, all measured on the new
+     #014C5A band, because opacity on small text is the exact trap
+     `resources/css/cav-tokens.css` records:
+
+         text-white/50 at 10px   3.65:1  FAILED AA  -> text-brand-sand 8.23:1
+         text-white/80 at 12px   4.52:1  marginal   -> text-white/80   6.76:1
+         text-white/80 at 12px   5.57:1  passed     -> text-white/80   6.76:1
+
+     The eyebrow moved to the brand's own sand (#F5EDD6) rather than to solid
+     white: it clears AA by a wide margin AND reads as a deliberate brand mark
+     instead of a dimmed label. --}}
+<header class="sv-band bg-brand-dark text-white px-4 pt-4 pb-3 sticky top-0 z-20 shadow-md">
+    <div class="sv-device" aria-hidden="true"></div>
     <div class="max-w-xl mx-auto">
-        <p class="text-[10px] font-bold uppercase tracking-widest text-white/50 mb-0.5">
+        <p class="text-[10px] font-bold uppercase tracking-widest text-brand-sand mb-0.5">
             21st Century AV · Site Survey
         </p>
         <h1 class="text-lg font-bold leading-tight">{{ $survey->project_name }}</h1>
-        <p class="text-xs text-white/60 mt-0.5 truncate">{{ $survey->site_address }}</p>
+        <p class="text-xs text-white/80 mt-0.5 truncate">{{ $survey->site_address }}</p>
 
         {{-- ── 260602-mlt — Site contact line ──────────────────────────────
              Mirror of the worksheet header line. Reads the same flat package
@@ -69,7 +252,7 @@
             }
         @endphp
         @if($siteContactName !== '' || $siteContactPhone !== '')
-            <p class="text-xs text-white/60 mt-0.5 truncate">
+            <p class="text-xs text-white/80 mt-0.5 truncate">
                 Site contact:
                 @if($siteContactName !== ''){{ ' ' . $siteContactName }}@endif
                 @if($siteContactName !== '' && $siteContactPhone !== '') · @endif
@@ -80,9 +263,9 @@
         {{-- Step progress — only visible during step wizard --}}
         <div x-show="screen === 'step'" x-cloak class="mt-2.5">
             <div class="flex justify-between items-center mb-1">
-                <span class="text-xs text-white/70 font-medium truncate pr-2"
+                <span class="text-xs text-white/80 font-medium truncate pr-2"
                       x-text="currentRoom?.name || ''"></span>
-                <span class="text-xs text-white/60 flex-shrink-0"
+                <span class="text-xs text-white/80 flex-shrink-0"
                       x-text="'Step ' + currentStep + ' of 8 — ' + stepTitle"></span>
             </div>
             {{-- Progress bar width via Tailwind CDN JIT arbitrary class — no style= attribute --}}
@@ -92,6 +275,7 @@
             </div>
         </div>
     </div>
+    <div class="sv-hairline" aria-hidden="true"></div>
 </header>
 
 {{-- ── Save / validation status ribbons ───────────────────────── --}}
@@ -179,7 +363,7 @@
         <div class="bg-white rounded-2xl p-4 mb-4 shadow-sm">
             <div class="flex items-center gap-2 mb-3">
                 <span class="text-base">🏢</span>
-                <h2 class="text-sm font-bold text-gray-900">Site Logistics</h2>
+                <h2 class="sv-spine text-sm font-bold text-gray-900">Site Logistics</h2>
                 <span class="text-xs text-gray-500 ml-auto" x-show="!siteLogisticsSaving && siteLogisticsLastSaved" x-cloak>
                     ✓ saved
                 </span>
@@ -291,7 +475,7 @@
                             class="w-full py-4 rounded-2xl font-bold text-base min-h-[56px]
                                    transition-colors shadow-md"
                             :class="(surveyorName.trim() && !submitting)
-                                ? 'bg-brand-gold text-white hover:bg-amber-600'
+                                ? 'bg-brand-gold text-white hover:bg-[#5F4A0E]'
                                 : 'bg-gray-200 text-gray-400 cursor-not-allowed'">
                         <span x-show="!submitting">Submit Survey ✓</span>
                         <span x-show="submitting">Submitting…</span>
@@ -359,7 +543,7 @@
                                    text-sm font-bold min-h-[44px] transition-colors"
                             :class="room._ui.is_completed
                                 ? 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                : 'bg-brand-teal text-white hover:bg-[#0d6e77]'">
+                                : 'bg-brand-teal text-white hover:bg-brand-dark'">
                         <span x-text="(@json($readonly) || room._ui.is_completed) ? 'Review' : 'Start'"></span>
                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24"
                              stroke="currentColor" stroke-width="2">
@@ -514,7 +698,7 @@
                 <button type="button"
                         @click="descriptionDrawerOpen = true"
                         class="h-11 px-3 rounded-xl flex items-center gap-1.5
-                               bg-brand-teal text-white shadow-md hover:bg-[#0d6e77]
+                               bg-brand-teal text-white shadow-md hover:bg-brand-dark
                                transition-colors min-h-[44px] font-bold text-sm"
                         aria-label="Show AV works description for this room"
                         title="AV Works Description">
@@ -524,7 +708,7 @@
                 <button type="button"
                         @click="kitDrawerOpen = true"
                         class="h-11 px-3 rounded-xl flex items-center gap-1.5
-                               bg-brand-gold text-white shadow-md hover:bg-amber-600
+                               bg-brand-gold text-white shadow-md hover:bg-[#5F4A0E]
                                transition-colors min-h-[44px] font-bold text-sm"
                         aria-label="Show kit list for this room"
                         title="Kit List">
@@ -935,7 +1119,7 @@
 
                 {{-- Power: socket_locations, distance_to_screen, spare_capacity --}}
                 <div class="bg-white rounded-2xl p-4 shadow-sm space-y-3">
-                    <h3 class="text-sm font-bold text-gray-900">⚡ Power</h3>
+                    <h3 class="sv-spine text-sm font-bold text-gray-900">⚡ Power</h3>
                     <div>
                         <label class="block text-xs font-medium text-gray-500 mb-1">
                             Socket Locations / Count
@@ -965,7 +1149,7 @@
 
                 {{-- Network: ports_available, switch_location, vlan_required --}}
                 <div class="bg-white rounded-2xl p-4 shadow-sm space-y-3">
-                    <h3 class="text-sm font-bold text-gray-900">📶 Network</h3>
+                    <h3 class="sv-spine text-sm font-bold text-gray-900">📶 Network</h3>
                     <div>
                         <label class="block text-xs font-medium text-gray-500 mb-1">Ports Available</label>
                         <input type="number"
@@ -993,7 +1177,7 @@
 
                 {{-- Cable routes: route_type, estimated_distance --}}
                 <div class="bg-white rounded-2xl p-4 shadow-sm space-y-3">
-                    <h3 class="text-sm font-bold text-gray-900">🔌 Cable Routes</h3>
+                    <h3 class="sv-spine text-sm font-bold text-gray-900">🔌 Cable Routes</h3>
                     <x-survey.select-field
                         field="route_type"
                         label="Route Type"
@@ -1058,7 +1242,7 @@
 
                 {{-- (a) Mounting Heights ──────────────────────────────────────── --}}
                 <div class="bg-white rounded-2xl p-4 shadow-sm">
-                    <h3 class="text-sm font-bold text-gray-900 mb-3">📏 Mounting Heights</h3>
+                    <h3 class="sv-spine text-sm font-bold text-gray-900 mb-3">📏 Mounting Heights</h3>
                     <div class="grid grid-cols-2 gap-3">
                         @foreach ([
                             'screen_h_m'        => 'Screen height (m)',
@@ -1081,7 +1265,7 @@
                         <div class="flex items-center justify-between mb-2">
                             <label class="text-xs font-medium text-gray-500">Other Mounting Heights</label>
                             <button type="button" @click="addMountingOther()"
-                                    class="px-3 py-1.5 rounded-lg bg-brand-teal/10 text-brand-teal text-xs font-bold hover:bg-brand-teal/20 min-h-[36px]">
+                                    class="px-3 py-1.5 rounded-lg bg-brand-teal/10 text-brand-teal text-xs font-bold hover:bg-brand-teal hover:text-white min-h-[36px]">
                                 + Add
                             </button>
                         </div>
@@ -1105,7 +1289,7 @@
 
                 {{-- (b) Working at Height Methods ─────────────────────────────── --}}
                 <div class="bg-white rounded-2xl p-4 shadow-sm">
-                    <h3 class="text-sm font-bold text-gray-900 mb-3">🪜 Working at Height Methods</h3>
+                    <h3 class="sv-spine text-sm font-bold text-gray-900 mb-3">🪜 Working at Height Methods</h3>
                     <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
                         @foreach ([
                             'ladder'   => 'Ladder',
@@ -1130,9 +1314,9 @@
                 {{-- (c) Cable Routes ──────────────────────────────────────────── --}}
                 <div class="bg-white rounded-2xl p-4 shadow-sm">
                     <div class="flex items-center justify-between mb-2">
-                        <h3 class="text-sm font-bold text-gray-900">🔌 Cable Routes</h3>
+                        <h3 class="sv-spine text-sm font-bold text-gray-900">🔌 Cable Routes</h3>
                         <button type="button" @click="addCableRoute()"
-                                class="px-3 py-1.5 rounded-lg bg-brand-teal text-white text-xs font-bold hover:bg-[#0d6e77] min-h-[36px]">
+                                class="px-3 py-1.5 rounded-lg bg-brand-teal text-white text-xs font-bold hover:bg-brand-dark min-h-[36px]">
                             + Add
                         </button>
                     </div>
@@ -1194,7 +1378,7 @@
 
                 {{-- (d) Wall Construction & Prep ──────────────────────────────── --}}
                 <div class="bg-white rounded-2xl p-4 shadow-sm">
-                    <h3 class="text-sm font-bold text-gray-900 mb-3">🧱 Wall Construction &amp; Prep</h3>
+                    <h3 class="sv-spine text-sm font-bold text-gray-900 mb-3">🧱 Wall Construction &amp; Prep</h3>
 
                     <p class="text-xs font-medium text-gray-500 mb-2">Wall construction (multi-select)</p>
                     <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
@@ -1243,7 +1427,7 @@
 
                 {{-- (e) Table Info ────────────────────────────────────────────── --}}
                 <div class="bg-white rounded-2xl p-4 shadow-sm">
-                    <h3 class="text-sm font-bold text-gray-900 mb-3">🪑 Table Info</h3>
+                    <h3 class="sv-spine text-sm font-bold text-gray-900 mb-3">🪑 Table Info</h3>
                     <button type="button"
                             @click="rooms[currentRoomIdx].engineer_feedback.table_info.has_grommets = !rooms[currentRoomIdx].engineer_feedback.table_info.has_grommets"
                             class="flex items-center gap-3 w-full p-2 rounded-xl hover:bg-gray-50 min-h-[44px] text-left mb-3">
@@ -1287,7 +1471,7 @@
 
                 {{-- (f) Floor Box Info ────────────────────────────────────────── --}}
                 <div class="bg-white rounded-2xl p-4 shadow-sm">
-                    <h3 class="text-sm font-bold text-gray-900 mb-3">🔋 Floor Box Info</h3>
+                    <h3 class="sv-spine text-sm font-bold text-gray-900 mb-3">🔋 Floor Box Info</h3>
                     <button type="button"
                             @click="rooms[currentRoomIdx].engineer_feedback.floor_box_info.has_floor_box = !rooms[currentRoomIdx].engineer_feedback.floor_box_info.has_floor_box"
                             class="flex items-center gap-3 w-full p-2 rounded-xl hover:bg-gray-50 min-h-[44px] text-left mb-3">
@@ -1339,9 +1523,9 @@
                 {{-- (g) Brackets Required ─────────────────────────────────────── --}}
                 <div class="bg-white rounded-2xl p-4 shadow-sm">
                     <div class="flex items-center justify-between mb-2">
-                        <h3 class="text-sm font-bold text-gray-900">🔩 Brackets Required</h3>
+                        <h3 class="sv-spine text-sm font-bold text-gray-900">🔩 Brackets Required</h3>
                         <button type="button" @click="addBracket()"
-                                class="px-3 py-1.5 rounded-lg bg-brand-teal text-white text-xs font-bold hover:bg-[#0d6e77] min-h-[36px]">
+                                class="px-3 py-1.5 rounded-lg bg-brand-teal text-white text-xs font-bold hover:bg-brand-dark min-h-[36px]">
                             + Add
                         </button>
                     </div>
@@ -1404,11 +1588,11 @@
                  across rooms in the Kit Info burger on the rooms list. --}}
             <div class="bg-white rounded-2xl p-4 shadow-sm">
                 <div class="flex items-center justify-between mb-2">
-                    <h3 class="text-sm font-bold text-gray-900">🛒 Additional Items Needed</h3>
+                    <h3 class="sv-spine text-sm font-bold text-gray-900">🛒 Additional Items Needed</h3>
                     <button type="button"
                             @click="addAdditionalItem()"
                             class="px-3 py-2 rounded-xl bg-brand-teal text-white text-xs font-bold
-                                   hover:bg-[#0d6e77] min-h-[36px]">
+                                   hover:bg-brand-dark min-h-[36px]">
                         + Add
                     </button>
                 </div>
@@ -1652,7 +1836,7 @@
         <button @click="nextStep()"
                 :disabled="saving"
                 class="flex-1 py-3.5 bg-brand-teal text-white rounded-2xl font-bold text-sm
-                       min-h-[50px] hover:bg-[#0d6e77] transition-colors"
+                       min-h-[50px] hover:bg-brand-dark transition-colors"
                 :class="saving ? 'opacity-60 cursor-wait' : ''">
             <span x-show="!saving">Next →</span>
             <span x-show="saving">Saving…</span>
@@ -1676,7 +1860,7 @@
         <button x-show="currentStep < 8"
                 @click="currentStep = Math.min(currentStep + 1, 8); window.scrollTo(0,0);"
                 class="flex-1 py-3.5 bg-brand-teal text-white rounded-2xl font-bold text-sm
-                       min-h-[50px] hover:bg-[#0d6e77] transition-colors">
+                       min-h-[50px] hover:bg-brand-dark transition-colors">
             Next →
         </button>
         <button x-show="currentStep === 8"

@@ -17,8 +17,8 @@
         <h3 class="text-sm font-bold text-gray-900">Equipment Items</h3>
         <button type="button"
                 @click="addEquipment()"
-                class="flex items-center gap-1 px-3 py-2 bg-[#178A95] text-white
-                       rounded-xl text-sm font-semibold min-h-[44px] hover:bg-[#0d6e77]
+                class="flex items-center gap-1 px-3 py-2 bg-[#016E82] text-white
+                       rounded-xl text-sm font-semibold min-h-[44px] hover:bg-[#014C5A]
                        transition-colors">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
@@ -57,7 +57,7 @@
                     <label class="block text-xs font-medium text-gray-500 mb-1">Type</label>
                     <select x-model="item.type"
                             class="w-full border border-gray-300 rounded-xl px-3 py-3 text-sm
-                                   bg-white focus:outline-none focus:ring-2 focus:ring-[#178A95]
+                                   bg-white focus:outline-none focus:ring-2 focus:ring-[#016E82]
                                    min-h-[44px]">
                         <option value="">Select type…</option>
                         <option value="display">Display / Screen</option>
@@ -79,7 +79,7 @@
                         <label class="block text-xs font-medium text-gray-500 mb-1">Status</label>
                         <select x-model="item.status"
                                 class="w-full border border-gray-300 rounded-xl px-2 py-3 text-sm
-                                       bg-white focus:outline-none focus:ring-2 focus:ring-[#178A95]
+                                       bg-white focus:outline-none focus:ring-2 focus:ring-[#016E82]
                                        min-h-[44px]">
                             <option value="new">New supply</option>
                             <option value="existing">Existing / reuse</option>
@@ -89,7 +89,7 @@
                         <label class="block text-xs font-medium text-gray-500 mb-1">Location</label>
                         <select x-model="item.location"
                                 class="w-full border border-gray-300 rounded-xl px-2 py-3 text-sm
-                                       bg-white focus:outline-none focus:ring-2 focus:ring-[#178A95]
+                                       bg-white focus:outline-none focus:ring-2 focus:ring-[#016E82]
                                        min-h-[44px]">
                             <option value="">Select…</option>
                             <option value="front_wall">Front wall</option>

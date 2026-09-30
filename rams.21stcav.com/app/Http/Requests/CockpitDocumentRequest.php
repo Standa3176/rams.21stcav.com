@@ -80,12 +80,34 @@ use Illuminate\Validation\Rule;
 final class CockpitDocumentRequest extends FormRequest
 {
     /**
-     * The three things this form can be asking for. A closed set, matched
+     * The five things this form can be asking for. A closed set, matched
      * exactly — never a prefix, never case-insensitively.
+     *
+     * THREE BECAME FIVE IN QUICK TASK 260930-sv2. `spaces-all` and
+     * `spaces-none` are the no-JavaScript select-all for the "Spaces being
+     * surveyed" step: each re-renders THE SAME step with the tick state
+     * rewritten, so an 18-space project is one press away from "none, then the
+     * one I want" instead of seventeen manual unticks.
+     *
+     * THEY REUSE THE `intent` NAME ON PURPOSE. The alternative — a companion
+     * checkbox — was considered and REJECTED at 46.5-06 (see the comment above
+     * `$spaceTicked` in `components/cockpit/doc-form.blade.php`) precisely
+     * because it would put a SECOND control name on the form. Two more submit
+     * buttons on the name that already carries `next`/`back` adds none, and the
+     * cockpit's ban on `<script` and on the nine handler attributes is
+     * untouched: this is a form POST, like every other act on the page.
+     *
+     * NEITHER WRITES ANYTHING. Both land in `advance()`, which the row-count
+     * test `test_a_step_advance_writes_no_row_in_any_of_the_six_tables()`
+     * already fences, so the GCW-03 "a half-finished wizard persists nothing"
+     * guarantee extends to them for free rather than needing its own proof.
      *
      * @var array<int, string>
      */
-    public const INTENTS = ['next', 'back', 'create'];
+    public const INTENTS = ['next', 'back', 'create', 'spaces-all', 'spaces-none'];
+
+    /** The two intents that rewrite the space ticks instead of changing step. */
+    public const SPACE_INTENTS = ['spaces-all', 'spaces-none'];
 
     /** The intent an absent value means, so every pre-46.5 caller is unchanged. */
     public const INTENT_CREATE = 'create';

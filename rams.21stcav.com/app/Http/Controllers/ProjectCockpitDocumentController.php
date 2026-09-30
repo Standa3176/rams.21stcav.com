@@ -277,6 +277,40 @@ final class ProjectCockpitDocumentController extends Controller
         // assumed here.
         $index  = array_search($step, $steps, true);
         $index  = $index === false ? 0 : $index;
+
+        // ── THE SPACE INTENTS STAY ON THIS STEP (quick task 260930-sv2) ─────
+        //
+        // `spaces-all` and `spaces-none` are not navigation. They re-render the
+        // step the PM is ALREADY on with the tick state rewritten, which is why
+        // they resolve to `$index` rather than to `$index ± 1`.
+        //
+        // THE REWRITE IS DONE BY WHAT IS FLASHED, NOT BY A STORED VALUE. The
+        // blade reads `old('visit_rooms')`: absent means "not answered yet, so
+        // default all" (D-02, unchanged), and an EMPTY ARRAY means "answered,
+        // and the answer is none". So `spaces-all` DROPS the key to fall back
+        // onto the existing default, and `spaces-none` flashes `[]`. No new
+        // branch was needed in the view and D-02's default is still a render
+        // decision rather than a persisted one.
+        //
+        // EVERY OTHER ANSWER SURVIVES because the rest of the payload is
+        // flashed untouched — the hidden inputs that carry earlier steps
+        // forward included. That is the whole reason this is a POST intent and
+        // not the `?spaces=none` LINK it looks like it could be: a GET would
+        // arrive with no payload at all and silently wipe steps 1 and 2.
+        if (in_array($request->intent(), CockpitDocumentRequest::SPACE_INTENTS, true)) {
+            $input = $request->except(['_token', 'intent']);
+
+            if ($request->intent() === 'spaces-none') {
+                $input['visit_rooms'] = [];
+            } else {
+                unset($input['visit_rooms']);
+            }
+
+            return redirect()
+                ->to($this->wizardUrl($project, $module, $step, $request->input('tab')))
+                ->withInput($input);
+        }
+
         $target = $request->intent() === 'next' ? $index + 1 : $index - 1;
         $target = max(0, min($target, max(0, count($steps) - 1)));
 

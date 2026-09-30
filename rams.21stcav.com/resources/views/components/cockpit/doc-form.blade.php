@@ -617,6 +617,39 @@
                                          different and wrong answer. --}}
                                     <span class="cav-qa__empty">No spaces are on file for this project yet.</span>
                                 @endforelse
+
+                                {{-- ── THE SELECT-ALL, WITHOUT JAVASCRIPT (260930-sv2) ──────
+                                     Two more submits on the `intent` name the
+                                     form ALREADY carries for Next and Back.
+                                     `spaces-none` flashes an empty
+                                     `visit_rooms` and re-renders this step;
+                                     `spaces-all` drops the key so D-02's
+                                     default-all takes over again. The cockpit's
+                                     ban on `<script` and on the nine handler
+                                     attributes is untouched, `<select` is still
+                                     not used, and NO NEW CONTROL NAME appears —
+                                     which is the exact objection that killed the
+                                     companion-checkbox idea at 46.5-06.
+
+                                     ONLY WHEN THERE IS SOMETHING TO BULK-CHANGE.
+                                     One space needs no select-all, and zero
+                                     spaces has the empty state above instead; a
+                                     pair of buttons acting on nothing would be
+                                     two dead controls.
+
+                                     COPY CHECKED AGAINST THE FENCE before use:
+                                     neither label contains any of the 21
+                                     `DEFERRED_AFFORDANCES` keys or either
+                                     `FORBIDDEN_MARKUP` entry. --}}
+                                @if (count($spaces) > 1)
+                                    <p class="cav-qa__note">
+                                        {{ count($spaceTicked) }} of {{ count($spaces) }} ticked.
+                                    </p>
+                                    <div class="cav-qa__row">
+                                        <button class="cav-qa__control" type="submit" name="intent" value="spaces-all">Tick all {{ count($spaces) }}</button>
+                                        <button class="cav-qa__control" type="submit" name="intent" value="spaces-none">Tick none</button>
+                                    </div>
+                                @endif
                             </fieldset>
                         @endif
                         {{-- NO FALLBACK ARM ON PURPOSE. The EIGHT types are a

@@ -25,8 +25,8 @@
         </div>
 
         {{-- Camera button — opens file picker / camera on mobile --}}
-        <label class="flex items-center justify-center w-11 h-11 bg-[#178A95] rounded-xl
-                       cursor-pointer text-white hover:bg-[#0d6e77] transition-colors flex-shrink-0">
+        <label class="flex items-center justify-center w-11 h-11 bg-[#016E82] rounded-xl
+                       cursor-pointer text-white hover:bg-[#014C5A] transition-colors flex-shrink-0">
             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round"
                       d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86
@@ -55,7 +55,7 @@
                 <input type="text"
                        maxlength="200"
                        placeholder="Add a note (e.g. 'crack above socket')"
-                       class="flex-1 text-sm rounded-lg border-gray-300 focus:border-[#178A95] focus:ring-[#178A95]"
+                       class="flex-1 text-sm rounded-lg border-gray-300 focus:border-[#016E82] focus:ring-[#016E82]"
                        :value="photo.caption ?? ''"
                        @blur="savePhotoCaption(photo, $event.target.value)"
                        @keydown.enter.prevent="$event.target.blur()">
