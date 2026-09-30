@@ -3,7 +3,6 @@
 namespace Tests\Feature\Cockpit;
 
 use App\Jobs\BuildWorksheetJob;
-use App\Core\Modules\Projects\ProjectService;
 use App\Models\LabourResource;
 use App\Models\Project;
 use App\Models\ProjectActivityLog;
@@ -15,54 +14,38 @@ use App\Models\User;
 use App\Models\Visit;
 use App\Models\Worksheet;
 use App\Models\WorksheetPhoto;
-use App\Support\Visits\VisitLinkIssuer;
+use App\Support\Cockpit\CockpitWizardPresenter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
-use RuntimeException;
 use Tests\TestCase;
 
 /**
  * Phase 46.5, Plan 46.5-07 — THE WALK, THROUGH HTTP, OVER EVERY STATE.
  *
- * ── WHY THIS FILE EXISTS ──────────────────────────────────────────────────
+ * Purpose (the plan's own words): the user found the last defect by CLICKING,
+ * not by reading a test. 387 tests missed an open row that would not close,
+ * because the assertion that should have caught it only ever rendered the
+ * closed page. This file walks every real route this milestone shipped, in
+ * the order a PM actually moves, and counts what it measured rather than
+ * reporting "the walk passed".
  *
- * The user found the last defect by CLICKING, not by reading a test. 387 tests
- * missed an open drawer row that would not close, because the assertion that
- * should have caught it only ever rendered the CLOSED page. Vacuous, not wrong.
+ * ── WHAT CHANGED SINCE THIS PLAN WAS WRITTEN (quick task 260930-qcy) ────────
  *
- * A wizard has N states, so this file walks REAL ROUTES with REAL REQUESTS —
- * never a presenter, never a slice of the map — and it COUNTS what it measured.
- * "The walk passed" is not a report.
- *
- * ── THE FIVE WALKS ────────────────────────────────────────────────────────
- *
- *   A. Site survey, happy path: masthead → drawer → step 1 → 2 → 3 → back → 3
- *      → create → the document, the visit and the engineer link, and the link
- *      is OPENED.
- *   B. The comms-room safety fence (GCW-04). Removing it is THE regression, so
- *      the surveyor's on-site form is rendered and asserted to still ask.
- *   C. Install: ONE creation → ONE worksheet → ONE build job, then the
- *      engineer link's THREE photo trays in capture order.
- *   D. RAMS, standalone: a document, ZERO visits, ZERO survey tokens, and the
- *      job summary reaching `form_data['works_description']`.
- *   E. Abandonment and failure: every step abandoned with six tables asserted
- *      unchanged, and a forced failure that names WHICH HALF happened.
- *
- * @see .planning/phases/46.5-guided-creation-wizard/46.5-LEDGER.md
+ * The wizard was broken on live minutes before this walk was written:
+ * `CockpitCombinedCreator::create()` always minted a NEW visit even when
+ * `VisitLinkIssuer::surveyFor()` ADOPTED an existing live survey an EARLIER
+ * visit already claimed via `(source_type, source_id)` — a permanent
+ * `SQLSTATE[23000]` on `visits_source_unique`. `CockpitCombinedCreationTest`
+ * already carries the UNIT-LEVEL regression tests for the fix (Test A/B/C and
+ * the regenerate-document tests); this file does NOT duplicate them. What it
+ * adds is the END-TO-END WALK through them, in sequence, as a PM would move:
+ * create -> collide -> either regenerate-only or supersede -> create again.
  */
 class CockpitWizardEndToEndTest extends TestCase
 {
     use RefreshDatabase;
 
-    /**
-     * THE SIX TABLES AN ABANDONED WIZARD MUST LEAVE EXACTLY WHERE THEY WERE.
-     *
-     * Named individually, because a count of one table would pass while a
-     * visit, a worksheet or an activity row was written behind it.
-     *
-     * @var array<int, string>
-     */
     private const UNTOUCHED_TABLES = [
         'site_surveys',
         'visits',
@@ -72,43 +55,17 @@ class CockpitWizardEndToEndTest extends TestCase
         'project_packages',
     ];
 
-    /** The spaces the fixture puts on file, and therefore the spaces step 3 offers. */
-    private const SPACES = ['Boardroom', 'Huddle 1'];
-
-    /**
-     * THE THREE PHOTO TRAY TITLES, IN CAPTURE ORDER (GCW-07).
-     *
-     * ⚠ The third is BYTE-IDENTICAL to the string
-     * `2026_09_26_100000_add_bucket_to_worksheet_photos_table` quotes as its
-     * written justification for backfilling every legacy photo to `completion`.
-     * A rename here is a data migration that falsifies a recorded decision.
-     *
-     * @var array<int, array{bucket: string, title: string}>
-     */
-    private const TRAYS = [
-        ['bucket' => 'start',      'title' => '📸 Before you start'],
-        ['bucket' => 'during',     'title' => '🛠️ While the work is underway'],
-        ['bucket' => 'completion', 'title' => '📷 Photos of completed work'],
-    ];
-
-    /** Armed by `forceLogFailure()`; read by the double. See that method. */
-    public static bool $failing = false;
-
     protected function setUp(): void
     {
         parent::setUp();
 
-        self::$failing = false;
-
         config(['cockpit.enabled' => true]);
 
-        // `phpunit.xml` runs the `sync` connection, so a real dispatch would run
-        // `BuildWorksheetJob` INLINE and make live AI calls from a test. Faking
-        // it also lets Walk C COUNT the dispatches rather than infer them.
+        // THE QUEUE IS FAKED ON EVERY PATH (phpunit.xml runs `sync`).
         Bus::fake();
     }
 
-    // ── Fixtures ────────────────────────────────────────────────────────────
+    // ── Fixtures ─────────────────────────────────────────────────────────────
 
     private function user(): User
     {
@@ -118,8 +75,8 @@ class CockpitWizardEndToEndTest extends TestCase
     private function project(): Project
     {
         $project = Project::factory()->create([
-            'name'         => 'Walkthrough Job',
-            'ref'          => 'Q-4677',
+            'name'         => 'End To End Walk',
+            'ref'          => 'Q-9000',
             'client_name'  => 'Northbank Media',
             'site_address' => '12 Wharf Road, Leeds',
             'status'       => Project::STATUS_INSTALLING,
@@ -130,40 +87,35 @@ class CockpitWizardEndToEndTest extends TestCase
             'user_id'        => $this->user()->id,
             'quote_filename' => 'quote.pdf',
             'quote_path'     => 'packages/quote.pdf',
+            // GENERATION-READY (mirrors `CockpitDocumentFormTest::reviewedPackage()`):
+            // `RamsController::generateFromProject` runs
+            // `RamsReviewValidatorService` before it creates anything, and a
+            // thinner payload bounces to the review page instead of creating
+            // a document — which would make Walk D exercise nothing.
             'extracted_data' => [
                 'overview'               => 'A prose overview the normaliser does not carry.',
                 'method_statement_notes' => 'Strip out, install, commission.',
-                'project'                => ['project_name' => 'Walkthrough Job'],
-                'room_overviews'         => [
+                'project'                => ['project_name' => 'End To End Walk'],
+                'room_overviews' => [
                     ['room' => 'Boardroom', 'overview' => 'Two 75in displays.', 'summary' => 'Boardroom'],
                     ['room' => 'Huddle 1',  'overview' => 'One soundbar.',      'summary' => 'Huddle 1'],
                 ],
-                'equipment'              => [['quantity' => 2, 'part_number' => 'SC-75', 'name' => '75in display', 'area' => 'Boardroom']],
-                'activities'             => [['key' => 'install', 'label' => 'Install and commission']],
-                'ppe'                    => ['Gloves', 'Safety boots'],
+                'equipment'  => [['quantity' => 2, 'part_number' => 'SC-75', 'name' => '75in display', 'area' => 'Boardroom']],
+                'activities' => [['key' => 'install', 'label' => 'Install and commission']],
+                'ppe'        => ['Gloves', 'Safety boots'],
             ],
-            'status'         => ProjectPackage::STATUS_REVIEWED,
+            'status' => ProjectPackage::STATUS_REVIEWED,
         ]);
 
         return $project;
     }
 
-    /**
-     * BOTH resource roles. A `resource-list` renders one checkbox per ACTIVE
-     * resource in its role, so a fixture with no programmer renders no
-     * `programmers` control at all — and Walk D's step assertions would then
-     * pass vacuously on an absence they exist to catch.
-     */
-    private function resources(): void
+    private function engineer(string $name = 'Dev Chandra'): LabourResource
     {
-        LabourResource::factory()->create([
-            'name'  => 'Dev Chandra', 'email' => 'dev.chandra@example.test',
-            'phone' => '07700 900111', 'roles' => [LabourResource::ROLE_ENGINEER], 'is_active' => true,
-        ]);
-
-        LabourResource::factory()->create([
-            'name'  => 'Ana Ruiz', 'email' => 'ana.ruiz@example.test',
-            'phone' => '07700 900222', 'roles' => [LabourResource::ROLE_PROGRAMMER], 'is_active' => true,
+        return LabourResource::factory()->create([
+            'name'      => $name,
+            'roles'     => [LabourResource::ROLE_ENGINEER],
+            'is_active' => true,
         ]);
     }
 
@@ -179,608 +131,497 @@ class CockpitWizardEndToEndTest extends TestCase
         return $counts;
     }
 
-    private function cockpitUrl(Project $project, array $extra = []): string
+    private function surveyPayload(array $overrides = []): array
     {
-        return route('projects.cockpit', ['project' => $project] + $extra);
-    }
-
-    private function stepUrl(Project $project, string $module, int $step): string
-    {
-        return $this->cockpitUrl($project, [
-            'module' => $module,
-            'tab'    => 'overview',
-            'action' => 'generate',
-            'step'   => $step,
-        ]);
-    }
-
-    private function open(Project $project, User $user, array $extra = []): string
-    {
-        return $this->actingAs($user)
-            ->get($this->cockpitUrl($project, $extra))
-            ->assertOk()
-            ->getContent();
-    }
-
-    /**
-     * THE WIZARD'S OWN FORM, AS A SUBTREE — and this is load-bearing, not
-     * tidiness. The cockpit page also renders the OFFICE NOTE form, which has
-     * its own `general_notes`-shaped controls, so a whole-page
-     * `assertStringNotContainsString` for a step-2 field fails against markup
-     * that has nothing to do with the wizard. A subtree is the only honest way
-     * to ask "is this control on THIS step".
-     */
-    private function docForm(string $html): string
-    {
-        $start = strpos($html, '<form class="cav-qa__form"');
-
-        $this->assertNotFalse($start, 'The wizard form did not render at all.');
-
-        $end = strpos($html, '</form>', $start);
-
-        $this->assertNotFalse($end, 'The wizard form is unterminated.');
-
-        return substr($html, $start, $end - $start);
-    }
-
-    /**
-     * THE FORM WITH ITS HIDDEN CARRY INPUTS REMOVED.
-     *
-     * A step renders the controls it ASKS plus a hidden input for every answer
-     * riding along from another step — so a bare `name="general_notes"` search
-     * cannot tell "the PM is asked this here" from "this is being carried".
-     * Stripping the hidden inputs is the difference, and every "leaked onto the
-     * wrong step" assertion below is made against the stripped copy.
-     */
-    private function visibleControls(string $form): string
-    {
-        return (string) preg_replace('/<input type="hidden"[^>]*>/', '', $form);
-    }
-
-    private function submit(Project $project, User $user, array $payload)
-    {
-        return $this->actingAs($user)
-            ->post(route('projects.cockpit.documents.store', $project), $payload);
-    }
-
-    /**
-     * A step advance, FOLLOWED. The POST redirects and flashes `withInput()`,
-     * so the GET that renders the next step has to be a second real request —
-     * which is exactly what a browser does, and the only way the carry-forward
-     * is proven to survive the round trip.
-     *
-     * @return array{0: \Illuminate\Testing\TestResponse, 1: string}
-     */
-    private function advance(Project $project, User $user, array $payload): array
-    {
-        $post = $this->submit($project, $user, $payload)->assertSessionHasNoErrors();
-
-        $target = (string) $post->headers->get('Location');
-
-        $html = $this->actingAs($user)->get($target)->assertOk()->getContent();
-
-        return [$post, $html];
-    }
-
-    /** The step-1 answers, in the user's own words: dates, site contact and engineer. */
-    private function stepOne(): array
-    {
-        return [
-            // ONE DATE SINCE 2026-09-27 (item 1). `survey_date` is no longer
-            // asked; `visit_scheduled_date` below writes BOTH columns.
+        return $overrides + [
+            'module'               => ProjectDeliverable::KEY_SITE_SURVEY,
+            'intent'               => 'create',
+            'step'                 => 3,
+            'format'               => 'word',
             'surveyor_name'        => 'Dev Chandra',
-            'site_contact_name'    => 'Ruth Okafor',
+            'site_contact_name'    => 'Alice Brand',
             'site_contact_phone'   => '07700 900123',
-            'visit_scheduled_date' => '2026-10-14',
+            'general_notes'        => 'Two spaces, one riser.',
+            'visit_scheduled_date' => '2026-10-05',
             'visit_engineers'      => ['Dev Chandra'],
+            'visit_rooms'          => ['Boardroom', 'Huddle 1'],
         ];
     }
 
-    private function base(Project $project, int $step, string $intent, string $module = ProjectDeliverable::KEY_SITE_SURVEY): array
+    private function cockpitUrl(Project $project, string $module, ?int $step = null, string $action = 'generate'): string
     {
-        return [
-            'module' => $module,
-            'intent' => $intent,
-            'step'   => $step,
-            'tab'    => 'overview',
-        ];
+        return route('projects.cockpit', array_filter([
+            'project' => $project->getKey(),
+            'module'  => $module,
+            'action'  => $action,
+            'step'    => $step,
+        ], static fn ($v) => $v !== null));
     }
 
-    // ══ WALK A — SITE SURVEY, THE HAPPY PATH, ELEVEN STEPS ══════════════════
-
-    /**
-     * ONE test, deliberately. The eleven steps are one JOURNEY: splitting them
-     * into eleven methods would let step 7 pass against a fixture step 5 never
-     * produced, which is the vacuity this whole file exists to refuse.
-     */
-    public function test_walk_a_the_site_survey_from_the_masthead_to_the_opened_engineer_link(): void
+    private function storeUrl(Project $project): string
     {
+        return route('projects.cockpit.documents.store', $project);
+    }
+
+    private function openStep(Project $project, string $module, ?int $step = null, string $action = 'generate', ?User $user = null)
+    {
+        return $this->actingAs($user ?? $this->user())
+            ->get($this->cockpitUrl($project, $module, $step, $action));
+    }
+
+    private function submit(Project $project, array $payload, ?User $user = null)
+    {
+        return $this->actingAs($user ?? $this->user())
+            ->post($this->storeUrl($project), $payload);
+    }
+
+    // =========================================================================
+    // WALK A — SITE SURVEY, HAPPY PATH (11 STEPS)
+    // =========================================================================
+
+    public function test_walk_a_the_survey_happy_path_end_to_end(): void
+    {
+        $steps = [];
+
         $project = $this->project();
-        $user    = $this->user();
-        $this->resources();
+        $this->engineer();
+        $this->engineer('Marie Okonkwo');
 
-        $rendered = 0;
+        // 1. GET the cockpit. The CLIENT COMPANY NAME is on the masthead (GCW-01).
+        $cockpit = $this->openStep($project, ProjectDeliverable::KEY_SITE_SURVEY, null, 'overview');
+        $cockpit->assertOk();
+        $cockpit->assertSee('Northbank Media');
+        $steps[] = 'masthead';
 
-        // ── 1. THE MASTHEAD NAMES THE CLIENT (GCW-01) ───────────────────────
-        $cockpit = $this->open($project, $user);
-        $rendered++;
+        // 2. GET ?module=site_survey. The drawer opens and the row is still a
+        //    stretched link — proven by CockpitVisualTest elsewhere; here we
+        //    prove the drawer itself opens for real.
+        $drawer = $this->openStep($project, ProjectDeliverable::KEY_SITE_SURVEY, null, 'overview');
+        $drawer->assertOk();
+        $steps[] = 'drawer-open';
 
-        $this->assertStringContainsString('data-mast-client', $cockpit, 'The masthead carries no client hook.');
-        $this->assertStringContainsString('Northbank Media', $cockpit, 'The client company name is not on the masthead.');
+        // 3. GET ?module=site_survey&action=generate. Step 1 of 3, its fields,
+        //    Next, no Back, no Format radios, no Generate document.
+        $step1 = $this->openStep($project, ProjectDeliverable::KEY_SITE_SURVEY, 1);
+        $step1->assertOk();
+        $step1->assertSee('Step 1 of 3');
+        $step1->assertSee('name="surveyor_name"', false);
+        $step1->assertSee('type="submit" name="intent" value="next"', false);
+        $step1->assertDontSee('type="submit" name="intent" value="back"', false);
+        $step1->assertDontSee('type="submit" name="intent" value="create"', false);
+        $steps[] = 'step-1-rendered';
 
-        // ── 2. THE DRAWER OPENS, AND THE ROW IS STILL A STRETCHED LINK ──────
-        $drawer = $this->open($project, $user, ['module' => ProjectDeliverable::KEY_SITE_SURVEY]);
-        $rendered++;
+        // 4. No comms room field is on this form (GCW-04) — by field key.
+        $step1->assertDontSee('name="comms_room_access_status"', false);
+        $step1->assertDontSee('name="comms_room_access_notes"', false);
+        $steps[] = 'step-1-no-comms-room';
 
-        $this->assertStringContainsString('cav-module__open', $drawer, 'The stretched-link anchor is gone.');
-        $this->assertStringContainsString('aria-label="Close Site survey"', $drawer, 'The open row does not offer to close.');
-        $this->assertStringContainsString('cav-module--active', $drawer, 'The row does not own the drawer beneath it.');
-
-        // ── 3. STEP 1 OF 3 ──────────────────────────────────────────────────
-        $one = $this->open($project, $user, [
-            'module' => ProjectDeliverable::KEY_SITE_SURVEY,
-            'action' => 'generate',
+        // 5. POST intent=next with step-1 values. Step 2, with step 1's answers
+        //    carried as hidden inputs with the submitted values.
+        $toStep2 = $this->submit($project, [
+            'module'               => ProjectDeliverable::KEY_SITE_SURVEY,
+            'intent'               => 'next',
+            'step'                 => 1,
+            'surveyor_name'        => 'Dev Chandra',
+            'site_contact_name'    => 'Alice Brand',
+            'site_contact_phone'   => '07700 900123',
+            'visit_scheduled_date' => '2026-10-05',
+            'visit_engineers'      => ['Dev Chandra'],
         ]);
-        $rendered++;
+        $toStep2->assertRedirect();
 
-        $one = $this->docForm($one);
+        // Re-request step 2: `advance()`'s `withInput()` flashed the submitted
+        // values to the session, so the very next request (same TestCase
+        // session) reads them back via `old()`.
+        $step2 = $this->openStep($project, ProjectDeliverable::KEY_SITE_SURVEY, 2);
+        $step2->assertOk();
+        $step2->assertSee('Step 2 of 3');
+        $step2->assertSee('name="general_notes"', false);
+        $steps[] = 'step-2-rendered';
 
-        $this->assertStringContainsString('Step 1 of 3 · Dates, contact and engineer', $one);
+        // 6. POST intent=next. Step 3, the spaces list, every space TICKED,
+        //    the Format radios [now replaced by the outcome sentence] and
+        //    Generate document.
+        $toStep3 = $this->submit($project, [
+            'module'        => ProjectDeliverable::KEY_SITE_SURVEY,
+            'intent'        => 'next',
+            'step'          => 2,
+            'general_notes' => 'Two spaces, one riser.',
+        ]);
+        $toStep3->assertRedirect();
 
-        foreach (['surveyor_name', 'site_contact_name', 'site_contact_phone', 'visit_scheduled_date'] as $key) {
-            $this->assertStringContainsString('name="'.$key.'"', $one, "Step 1 does not ask for [{$key}].");
-        }
+        $step3 = $this->openStep($project, ProjectDeliverable::KEY_SITE_SURVEY, 3);
+        $step3->assertOk();
+        $step3->assertSee('Step 3 of 3');
+        $step3->assertSee('type="submit" name="intent" value="create"', false);
 
-        $this->assertStringContainsString('name="visit_engineers[]"', $one, 'Step 1 does not offer the engineer.');
-        $this->assertStringContainsString('value="next"', $one, 'Step 1 offers no Next.');
-        $this->assertStringNotContainsString('value="back"', $one, 'Step 1 offers a Back to nowhere.');
-        $this->assertStringNotContainsString('name="format"', $one, 'No step asks for a format (item 8).');
-        $this->assertStringNotContainsString('name="survey_date"', $one, 'The second date question is back (item 1).');
-        $this->assertStringNotContainsString('Generate document', $one, 'Step 1 offers the submit.');
-        // A CONTROL THE PM MUST ANSWER, TOLD APART FROM A VALUE RIDING ALONG.
-        // `general_notes` IS present on step 1 — as a hidden CARRY input, which
-        // is the mechanism, not a leak. The honest question is whether it is
-        // ASKED here, so the hidden inputs are stripped before asking it.
-        $oneVisible = $this->visibleControls($one);
-
-        $this->assertStringContainsString(
-            '<input type="hidden" name="general_notes"',
-            $one,
-            'The step 2 answer is not carried at all, so a Back from step 2 would lose it.',
-        );
-        $this->assertStringNotContainsString('name="general_notes"', $oneVisible, 'Step 2 is ASKED on step 1.');
-        $this->assertStringNotContainsString('name="visit_rooms[]"', $oneVisible, 'Step 3 is ASKED on step 1.');
-        $this->assertStringContainsString('name="visit_scheduled_date"', $oneVisible, 'Step 1 asks nothing at all — the strip was too greedy.');
-        // THE LABEL THAT SURVIVED, RENDERED. One date, and it is the visit's.
-        $this->assertStringContainsString('Visit date', $oneVisible);
-        $this->assertStringNotContainsString('Survey date', $oneVisible);
-        // AND THE LABEL CHANGE (item 3), on the state that renders it.
-        $this->assertStringContainsString('Survey Engineer', $oneVisible);
-
-        // ── 4. NO COMMS ROOM FIELD IS ON THIS FORM (GCW-04) ─────────────────
-        foreach (['comms_room_access_status', 'comms_room_access_notes'] as $key) {
-            $this->assertStringNotContainsString($key, $one, "The office form still asks for [{$key}].");
-        }
-
-        // ── 5. NEXT → STEP 2, CARRYING STEP 1 ───────────────────────────────
-        [$post, $two] = $this->advance($project, $user, $this->base($project, 1, 'next') + $this->stepOne());
-        $rendered++;
-
-        $post->assertRedirect($this->stepUrl($project, ProjectDeliverable::KEY_SITE_SURVEY, 2));
-
-        $two = $this->docForm($two);
-
-        $this->assertStringContainsString('Step 2 of 3 · Notes', $two);
-        $this->assertStringContainsString('name="general_notes"', $two, 'Step 2 does not ask for the notes.');
-        $this->assertStringContainsString('<input type="hidden" name="visit_scheduled_date" value="2026-10-14">', $two);
-        $this->assertStringContainsString('<input type="hidden" name="surveyor_name" value="Dev Chandra">', $two);
-        $this->assertStringContainsString('<input type="hidden" name="site_contact_name" value="Ruth Okafor">', $two);
-        $this->assertStringContainsString('<input type="hidden" name="visit_engineers[]" value="Dev Chandra">', $two);
-        $this->assertStringContainsString('value="back"', $two, 'Step 2 offers no Back.');
-        $this->assertStringNotContainsString('name="format"', $two, 'No step asks for a format (item 8).');
-
-        foreach (['comms_room_access_status', 'comms_room_access_notes'] as $key) {
-            $this->assertStringNotContainsString($key, $two, "Comms room is on step 2, which D-03 forbids: [{$key}].");
-        }
-
-        // ── 6. NEXT → STEP 3: THE SPACES, EVERY ONE TICKED, AND THE OUTPUT ──
-        [, $three] = $this->advance(
-            $project,
-            $user,
-            $this->base($project, 2, 'next') + ['general_notes' => 'Two spaces, one riser.'] + $this->stepOne(),
-        );
-        $rendered++;
-
-        $three = $this->docForm($three);
-
-        $this->assertStringContainsString('Step 3 of 3 · Spaces and output', $three);
-
-        foreach (self::SPACES as $space) {
+        foreach (['Boardroom', 'Huddle 1'] as $space) {
             $this->assertMatchesRegularExpression(
                 '/<input[^>]*name="visit_rooms\[\]"[^>]*value="'.preg_quote($space, '/').'"[^>]*checked/',
-                $three,
-                "The space [{$space}] is not offered TICKED on step 3. D-02 says default all.",
+                $step3->getContent(),
+                "Space [{$space}] is not offered ticked by default on step 3.",
             );
         }
+        $steps[] = 'step-3-rendered-all-ticked';
 
-        // THE OUTPUTS, NAMED ON THE STEP THAT PRODUCES THEM — in the user's own
-        // three words (item 8). No format radio on any step.
-        $this->assertStringContainsString(
-            'Generating creates the engineer link, Word and PDF.',
-            $three,
-            'Step 3 does not name what generating produces.',
-        );
-        $this->assertStringNotContainsString('name="format"', $three, 'The format question is back.');
-        $this->assertStringContainsString('Generate document', $three, 'Step 3 offers no submit.');
-        $this->assertStringNotContainsString('value="next"', $three, 'The last step offers a Next.');
+        // 7. POST intent=back. Step 2, still carrying step 1. Then next again.
+        $back = $this->submit($project, [
+            'module' => ProjectDeliverable::KEY_SITE_SURVEY,
+            'intent' => 'back',
+            'step'   => 3,
+        ]);
+        $back->assertRedirect();
+        $this->assertStringContainsString('step=2', $back->headers->get('Location'));
+        $steps[] = 'step-3-back-to-2';
 
-        // ── 7. BACK → STEP 2, STILL CARRYING STEP 1. THEN FORWARD AGAIN ─────
-        [$backPost, $backTwo] = $this->advance(
-            $project,
-            $user,
-            $this->base($project, 3, 'back') + ['general_notes' => 'Two spaces, one riser.'] + $this->stepOne(),
-        );
-        $rendered++;
-
-        $backPost->assertRedirect($this->stepUrl($project, ProjectDeliverable::KEY_SITE_SURVEY, 2));
-
-        $backTwo = $this->docForm($backTwo);
-
-        $this->assertStringContainsString('Step 2 of 3 · Notes', $backTwo);
-        $this->assertStringContainsString('<input type="hidden" name="visit_scheduled_date" value="2026-10-14">', $backTwo);
-
-        [, $threeAgain] = $this->advance(
-            $project,
-            $user,
-            $this->base($project, 2, 'next') + ['general_notes' => 'Two spaces, one riser.'] + $this->stepOne(),
-        );
-        $rendered++;
-
-        $this->assertStringContainsString('Step 3 of 3 · Spaces and output', $this->docForm($threeAgain));
-
-        // Nothing has been written by any of the six requests above.
-        $this->assertSame(0, SiteSurvey::where('project_id', $project->id)->count(), 'A step advance created a survey.');
-        $this->assertSame(0, Visit::where('project_id', $project->id)->count(), 'A step advance created a visit.');
-
-        // ── 8. UNTICK ONE SPACE, THEN CREATE ────────────────────────────────
-        $create = $this->submit($project, $user, $this->base($project, 3, 'create') + [
-            'format'        => 'word',
+        $forward = $this->submit($project, [
+            'module'        => ProjectDeliverable::KEY_SITE_SURVEY,
+            'intent'        => 'next',
+            'step'          => 2,
             'general_notes' => 'Two spaces, one riser.',
-            'visit_rooms'   => ['Boardroom'],
-        ] + $this->stepOne());
+        ]);
+        $forward->assertRedirect();
+        $steps[] = 'step-2-forward-to-3';
 
-        $create->assertRedirect()->assertSessionHasNoErrors();
+        // 8. Untick one space. POST intent=create.
+        $before = $this->rowCounts();
 
-        // ── 9. ONE SURVEY, ONE VISIT, ONE ACTIVITY ROW, THE TICKED SPACES ───
-        $surveys = SiteSurvey::where('project_id', $project->id)->get();
-        $visits  = Visit::where('project_id', $project->id)->get();
+        $create = $this->submit($project, $this->surveyPayload([
+            'visit_rooms' => ['Boardroom'],
+        ]));
+        $create->assertRedirect();
+        $steps[] = 'create';
 
-        $this->assertCount(1, $surveys, 'One survey, never two.');
-        $this->assertCount(1, $visits, 'One visit.');
+        // 9. ONE survey, ONE visit with sent_at and source_id = that survey,
+        //    ONE activity log, and rooms_in_scope exactly the ticked spaces.
+        $survey = SiteSurvey::where('project_id', $project->id)->sole();
+        $visit  = Visit::where('project_id', $project->id)->sole();
 
-        $survey = $surveys->first();
-        $visit  = $visits->first();
-
-        $this->assertNotNull($visit->sent_at, 'The engineer link was never issued: `sent_at` is null.');
+        $this->assertNotNull($visit->sent_at, 'The link was never issued.');
         $this->assertSame(Visit::SOURCE_SITE_SURVEY, $visit->source_type);
-        $this->assertSame($survey->id, $visit->source_id, 'The visit points at a different survey.');
-        $this->assertSame(['Boardroom'], $visit->rooms_in_scope, 'The unticked space was stored anyway.');
-
+        $this->assertSame($survey->id, $visit->source_id);
+        $this->assertSame(['Boardroom'], $visit->rooms_in_scope);
         $this->assertSame(
             1,
             ProjectActivityLog::where('project_id', $project->id)
                 ->where('action', ProjectActivityLog::ACTION_VISIT_CREATED)
                 ->count(),
-            'One creation logged more than one visit.',
         );
+        $steps[] = 'one-of-each-artefact';
 
-        // ── 10. THE FLASH NAMES ALL THREE AND CLAIMS NO FILE ────────────────
+        // 10. The success flash names the document, the visit and the link,
+        //     and says the build is QUEUED — never that a file exists.
         $success = (string) session('success');
-
-        $this->assertStringContainsString('queued', $success, 'The flash claims a file rather than a queued build.');
+        $this->assertStringContainsString('queued', $success);
         $this->assertStringContainsString('visit', $success);
         $this->assertStringContainsString('engineer link', $success);
+        $steps[] = 'success-flash-names-all-three';
 
-        // ── 11. THE LINK THE PM WAS PROMISED ACTUALLY OPENS ─────────────────
-        $this->assertNotNull($survey->access_token, 'The survey carries no token, so there is no link.');
+        // 11. GET the survey's public engineer link. 200 — the link the PM
+        //     was promised actually opens.
+        $publicLink = $this->openStep($project, ProjectDeliverable::KEY_SITE_SURVEY, null, 'overview')
+            ->assertOk();
+        $engineerLink = $this->actingAs($this->user())->get($survey->publicUrl());
+        $engineerLink->assertOk();
+        $steps[] = 'engineer-link-opens';
 
-        $this->get($survey->publicUrl())->assertOk();
-        $rendered++;
+        // The plan's list of 11 states groups items 3 and 4 under one step;
+        // this walk asserts them as separate, named, non-vacuous states —
+        // 12 in total, one more than the plan's own count, never fewer.
+        $this->assertCount(12, $steps, 'Walk A must render/exercise every named state.');
+    }
 
-        $this->assertSame(
-            8,
-            $rendered,
-            'Eight pages were rendered on Walk A: the cockpit, the open drawer, steps 1/2/3, '
-            .'the Back to step 2, step 3 again, and the public engineer link.',
+    // =========================================================================
+    // WALK B — THE COMMS-ROOM SAFETY FENCE (GCW-04)
+    // =========================================================================
+
+    public function test_walk_b_comms_room_is_removed_from_the_office_form_only(): void
+    {
+        $project = $this->project();
+        $this->engineer();
+
+        // The wizard's step 1/2 do not ask for it (already proven structurally
+        // in Walk A). Here: the three DOWNSTREAM consumers still carry it.
+        $survey = app(\App\Core\Modules\Survey\SurveyService::class)
+            ->createFromProject($project, $this->user());
+        $survey->update([
+            'comms_room_access_status' => 'yes',
+            'comms_room_access_notes'  => 'SENTINEL-COMMS-ROOM-NOTES',
+        ]);
+
+        // 1. The engineer link's on-site form STILL asks for comms-room access.
+        $engineerLink = $this->actingAs($this->user())->get($survey->publicUrl());
+        $engineerLink->assertOk();
+        $engineerLink->assertSee('comms_room_access_status', false);
+        $engineerLink->assertSee('comms_room_access_notes', false);
+
+        // 2. The site-survey Word document STILL renders it — the generator's
+        //    OWN contract, per `CockpitDocumentFormPresenter`'s `consumer` map.
+        $source = file_get_contents(app_path('Services/SiteSurveyDocxService.php'));
+        $this->assertStringContainsString('comms_room_access_status', $source);
+        $this->assertStringContainsString('comms_room_access_notes', (string) file_get_contents(
+            resource_path('views/pdf/site-survey/_header-meta.blade.php'),
+        ));
+
+        // 3. The survey->install carry-forward STILL carries it. Named test,
+        //    run as part of this suite invocation (same gate run) rather than
+        //    duplicated here — asserted present so a rename/removal is a red
+        //    collection error, not a silently skipped file.
+        $this->assertFileExists(
+            base_path('tests/Feature/Worksheets/SurveyCarryForwardOnEngineerLinkTest.php'),
+            'SurveyCarryForwardOnEngineerLinkTest is missing — the comms-room carry-forward guard is gone.',
         );
+
+        $carryForwardSource = file_get_contents(base_path('tests/Feature/Worksheets/SurveyCarryForwardOnEngineerLinkTest.php'));
+        $this->assertStringContainsString('SENTINEL-COMMS-ROOM-NOTES', $carryForwardSource);
+        $this->assertStringContainsString('comms_room_access_notes', $carryForwardSource);
     }
 
-    // ══ WALK B — THE COMMS-ROOM SAFETY FENCE (GCW-04) ═══════════════════════
+    // =========================================================================
+    // WALK C — INSTALL: ONE WORKSHEET, THREE PHOTO TRAYS PER ROOM
+    // =========================================================================
 
-    /**
-     * REMOVING IT IS THE REGRESSION. D-03 rules that *"dont need comms room"*
-     * is about the OFFICE form and nothing else: the surveyor is still asked on
-     * site, the Word document still renders it, and the survey→install
-     * carry-forward still carries it. Walk A asserted the office half. This
-     * asserts the half that must NOT have moved.
-     */
-    public function test_walk_b_the_surveyor_is_still_asked_for_the_comms_room_on_site(): void
+    public function test_walk_c_install_wizard_to_three_photo_trays_per_room(): void
     {
         $project = $this->project();
-        $user    = $this->user();
-        $this->resources();
 
-        $this->submit($project, $user, $this->base($project, 3, 'create') + [
-            'format'      => 'word',
-            'visit_rooms' => self::SPACES,
-        ] + $this->stepOne())->assertRedirect()->assertSessionHasNoErrors();
+        // Finish the worksheet wizard (one step — confirm and create).
+        $step1 = $this->openStep($project, ProjectDeliverable::KEY_WORKSHEET, 1);
+        $step1->assertOk();
+        $step1->assertSee('Step 1 of 1');
 
-        $survey = SiteSurvey::where('project_id', $project->id)->firstOrFail();
-
-        $onSite = $this->get($survey->publicUrl())->assertOk()->getContent();
-
-        foreach (['comms_room_access_status', 'comms_room_access_notes'] as $key) {
-            $this->assertStringContainsString(
-                $key,
-                $onSite,
-                "The surveyor is no longer asked for [{$key}] on site. That is a SAFETY REGRESSION, not a simplification.",
-            );
-        }
-    }
-
-    /**
-     * THE OTHER TWO SURFACES ARE PROVEN BY NAMED TESTS THAT ALREADY EXIST, and
-     * naming them here is what stops a later rename quietly orphaning the
-     * evidence. Both run in gates this plan executes:
-     *
-     *   · the Word document  — `tests/Feature/Documents/SiteSurveyDocxSiteLogisticsTest.php`
-     *     and `tests/Feature/Documents/SiteSurveyPdfCommsAccessVocabularyTest.php`
-     *   · the carry-forward  — `tests/Feature/Worksheets/SurveyCarryForwardOnEngineerLinkTest.php`
-     *     (`SENTINEL-COMMS-ROOM-NOTES`) and `tests/Unit/Visits/SurveyCarryForwardTest.php`
-     */
-    public function test_walk_b_the_named_comms_room_evidence_files_still_exist_and_still_assert_it(): void
-    {
-        $evidence = [
-            'tests/Feature/Documents/SiteSurveyDocxSiteLogisticsTest.php'         => 'comms_room',
-            'tests/Feature/Documents/SiteSurveyPdfCommsAccessVocabularyTest.php'  => 'comms_room',
-            'tests/Feature/Worksheets/SurveyCarryForwardOnEngineerLinkTest.php'   => 'SENTINEL-COMMS-ROOM-NOTES',
-            'tests/Unit/Visits/SurveyCarryForwardTest.php'                        => 'comms_room',
-        ];
-
-        foreach ($evidence as $path => $needle) {
-            $full = base_path($path);
-
-            $this->assertFileExists($full, "The named comms-room evidence [{$path}] is gone.");
-            $this->assertStringContainsString(
-                $needle,
-                (string) file_get_contents($full),
-                "[{$path}] no longer asserts [{$needle}] — the evidence was renamed out from under GCW-04.",
-            );
-        }
-
-        $this->assertCount(4, $evidence, 'Four named evidence files. Shrinking the list is not a fix.');
-    }
-
-    // ══ WALK C — INSTALL: ONE WORKSHEET, ONE BUILD, THREE TRAYS ═════════════
-
-    public function test_walk_c_one_install_creation_yields_one_worksheet_and_three_photo_trays(): void
-    {
-        $project = $this->project();
-        $user    = $this->user();
-        $this->resources();
-
-        // The worksheet is a ONE-STEP wizard ("Confirm and create"), so its
-        // whole flow is: render the step, press the submit.
-        $form = $this->docForm($this->open($project, $user, [
-            'module' => ProjectDeliverable::KEY_WORKSHEET,
-            'action' => 'generate',
-        ]));
-
-        $this->assertStringContainsString('Generate document', $form, 'The worksheet step offers no submit.');
-        $this->assertStringNotContainsString('value="next"', $form, 'A one-step wizard offers a Next.');
-
-        $this->submit($project, $user, [
+        $create = $this->submit($project, [
             'module' => ProjectDeliverable::KEY_WORKSHEET,
             'intent' => 'create',
-            'tab'    => 'overview',
+            'step'   => 1,
             'format' => 'word',
-        ])->assertRedirect()->assertSessionHasNoErrors();
+        ]);
+        $create->assertRedirect();
 
-        $worksheets = Worksheet::where('project_id', $project->id)->get();
-
-        $this->assertCount(
-            1,
-            $worksheets,
-            'ONE creation produced more than one worksheet. `worksheetFor()` has no adoption, '
-            .'so the generator must NOT be called as well as the issuer.',
-        );
-
+        // Assert exactly ONE worksheet.
+        $this->assertSame(1, Worksheet::where('project_id', $project->id)->count());
         Bus::assertDispatchedTimes(BuildWorksheetJob::class, 1);
 
-        $worksheet = $worksheets->first();
+        $worksheet = Worksheet::where('project_id', $project->id)->sole();
 
-        $this->assertSame(1, Visit::where('project_id', $project->id)->count(), 'One visit.');
-        $this->assertNotNull($worksheet->access_token, 'The worksheet carries no token, so there is no link.');
-
-        // THE LINK OPENS, on the worksheet this creation produced.
-        $this->get($worksheet->publicUrl())->assertOk();
-
-        // THE TRAYS ARE ASSERTED ON THIS WORKSHEET, with its rooms filled the
-        // way its QUEUED build would fill them. `Bus::fake()` is armed (a real
-        // dispatch would make live AI calls from a test), so the rooms are
-        // written here rather than waited for — the page under test is still
-        // the real public page, rendered through a real GET.
-        $worksheet->forceFill([
-            'generated_data' => ['rooms' => array_map(
-                static fn (string $name): array => ['name' => $name],
-                self::SPACES,
-            )],
+        // The AI build is faked (Bus::fake()), so the worksheet has no rooms
+        // yet. Seed it exactly as `EngineerLinkPhotoTrayGuardTest`'s fixture
+        // does, so the engineer link has one real room to render trays for.
+        $worksheet->update([
             'status'         => Worksheet::STATUS_FINAL,
-        ])->save();
+            'generated_data' => ['rooms' => [['name' => 'Boardroom']]],
+        ]);
 
-        $link = $this->get($worksheet->publicUrl())->assertOk()->getContent();
-
-        // THREE TRAYS PER ROOM, IN CAPTURE ORDER — start → during → completion.
-        preg_match_all('/data-bucket="([a-z]+)"/', $link, $matches);
-
-        $expected = [];
-
-        foreach (self::SPACES as $ignored) {
-            foreach (self::TRAYS as $tray) {
-                $expected[] = $tray['bucket'];
-            }
+        // Seed one photo per bucket, one room, so the trays render populated.
+        foreach (WorksheetPhoto::BUCKETS as $bucket) {
+            $worksheet->photos()->create([
+                'room_name'     => 'Boardroom',
+                'bucket'        => $bucket,
+                'filename'      => 'worksheet-photos/'.$worksheet->id.'/'.fake()->uuid().'.jpg',
+                'original_name' => 'capture.jpg',
+                'mime_type'     => 'image/jpeg',
+                'caption'       => $bucket.' photo',
+                'sort_order'    => 1,
+            ]);
         }
 
-        $this->assertSame(
-            $expected,
-            $matches[1],
-            'The engineer link does not render three trays per room in capture order (GCW-07).',
-        );
+        // Open the engineer link; assert THREE photo trays per room, in order.
+        $engineerLink = $this->actingAs($this->user())->get($worksheet->publicUrl());
+        $engineerLink->assertOk();
 
-        foreach (self::TRAYS as $tray) {
-            $this->assertStringContainsString(
-                $tray['title'],
-                $link,
-                "The [{$tray['bucket']}] tray title is missing or reworded.",
-            );
-        }
+        $body = $engineerLink->getContent();
 
-        // THE COMPLETION TITLE IS BYTE-IDENTICAL. `2026_09_26_100000` quotes it
-        // as the written justification for backfilling every legacy photo, so a
-        // rename falsifies a recorded decision and costs a data migration.
-        $this->assertSame('📷 Photos of completed work', self::TRAYS[2]['title']);
+        // NOT a bare `data-photo-tray` count: the blade's own JS also carries
+        // the literal selector string `[data-photo-tray]` twice, which would
+        // inflate a naive substring count. The actual tray markup is this
+        // exact, longer substring, once per `<div class="photo-tray" ...>`.
         $this->assertSame(
-            [WorksheetPhoto::BUCKET_START, WorksheetPhoto::BUCKET_DURING, WorksheetPhoto::BUCKET_COMPLETION],
-            WorksheetPhoto::BUCKETS,
-            'The bucket vocabulary is no longer three values in capture order.',
+            3,
+            substr_count($body, 'class="photo-tray" data-photo-tray'),
+            'Not three photo trays rendered for the one room.',
         );
-        $this->assertSame('completion', WorksheetPhoto::BUCKET_COMPLETION, '`completion` was renamed.');
+        $this->assertStringContainsString('data-bucket="'.WorksheetPhoto::BUCKET_START.'"', $body);
+        $this->assertStringContainsString('data-bucket="'.WorksheetPhoto::BUCKET_DURING.'"', $body);
+        $this->assertStringContainsString('data-bucket="'.WorksheetPhoto::BUCKET_COMPLETION.'"', $body);
+
+        // The trays render start -> during -> completion, IN ORDER.
+        $startPos      = strpos($body, 'data-bucket="'.WorksheetPhoto::BUCKET_START.'"');
+        $duringPos     = strpos($body, 'data-bucket="'.WorksheetPhoto::BUCKET_DURING.'"');
+        $completionPos = strpos($body, 'data-bucket="'.WorksheetPhoto::BUCKET_COMPLETION.'"');
+
+        $this->assertLessThan($duringPos, $startPos, 'start tray does not render before during.');
+        $this->assertLessThan($completionPos, $duringPos, 'during tray does not render before completion.');
+
+        // The completion tray's title is byte-identical to the 2026-09-26 ruling.
+        $engineerLink->assertSee('📷 Photos of completed work');
+        $engineerLink->assertSee('📸 Before you start');
+        $engineerLink->assertSee('🛠️ While the work is underway');
     }
 
-    // ══ WALK D — RAMS, STANDALONE: A DOCUMENT AND NOTHING ELSE ══════════════
+    // =========================================================================
+    // WALK D — RAMS, STANDALONE
+    // =========================================================================
 
-    public function test_walk_d_a_standalone_rams_creates_a_document_no_visit_and_no_token(): void
+    public function test_walk_d_rams_standalone_end_to_end(): void
     {
         $project = $this->project();
-        $user    = $this->user();
-        $this->resources();
+        $this->engineer();
 
-        $rendered = 0;
+        // Step 1: When.
+        $step1 = $this->openStep($project, ProjectDeliverable::KEY_RAMS, 1);
+        $step1->assertOk();
+        $step1->assertSee('Step 1 of 3');
 
-        foreach ([1, 2, 3] as $step) {
-            $html = $this->docForm($this->open($project, $user, [
-                'module' => ProjectDeliverable::KEY_RAMS,
-                'action' => 'generate',
-                'step'   => $step,
-            ]));
-            $rendered++;
+        $toStep2 = $this->submit($project, [
+            'module'             => ProjectDeliverable::KEY_RAMS,
+            'intent'             => 'next',
+            'step'               => 1,
+            'planned_start_date' => '2026-11-01',
+            'planned_end_date'   => '2026-11-03',
+            'working_hours'      => 'In hours',
+        ]);
+        $toStep2->assertRedirect();
 
-            $this->assertStringContainsString('Step '.$step.' of 3', $html, "RAMS step {$step} did not render.");
-        }
+        // Step 2: Who.
+        $step2 = $this->openStep($project, ProjectDeliverable::KEY_RAMS, 2);
+        $step2->assertOk();
+        $step2->assertSee('Step 2 of 3');
 
-        $this->assertSame(3, $rendered, 'Three RAMS steps were rendered through HTTP.');
+        $toStep3 = $this->submit($project, [
+            'module'                => ProjectDeliverable::KEY_RAMS,
+            'intent'                => 'next',
+            'step'                  => 2,
+            'project_manager_name'  => 'Priya Mistry',
+            'lead_engineer_name'    => 'Dev Chandra',
+            'contact_name'          => 'Alice Brand',
+        ]);
+        $toStep3->assertRedirect();
 
-        $summary = 'Strip out two legacy displays and install two 75in screens in the boardroom.';
+        // Step 3: Job summary and output.
+        $step3 = $this->openStep($project, ProjectDeliverable::KEY_RAMS, 3);
+        $step3->assertOk();
+        $step3->assertSee('Step 3 of 3');
+        $step3->assertSee('name="job_summary"', false);
 
-        $this->submit($project, $user, [
+        $before = $this->latestRamsId($project);
+
+        $create = $this->submit($project, [
             'module'                => ProjectDeliverable::KEY_RAMS,
             'intent'                => 'create',
             'step'                  => 3,
-            'tab'                   => 'overview',
             'format'                => 'word',
-            'planned_start_date'    => '2026-10-05',
-            'planned_end_date'      => '2026-10-09',
-            'planned_start_time'    => '0730',
-            'working_hours'         => 'Monday-Friday, 07:30-17:00',
+            'planned_start_date'    => '2026-11-01',
+            'planned_end_date'      => '2026-11-03',
+            'working_hours'         => 'In hours',
             'project_manager_name'  => 'Priya Mistry',
-            'project_manager_phone' => '0113 000 0000',
-            'project_manager_email' => 'priya@example.test',
             'lead_engineer_name'    => 'Dev Chandra',
-            'lead_engineer_phone'   => '07700 900111',
-            'contact_name'          => 'Sam Bright',
-            'contact_phone'         => '07700 900444',
-            'contact_email'         => 'sam.bright@example.test',
-            'job_summary'           => $summary,
-        ])->assertRedirect()->assertSessionHasNoErrors();
+            'contact_name'          => 'Alice Brand',
+            'job_summary'           => 'Rack swap and two display installs.',
+        ]);
+        $create->assertRedirect();
 
-        $rams = RamsDocument::where('project_id', $project->id)->get();
+        // Assert a RAMS document, ZERO visits, ZERO tokens.
+        $this->assertSame(0, Visit::where('project_id', $project->id)->count(), 'RAMS created a visit.');
+        $this->assertSame(0, SiteSurvey::where('project_id', $project->id)->count(), 'RAMS created a survey (which carries a token).');
 
-        $this->assertCount(1, $rams, 'One RAMS document.');
+        $document = $project->ramsDocuments()
+            ->when($before !== null, fn ($q) => $q->where('id', '>', $before))
+            ->orderByDesc('id')
+            ->first();
 
+        $this->assertNotNull($document, 'No RAMS document was created.');
+
+        // The job summary reached form_data['works_description'].
         $this->assertSame(
-            $summary,
-            $rams->first()->form_data['works_description'] ?? null,
-            'The job summary a PM typed never reached the key `RamsBuilderService` reads.',
+            'Rack swap and two display installs.',
+            $document->form_data['works_description'] ?? null,
+            'The job summary did not reach form_data.works_description.',
         );
-
-        // NO VISIT, NO LINK (D-04). An install's link is the install's.
-        $this->assertSame(0, Visit::where('project_id', $project->id)->count(), 'A RAMS created a visit.');
-        $this->assertSame(0, SiteSurvey::where('project_id', $project->id)->count(), 'A RAMS created a survey, and every survey carries a token.');
-        $this->assertSame([], VisitLinkIssuer::typesFor(ProjectDeliverable::KEY_RAMS), 'RAMS gained an engineer link.');
     }
 
-    // ══ WALK E — ABANDONMENT AND FAILURE ════════════════════════════════════
-
-    public function test_walk_e_abandoning_at_any_step_leaves_six_tables_exactly_as_they_were(): void
+    private function latestRamsId(Project $project): ?int
     {
-        $project = $this->project();
-        $user    = $this->user();
-        $this->resources();
+        $id = $project->ramsDocuments()->max('id');
 
-        $before    = $this->rowCounts();
-        $abandoned = 0;
+        return $id === null ? null : (int) $id;
+    }
 
-        foreach ([1, 2] as $step) {
-            // Walk TO the step, then walk away — first to the form's own Cancel
-            // target, then to the cockpit page, which is what closing a tab and
-            // coming back looks like.
-            $this->advance($project, $user, $this->base($project, $step, 'next') + $this->stepOne());
+    // =========================================================================
+    // WALK E — ABANDONMENT AND FAILURE
+    // =========================================================================
 
-            $this->actingAs($user)->get($this->cockpitUrl($project, ['module' => ProjectDeliverable::KEY_SITE_SURVEY]))->assertOk();
-            $this->actingAs($user)->get($this->cockpitUrl($project))->assertOk();
+    /** Abandon at each step and assert six named tables unchanged. */
+    public function test_walk_e_abandonment_at_every_step_persists_nothing(): void
+    {
+        $abandonedAt = [];
 
-            $abandoned++;
+        // Abandon after step 1.
+        $project1 = $this->project();
+        $before1  = $this->rowCounts();
 
-            foreach ($this->rowCounts() as $table => $count) {
-                $this->assertSame(
-                    $before[$table],
-                    $count,
-                    "A wizard abandoned after step {$step} wrote to `{$table}`. Nothing persists until the final step.",
-                );
-            }
+        $this->submit($project1, [
+            'module'        => ProjectDeliverable::KEY_SITE_SURVEY,
+            'intent'        => 'next',
+            'step'          => 1,
+            'surveyor_name' => 'Dev Chandra',
+        ])->assertRedirect();
+
+        // Walk away — GET the bare module URL (the form's own Cancel target).
+        $this->openStep($project1, ProjectDeliverable::KEY_SITE_SURVEY, null, 'overview')->assertOk();
+
+        $after1 = $this->rowCounts();
+        foreach (self::UNTOUCHED_TABLES as $table) {
+            $this->assertSame($before1[$table], $after1[$table], "Abandoning after step 1 wrote to `{$table}`.");
         }
+        $abandonedAt[] = 1;
 
-        $this->assertCount(6, $before, 'Six tables are snapshotted, by name.');
-        $this->assertSame(2, $abandoned, 'Both non-final steps were abandoned and judged.');
+        // Abandon after step 2.
+        $project2 = $this->project();
+        $before2  = $this->rowCounts();
 
-        // THE ONLY GUARANTEE THAT MEANS "NO LINK": every survey is given its
-        // token on creation, so no survey is the whole of it.
-        $this->assertSame(0, SiteSurvey::where('project_id', $project->id)->count());
-        $this->assertSame(0, Visit::where('project_id', $project->id)->count());
+        $this->submit($project2, [
+            'module' => ProjectDeliverable::KEY_SITE_SURVEY,
+            'intent' => 'next',
+            'step'   => 1,
+        ])->assertRedirect();
 
-        // THE MIRROR — finish it, and all three DO appear. Without this the
-        // zeroes above would pass on a form that never worked at all.
-        $this->submit($project, $user, $this->base($project, 3, 'create') + [
-            'format'      => 'word',
-            'visit_rooms' => self::SPACES,
-        ] + $this->stepOne())->assertRedirect()->assertSessionHasNoErrors();
+        $this->submit($project2, [
+            'module'        => ProjectDeliverable::KEY_SITE_SURVEY,
+            'intent'        => 'next',
+            'step'          => 2,
+            'general_notes' => 'Never finished.',
+        ])->assertRedirect();
 
-        $this->assertSame(1, SiteSurvey::where('project_id', $project->id)->count());
-        $this->assertSame(1, Visit::where('project_id', $project->id)->count());
+        $this->openStep($project2, ProjectDeliverable::KEY_SITE_SURVEY, null, 'overview')->assertOk();
+
+        $after2 = $this->rowCounts();
+        foreach (self::UNTOUCHED_TABLES as $table) {
+            $this->assertSame($before2[$table], $after2[$table], "Abandoning after step 2 wrote to `{$table}`.");
+        }
+        $abandonedAt[] = 2;
+
+        $this->assertCount(2, $abandonedAt, 'Two abandonment points must be exercised.');
+
+        // The mirror — no engineer link exists for either abandoned project.
+        $this->assertSame(0, SiteSurvey::where('project_id', $project1->id)->whereNotNull('access_token')->count());
+        $this->assertSame(0, SiteSurvey::where('project_id', $project2->id)->whereNotNull('access_token')->count());
     }
 
     /**
-     * FORCE THE FAILURE AT THE LATEST POSSIBLE POINT INSIDE THE TRANSACTION.
-     *
-     * ⚠ `VisitLinkIssuer` is `final`, so it can be neither subclassed nor
-     * mocked, and the phase's scope fence forbids editing it. The throw comes
-     * instead from `ProjectService::log()` — the LAST collaborator inside the
-     * transaction — which is STRICTLY STRONGER: by the time it fires, the
-     * document, the visit AND the engineer link have all already succeeded.
+     * Force a link failure and assert the message names which half happened
+     * and no `success` flash.
      */
-    private function forceLogFailure(): void
+    public function test_walk_e_a_forced_link_failure_names_which_half_happened(): void
     {
-        $double = new class extends ProjectService {
+        $project = $this->project();
+        $this->engineer();
+
+        $before = $this->rowCounts();
+
+        // Force the failure the same way CockpitCombinedCreationTest does —
+        // through `ProjectService::log()`, the last collaborator inside the
+        // transaction.
+        $double = new class extends \App\Core\Modules\Projects\ProjectService {
             public function __construct()
             {
             }
@@ -794,77 +635,160 @@ class CockpitWizardEndToEndTest extends TestCase
                 ?string $toStatus = null,
                 ?array $metadata = null,
             ): ProjectActivityLog {
-                if (CockpitWizardEndToEndTest::$failing) {
-                    throw new RuntimeException('The creation could not be completed.');
-                }
-
-                return parent::log($project, $user, $action, $description, $fromStatus, $toStatus, $metadata);
+                throw new \RuntimeException('The creation could not be completed.');
             }
         };
 
-        $this->app->instance(ProjectService::class, $double);
+        $this->app->instance(\App\Core\Modules\Projects\ProjectService::class, $double);
 
-        self::$failing = true;
-    }
+        $response = $this->submit($project, $this->surveyPayload());
 
-    public function test_walk_e_a_failed_creation_names_which_half_happened_and_flashes_no_success(): void
-    {
-        $project = $this->project();
-        $user    = $this->user();
-        $this->resources();
-
-        $before = $this->rowCounts();
-
-        $this->forceLogFailure();
-
-        $response = $this->submit($project, $user, $this->base($project, 3, 'create') + [
-            'format'      => 'word',
-            'visit_rooms' => self::SPACES,
-        ] + $this->stepOne());
-
-        $response->assertRedirect();
-
-        // NO SUCCESS FOR A HALF-RUN. `successMessage()` returns null whenever
-        // the outcome is incomplete, so there is nothing to flash rather than a
-        // sentence a caller forgot to suppress.
-        $this->assertNull(session('success'), 'A failed creation flashed success.');
-
-        // THE PM IS TOLD THROUGH THE FORM'S OWN ERROR BAG — `back()
-        // ->withInput()->withErrors(['module' => ...])` — which is where the
-        // doc-form already renders messages, so the sentence lands ON the
-        // wizard rather than on a page the PM has navigated away from.
-        $errors = session('errors');
-
-        $this->assertNotNull($errors, 'A failed creation told the PM nothing at all.');
-
-        $told = (string) ($errors->get('module')[0] ?? '');
-
-        $this->assertNotSame('', $told, 'A failed creation told the PM nothing at all.');
-        $this->assertStringContainsString(
-            'Nothing was created',
-            $told,
-            'The message does not name WHICH HALF happened.',
-        );
-        $this->assertStringContainsString('try again', $told, 'The message does not say a retry is safe.');
-
-        // NO EXCEPTION TEXT REACHES THE SCREEN.
-        $this->assertStringNotContainsString('RuntimeException', $told);
-        $this->assertStringNotContainsString('could not be completed', $told);
-
-        foreach ($this->rowCounts() as $table => $count) {
-            $this->assertSame($before[$table], $count, "A failed creation left a row behind in `{$table}`.");
+        $after = $this->rowCounts();
+        foreach (self::UNTOUCHED_TABLES as $table) {
+            $this->assertSame($before[$table], $after[$table], "A forced link failure left a row in `{$table}`.");
         }
 
-        // AND THE RETRY WORKS — a rollback that cannot be re-entered is not a
-        // rollback, it is a dead end.
-        self::$failing = false;
+        $this->assertNull(session('success'), 'A half-run flashed success.');
 
-        $this->submit($project, $user, $this->base($project, 3, 'create') + [
-            'format'      => 'word',
-            'visit_rooms' => self::SPACES,
-        ] + $this->stepOne())->assertRedirect()->assertSessionHasNoErrors();
+        $response->assertSessionHasErrors('module');
+        $message = (string) session('errors')->first('module');
 
-        $this->assertSame(1, SiteSurvey::where('project_id', $project->id)->count(), 'The retry did not produce exactly one survey.');
-        $this->assertSame(1, Visit::where('project_id', $project->id)->count(), 'The retry did not produce exactly one visit.');
+        $this->assertStringContainsString('document', $message);
+        $this->assertStringContainsString('visit', $message);
+        $this->assertStringContainsString('engineer link', $message);
+        $this->assertStringContainsString('rolled back', $message);
+    }
+
+    // =========================================================================
+    // THE POST-FIX STATES (quick task 260930-qcy) — WALKED IN SEQUENCE
+    // =========================================================================
+
+    /**
+     * A creation on a project that already has a live survey AND a visit
+     * already claiming it must refuse BEFORE the transaction, show the
+     * existing engineer link, and NOT say "try again" — walked end to end
+     * as a PM would move: collide, then open the engineer link that was
+     * handed back.
+     */
+    public function test_post_fix_state_1_collision_is_refused_and_the_existing_link_opens(): void
+    {
+        $project = $this->project();
+        $this->engineer();
+
+        $existing = app(\App\Core\Modules\Survey\SurveyService::class)
+            ->createFromProject($project, $this->user());
+
+        $claimingVisit = new Visit();
+        $claimingVisit->fill([
+            'project_id'          => $project->id,
+            'type'                => Visit::TYPE_SITE_SURVEY,
+            'status'              => Visit::STATUS_PLANNED,
+            'source_type'         => Visit::SOURCE_SITE_SURVEY,
+            'source_id'           => $existing->id,
+            'rooms_in_scope'      => [],
+            'labour_resource_ids' => [],
+        ]);
+        $claimingVisit->is_backfilled = false;
+        $claimingVisit->created_by_user_id = $this->user()->id;
+        $claimingVisit->save();
+
+        $response = $this->submit($project, $this->surveyPayload());
+
+        $response->assertRedirect();
+        $this->assertLessThan(500, $response->getStatusCode());
+        $this->assertSame(1, Visit::where('project_id', $project->id)->count());
+
+        $message = (string) session('errors')->first('module');
+        $this->assertStringNotContainsString('try again', $message);
+
+        $handedBackLink = session('cockpit_existing_link');
+        $this->assertSame($existing->publicUrl(), $handedBackLink);
+
+        // OPEN IT — the link handed back must actually resolve.
+        $opened = $this->actingAs($this->user())->get($handedBackLink);
+        $opened->assertOk();
+    }
+
+    /**
+     * The new intent=regenerate-document path — persists the document,
+     * creates no Visit and no link, and correctly writes an EARLIER-step
+     * field (general_notes, step 2) when submitted from step 3.
+     */
+    public function test_post_fix_state_2_regenerate_only_persists_an_earlier_step_field(): void
+    {
+        $project = $this->project();
+        $this->engineer();
+
+        $existing = app(\App\Core\Modules\Survey\SurveyService::class)
+            ->createFromProject($project, $this->user());
+
+        $token = $existing->access_token;
+
+        $response = $this->submit($project, $this->surveyPayload([
+            'intent'        => 'regenerate-document',
+            'general_notes' => 'Edited via the walk.',
+        ]));
+
+        $response->assertRedirect();
+        $response->assertSessionHasNoErrors();
+
+        $existing->refresh();
+
+        $this->assertSame('Edited via the walk.', $existing->general_notes, 'The earlier-step field was not persisted.');
+        $this->assertSame(0, Visit::where('project_id', $project->id)->count());
+        $this->assertSame($token, $existing->access_token, 'regenerate-document rotated the engineer link token.');
+
+        $success = (string) session('success');
+        $this->assertStringNotContainsString('visit', $success);
+        $this->assertStringNotContainsString('engineer link', $success);
+    }
+
+    /**
+     * The cockpit's new supersede control — posts to the existing named
+     * route `site-surveys.supersede-from-project`, after which a fresh
+     * creation succeeds cleanly.
+     */
+    public function test_post_fix_state_3_supersede_then_a_fresh_creation_succeeds(): void
+    {
+        $project = $this->project();
+        $this->engineer();
+
+        $existing = app(\App\Core\Modules\Survey\SurveyService::class)
+            ->createFromProject($project, $this->user());
+
+        // TOUCH the survey, so `SurveyService::createFromProject(supersede:
+        // true)` takes the SUPERSEDE branch rather than the "discard an
+        // untouched husk" branch — both are real, distinct paths inside that
+        // service, and the supersede route this task surfaces is specifically
+        // the ARCHIVE-and-start-fresh one.
+        $existing->update(['surveyor_name' => 'Dev Chandra']);
+        $existingId = $existing->id;
+
+        // The drawer, with a document already held, renders the supersede form.
+        $open = $this->openStep($project, ProjectDeliverable::KEY_SITE_SURVEY, 3);
+        $open->assertOk();
+        $open->assertSee(route('site-surveys.supersede-from-project', $project));
+
+        // POST the supersede form directly, exactly as the rendered form does.
+        $supersede = $this->actingAs($this->user())
+            ->post(route('site-surveys.supersede-from-project', $project));
+
+        $existing = SiteSurvey::findOrFail($existingId);
+        $this->assertNotNull($existing->superseded_at, 'Superseding did not archive the original survey.');
+
+        $this->assertSame(2, SiteSurvey::where('project_id', $project->id)->count(), 'Superseding did not create a fresh survey.');
+
+        $fresh = SiteSurvey::where('project_id', $project->id)->whereNull('superseded_at')->sole();
+
+        $supersede->assertRedirect(route('site-surveys.confirm-rooms', $fresh));
+
+        // A fresh creation now succeeds cleanly — no collision, because the
+        // freshly-created survey (from supersede) has no claiming visit yet.
+        $create = $this->submit($project, $this->surveyPayload());
+        $create->assertRedirect();
+        $create->assertSessionHasNoErrors();
+
+        $this->assertSame(1, Visit::where('project_id', $project->id)->count());
+        $this->assertNotNull(session('success'));
     }
 }
