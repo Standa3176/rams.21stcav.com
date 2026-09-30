@@ -1636,4 +1636,71 @@ class CockpitDocumentFormTest extends TestCase
 
         $this->assertSame(4, $judged, 'This proof rendered the last step of '.$judged.' documents.');
     }
+
+    // ── Quick task 260930-qcy, Task 2: the supersede form reaches its route ──
+
+    /**
+     * THE FORM REALLY REACHES `site-surveys.supersede-from-project`, DRIVEN,
+     * NOT JUST RENDERED. Markup inspection proves the control exists; this
+     * proves submitting it does what the label says: archives the current
+     * survey and starts a fresh one.
+     */
+    public function test_the_supersede_form_reaches_its_route_and_archives_the_old_survey(): void
+    {
+        $project = $this->project();
+
+        $existing = app(\App\Core\Modules\Survey\SurveyService::class)
+            ->createFromProject($project, $this->user());
+
+        // TOUCHED, so `SurveyService::createFromProject(supersede: true)` takes
+        // the SUPERSEDE path rather than the discard-an-empty-husk path — an
+        // untouched survey (no surveyor name, no room data) is DELETED instead
+        // of archived, which would make this test prove nothing about the
+        // `superseded_at` flip it exists to check.
+        $existing->update(['surveyor_name' => 'Kit Farrow']);
+
+        $form = $this->docForm($project, ProjectDeliverable::KEY_SITE_SURVEY, ['action' => 'generate']);
+
+        $this->assertStringContainsString(
+            route('site-surveys.supersede-from-project', $project),
+            $form,
+            'The supersede form is not on the open panel when a document already exists.'
+        );
+
+        $response = $this->actingAs($this->user())->post(
+            route('site-surveys.supersede-from-project', $project),
+        );
+
+        $response->assertRedirect();
+
+        $existing->refresh();
+
+        $this->assertNotNull($existing->superseded_at, 'Superseding did not archive the old survey.');
+
+        $this->assertSame(
+            2,
+            SiteSurvey::where('project_id', $project->id)->count(),
+            'Superseding must leave the archived survey AND create exactly one fresh one.'
+        );
+
+        $fresh = SiteSurvey::where('project_id', $project->id)->whereNull('superseded_at')->sole();
+
+        $this->assertNotSame($existing->id, $fresh->id);
+
+        $response->assertRedirect(route('site-surveys.confirm-rooms', $fresh));
+    }
+
+    /** The form must not render on a module with no document yet — nothing to supersede. */
+    public function test_the_supersede_form_does_not_render_with_no_document_yet(): void
+    {
+        $project = $this->project();
+
+        $form = $this->docForm($project, ProjectDeliverable::KEY_SITE_SURVEY, ['action' => 'generate']);
+
+        $this->assertStringNotContainsString(
+            route('site-surveys.supersede-from-project', $project),
+            $form,
+            'The supersede form rendered with nothing to supersede.'
+        );
+    }
 }

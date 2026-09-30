@@ -743,5 +743,32 @@
                 <a class="cav-qa__cancel" href="{{ $moduleUrl }}">Cancel</a>
             </div>
         </form>
+
+        {{-- ── QUICK TASK 260930-qcy, TASK 2: A GENUINELY FRESH SURVEY ────────
+             The existing, already-tested `site-surveys.supersede-from-project`
+             route, surfaced here so "I want a fresh survey" is a real,
+             reachable path instead of only a refusal. SITE SURVEY ONLY, and
+             ONLY when `$holdsDocument` is true — the same predicate that
+             already flips the closed control's label to "Regenerate"
+             (`collect($documents)->isNotEmpty()`, reading the WHOLE
+             `siteSurveys` relation — true whenever the project has EVER had a
+             survey, not scoped to "is one still live"). A SECOND `<form>` on
+             purpose: it posts to its OWN route, not
+             `projects.cockpit.documents.store`, so its submit carries no
+             `name="intent"` at all — a deliberate difference from the
+             document form's buttons, not an inconsistency.
+
+             This calls the CONTROLLER DIRECTLY and reimplements nothing: no
+             second confirmation screen (the route has none of its own
+             either), no touch to SiteSurveyController or SurveyService. --}}
+        @if ($module['key'] === \App\Models\ProjectDeliverable::KEY_SITE_SURVEY && $holdsDocument)
+            <form class="cav-qa__form" method="POST" action="{{ route('site-surveys.supersede-from-project', $project) }}">
+                @csrf
+
+                <p class="cav-qa__note">Superseding archives the current survey and starts a new one — this cannot be undone.</p>
+
+                <button class="cav-qa__control" type="submit">Start a fresh survey</button>
+            </form>
+        @endif
     @endif
 </div>

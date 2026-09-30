@@ -4,6 +4,7 @@ namespace Tests\Feature\Cockpit;
 
 use App\Http\Controllers\ProjectCockpitController;
 use App\Models\Project;
+use App\Models\SiteSurvey;
 use App\Models\User;
 use App\Models\Visit;
 use App\Models\Worksheet;
@@ -478,7 +479,23 @@ class CockpitReadOnlyFenceTest extends TestCase
             'source_id'      => $goneId,
         ]);
 
-        Visit::factory()->backfilledFromSurvey()->create([
+        // A LIVE SITE SURVEY, ADDED BY QUICK TASK 260930-qcy, AND THE REASON
+        // MATTERS THE SAME WAY THE WORKSHEET PHOTO DOES ABOVE: the new
+        // supersede form (Task 2) renders ONLY when `$holdsDocument` is true
+        // — the site_survey module has EVER held a document — and without a
+        // real `SiteSurvey` row on this fixture the fence would walk the
+        // open panel and never once see the new form. The csrf-token-count
+        // assertion moving 4 -> 5 would then be free, which is the exact
+        // vacuity this file exists to refuse.
+        $survey = SiteSurvey::create([
+            'project_id'    => $project->id,
+            'user_id'       => User::factory()->create()->id,
+            'project_name'  => $project->name,
+            'status'        => 'completed',
+            'surveyor_name' => 'Fence Surveyor',
+        ]);
+
+        Visit::factory()->backfilledFromSurvey($survey)->create([
             'project_id'     => $project->id,
             'title'          => 'Site survey',
             'scheduled_date' => '2026-08-11',
@@ -901,28 +918,32 @@ class CockpitReadOnlyFenceTest extends TestCase
             }
         }
 
-        // ══ 0 -> 4, AN EXACT POSITIVE (Plan 46.2-05) ════════════════════════
+        // ══ 0 -> 4 -> 5, AN EXACT POSITIVE (Plan 46.2-05, then quick task
+        //    260930-qcy) ═══════════════════════════════════════════════════
         //
         // The history of this number is `>= 5` (46-04) -> `=== 0` (46.2-03,
-        // finding F-7) -> `=== 4` (here). It has NEVER gone back to a floor and
-        // must not: `assertGreaterThanOrEqual` was removed from this file by
-        // 46.2-03 and is not to be reintroduced.
+        // finding F-7) -> `=== 4` (46.2-05) -> `=== 5` (here). It has NEVER
+        // gone back to a floor and must not: `assertGreaterThanOrEqual` was
+        // removed from this file by 46.2-03 and is not to be reintroduced.
         //
-        // FOUR IS ONE FORM PER MODULE, which is the design and not a coincidence:
-        // the panel offers exactly one control per row, and opening it discloses
-        // exactly one form. A FIFTH form inside the cockpit region is a red test
-        // — and so is a THIRD, because a module that stopped disclosing its form
-        // is a cockpit that has quietly stopped being able to generate that
-        // document, which is precisely the state 46.2-03 left behind and this plan
-        // exists to end.
+        // FOUR WAS ONE FORM PER MODULE. FIVE IS THAT PLUS ONE: quick task
+        // 260930-qcy adds a SECOND form to the site_survey module's open
+        // panel — a form posting to `site-surveys.supersede-from-project`,
+        // rendered ONLY when the module already holds a document
+        // (`$holdsDocument`). It surfaces the existing supersede action so a
+        // PM whose survey already has a visit and a link has a real path to
+        // a genuinely fresh survey, rather than only a refusal. A FIFTH form
+        // inside the cockpit region is therefore now correct on a project
+        // with a document, and a SIXTH would be a red test.
         //
         // The literal is kept rather than derived from `moduleMap()` so this test
-        // pins the ARITHMETIC (one form per row), with the module count asserted
-        // next door so drift in either is loud.
+        // pins the ARITHMETIC (one form per row, plus the site survey's second),
+        // with the module count asserted next door so drift in either is loud.
         $this->assertSame(
-            4,
+            5,
             $checked,
-            'Exactly one document form per module panel. Move this number BY NAME, never to a floor.'
+            'Exactly one document form per module panel, plus the site survey\'s supersede form '
+            .'(quick task 260930-qcy). Move this number BY NAME, never to a floor.'
         );
 
         $this->assertCount(
