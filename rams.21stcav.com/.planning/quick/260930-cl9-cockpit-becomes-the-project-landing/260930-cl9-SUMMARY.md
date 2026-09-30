@@ -264,4 +264,4 @@ repo-wide link rewrite.
 - `.planning/quick/260930-cl9-cockpit-becomes-the-project-landing/260930-cl9-SUMMARY.md` — FOUND
 - `resources/views/projects/show.blade.php` — NOT in the diff (unchanged, 2,293 lines)
 - Three sha256 pins — MATCH `4abd2b24`
-- Commit — recorded below
+- Commit `c65064a7` (feat, 7 files, 1007 insertions) — FOUND
