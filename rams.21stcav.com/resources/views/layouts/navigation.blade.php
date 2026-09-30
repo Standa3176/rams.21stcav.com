@@ -265,6 +265,42 @@
         || request()->routeIs('design.gallery')
         || request()->routeIs('admin.devices.*')
         || request()->routeIs('admin.device-cable-rules.*');
+
+    /*
+     * Quick task 260930-cl9 (SCOPE.md D-01b) — THE ADMIN ESCAPE HATCH.
+     *
+     * Clicking a project now opens the cockpit, so the nine-tab project page
+     * is no longer anything's default destination. The user asked for it on
+     * the top menu, admin-only, "so we can get to it if needed while we
+     * complete the cockpit version". It is NOT deleted and NOT moved: it is
+     * still `projects.show` at /projects/{id}.
+     *
+     * WHAT IT DOES WITH NO PROJECT IN CONTEXT — the page cannot render without
+     * one, so the item cannot be a fixed href. The destination is resolved
+     * from the CURRENT REQUEST's own `{project}` route parameter:
+     *
+     *   project in context (any /projects/{project}/... page, incl. the
+     *   cockpit) → that project's nine-tab page.
+     *   no project in context                       → the project list, which
+     *   is already the project picker. Never disabled, never a dead link.
+     *
+     * Read from the route parameter rather than a session "current project":
+     * no such concept exists in this app (ProjectContextResolver resolves
+     * package data, not a current selection), and inventing one would put a
+     * write on every page render.
+     *
+     * The parameter may be a bound Project or a bare id depending on the
+     * route, and `request()->route()` is null when there is no matched route,
+     * so both are handled before `route()` is called — a RouteNotFoundException
+     * or a ModelNotFound in the layout would take down EVERY page.
+     */
+    $classicParam   = request()->route()?->parameter('project');
+    $classicProject = $classicParam instanceof \App\Models\Project
+        ? $classicParam->getKey()
+        : (is_numeric($classicParam) ? (int) $classicParam : null);
+    $classicUrl     = $classicProject !== null
+        ? route('projects.show', $classicProject)
+        : route('projects.index');
 @endphp
 
 {{-- Brand — lockup lives on the far left. --}}
@@ -297,6 +333,29 @@
         </svg>
         Projects
     </a>
+
+    {{-- Classic project page — quick task 260930-cl9 (SCOPE.md D-01b).
+         ADMIN-ONLY escape hatch to the nine-tab project page now that a
+         project click opens the cockpit. $classicUrl is resolved in the PHP
+         block at the top of this file: the project in context if there is
+         one, otherwise the project list as the picker.
+         NOTE the word "php" is spelled out above on purpose — writing the
+         directive form inside a Blade comment STILL COMPILES and silently
+         swallowed every nav item below this point when first written. --}}
+    @if ($isAdmin)
+        <a href="{{ $classicUrl }}"
+           class="tnav-link {{ request()->routeIs('projects.show') ? 'active' : '' }}"
+           title="{{ $classicProject !== null
+                ? 'Open the classic nine-tab page for this project'
+                : 'Classic nine-tab project page — pick a project first' }}">
+            <svg class="tnav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="16" rx="2"/>
+                <line x1="3" y1="9" x2="21" y2="9"/>
+                <line x1="9" y1="9" x2="9" y2="20"/>
+            </svg>
+            Classic
+        </a>
+    @endif
 
     {{-- Labour — quick task 260927-lr7. Sits OUTSIDE every isAdmin conditional
          in this file, on purpose: the whole point of the task is that a

@@ -227,6 +227,13 @@
             $health    = $healthMap[$project->id];
             $programme = null;
             $pct       = null;
+            /*
+             * Quick task 260930-cl9 (SCOPE.md D-01b): a project opens in the
+             * cockpit. Same helper as projects/index.blade.php, so the two
+             * entry points cannot drift, and it falls back to the nine-tab
+             * page whenever COCKPIT_ENABLED is off.
+             */
+            $openUrl   = \App\Support\Cockpit\ProjectLanding::url($project);
             if (in_array($project->status, [\App\Models\Project::STATUS_INSTALLING, \App\Models\Project::STATUS_COMMISSIONING])) {
                 $programme = $project->activeInstallProgramme;
                 if ($programme) {
@@ -239,7 +246,7 @@
         <div class="dash-health-row"
              x-show="filter === '' || filter === '{{ $project->status }}'">
             <div class="dash-health-row__name">
-                <a href="{{ route('projects.show', $project) }}" class="dash-health-row__link">
+                <a href="{{ $openUrl }}" class="dash-health-row__link">
                     {{ $project->name }}
                 </a>
                 @if($project->client_name)
@@ -266,7 +273,7 @@
             </div>
             <div class="dash-health-row__updated">{{ $project->updated_at->diffForHumans() }}</div>
             <div>
-                <a href="{{ route('projects.show', $project) }}" class="btn btn-ghost btn-sm">View</a>
+                <a href="{{ $openUrl }}" class="btn btn-ghost btn-sm">View</a>
             </div>
         </div>
         @endforeach

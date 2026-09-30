@@ -204,12 +204,21 @@
                     @php
                         $addr     = Str::limit($project->site_address ?? '', 55);
                         $showAddr = $addr !== '' && stripos($project->name, substr($addr, 0, 20)) === false;
+                        /*
+                         * Quick task 260930-cl9 (SCOPE.md D-01b): clicking a
+                         * project opens the COCKPIT. ProjectLanding::url()
+                         * falls back to the nine-tab page whenever
+                         * COCKPIT_ENABLED is off, so a click can never land on
+                         * the cockpit's 404. Both row links use the same value
+                         * so the name and the View button never disagree.
+                         */
+                        $openUrl  = \App\Support\Cockpit\ProjectLanding::url($project);
                     @endphp
                     <tr class="{{ $project->isArchived() ? 'proj-row--archived' : '' }}">
 
                         {{-- Project name + client + site ──────────────────── --}}
                         <td class="proj-td--project">
-                            <a href="{{ route('projects.show', $project) }}" class="proj-name-link">
+                            <a href="{{ $openUrl }}" class="proj-name-link">
                                 {{ Str::limit($project->name, 70) }}
                             </a>
                             <div class="proj-cell--meta">
@@ -235,7 +244,7 @@
                         {{-- Actions ──────────────────────────────────────── --}}
                         <td class="proj-td--actions">
                             <div class="actions actions--end">
-                                <x-actions.secondary-button :href="route('projects.show', $project)">
+                                <x-actions.secondary-button :href="$openUrl">
                                     View
                                 </x-actions.secondary-button>
                                 <form method="POST" action="{{ route('projects.destroy', $project->id) }}" class="form-bare"
