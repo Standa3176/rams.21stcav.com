@@ -619,7 +619,41 @@ Each is **recorded in the admin Hidden Functions register**, not forgotten:
 | IC-06 | Phase 46.4 | **Complete** (Plans 46.4-01 + 46.4-05, 2026-09-27). D-01 put engineer and client on ONE URL, so the client now reads a page that names engineers — which made LR-04 bind harder than it ever has. `AllocatedEngineers` is the **only door a name comes through**, and two mechanisms hold it, both load-bearing: `->select(['id','name'])`, so the hydrated models never HOLD an email or a phone and no future `->toArray()`, `@json`, `dd()` or serialised job payload can reach one; and a return of **plain arrays**, so nothing downstream can lazily reach back through a model. `scopeActive()` is deliberately NOT applied — an engineer deactivated after the visit must still appear on it (LR-02). Proven client-side by `LabourResourceClientSurfacePrivacyTest` across **four renderings**, and by walk step 14, which sweeps **22 captured response bodies** for both engineers' emails, both phones, the `ip:…\|actor:…` stamp and the bare `actor:` slice — **with non-vacuity asserted first** (both names DO appear, the fixture's email and phone are asserted non-null, and an actor stamp is asserted to have actually been written), so no absence can pass because there was nothing to leak. ⚠️ **One narrowing, recorded as a finding**: the raw-token sweep cannot run over the engineer link or the office page, because the token **is** the link and the office page renders token-bearing photo URLs by design. It runs over every JSON body and the asset list, and the two `uploadPhoto` bodies are pinned to exactly one occurrence, inside `url` |
 | IC-07 | Phase 46.4 | **Complete on the lock. The gaps around it are NAMED, not closed** (Plans 46.4-04 + 46.4-05, 2026-09-27). `WorksheetCaptureLock` is the ONE definition of "the capture surface is closed" — three lines, and that is the point: the controller and the Blade can never disagree, and the sentence an engineer reads when a queued row drains into a signed worksheet is the same sentence in both. It invents no state (`Worksheet::isSigned()` already read the append-only relation with `exists()` — **existence, not equality**, so a worksheet signed twice is still locked). **Eight** endpoints refuse with **422** (not 423 — no handler on that hand-rolled page has ever seen 423, and 422 is already this controller's refusal idiom), and every one refuses **BEFORE validation**, so a locked caller cannot learn which field was malformed and a queued row is refused before its bytes reach the disk. `EngineerLinkSignoffLockTest` pairs **every** refusal with the same request succeeding on an unsigned worksheet — a lock that refuses everything always is an outage, not a lock — and pairs every refusal with a **no-side-effect** assertion, because a status-code-only test passes on an endpoint that refuses *after* doing the work (`uploadLabelPhoto` does a `Device::firstOrCreate` before it stores anything, so the device count is the assertion that catches a guard placed one line too late). `::test_every_unlisted_public_controller_method_calls_the_capture_lock` reflects over the controller and subtracts a **reasoned** allow-list, each entry carrying its own one-line justification. Walk step 9 closes the other half: it **DERIVES** its refusal list by reflecting for methods that call the lock and asserts its attempt map covers **exactly** that set, so an endpoint added *with* a guard but never exercised end-to-end fails by name — the two tests catch opposite mistakes and neither owns a list the other must track. D-08 holds throughout: **nothing is ever hard deleted**, `DELETE /additional-kit/{row}` is asserted **405**, amendments are append-only and a no-op modify is 422 so the trail can never gain an empty entry, and a second mark is refused so the first engineer's reason and timestamp survive (walk step 8 asserts both). ⚠️ **NOT DELIVERED: no unmark, no restore** (D-08 gave no way back and none was invented — checkpoint step 6); **room-complete and survey-reviewed stay UNLOCKED**, ruled by name because they write `pre_install_confirmations` rather than the signed record, threat `T-46.4-04-06` disposition ACCEPT (checkpoint step 6 — a two-line change to reverse); and **a send-back still does not unlock a signed worksheet** (surveys have a reopen path, worksheets do not — pre-existing). ⚠️ **Re-signing is UI-unreachable and has been since May**: the server accepts it and two tests prove it, but a blanket `<fieldset disabled>` (`260504-iy4 L3`) wraps the sign-off card. Pre-existing, surfaced here, **not fixed** |
 
-*Phases 47–51 have no requirement IDs yet. Mint them into this section as each phase is planned,
+### Group LNK -- Cockpit links, visits and returns (Phase 47)
+
+Five requirements minted at planning time on 2026-09-30, mapping to D-01..D-05 in
+`47-CONTEXT.md` and to D-01b/D-02 in `.planning/consolidation/SCOPE.md`. Re-uses `VL-05`..`VL-08`,
+`VL-11` (Phase 46) and `RV-01`..`RV-08` (Phase 46.1) rather than minting duplicates: this phase
+re-surfaces controls and evidence those groups already specify, it does not redefine them.
+
+WARNING: scope narrowed at planning time. Quick task 260930-qcy shipped part of D-01 on the day
+this phase was planned: the engineer link now renders as visible, selectable text on the document
+form's collision-refusal path, and a site-survey supersede control exists. LNK-01/LNK-02 below
+cover what that quick task did NOT reach -- an always-visible link-and-state card on the module's
+Overview tab, for a module that already has a live link, not only on the narrow refusal path.
+
+- **LNK-01** -- The Site survey and Worksheet module drawers show the module's **current engineer
+  link**, when one exists, as plain visible, selectable text on the Overview tab -- not only inside
+  the document form's collision-refusal flash. No JavaScript and no clipboard button (the cockpit
+  region bans both); copying the link is selecting the text (D-01).
+- **LNK-02** -- Each of those two drawers shows the link's **state at a glance**, derived only from
+  columns that already exist (`submitted_at` / `status` for the survey, `status` /
+  `access_token_expires_at` / the latest `WorksheetSignoff` for the worksheet) -- never a new column
+  and never an inferred "opened" state nothing in the schema records (D-02).
+- **LNK-03** -- The worksheet's existing revoke-and-reissue control (`worksheets.revoke-token`) is
+  reachable from the cockpit drawer, posting to that route directly -- no new controller logic, no
+  new route (D-02).
+- **LNK-04** -- **The site survey has no revoke equivalent, and none is invented.** The drawer
+  states this in words rather than rendering a disabled or fake control; the existing "Start a
+  fresh survey" supersede action (shipped by quick task 260930-qcy) is named as the survey's
+  nearest equivalent -- a new token via a new record, not a revoked one (D-02).
+- **LNK-05** -- `pre_install_confirmations.room_complete.{room}.completed_by` is **never rendered**
+  on the engineer link (`worksheets/public-show.blade.php`). It is an audit field holding
+  `ip:{addr}|actor:{hash}`, the same shape as the three columns RV-03 already bans, found late
+  (`F-46.7-04-01`) because it sat outside `CockpitEvidencePresenter`'s reach entirely -- the leak
+  is on the engineer's own unauthenticated page, not in the cockpit's Returned tab.
+
+*Phases 47.1-51 have no requirement IDs yet. Mint them into this section as each phase is planned,
 following the LR-xx / VIS-xx pattern.*
 
 ---

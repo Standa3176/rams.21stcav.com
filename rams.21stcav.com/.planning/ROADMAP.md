@@ -320,7 +320,8 @@ Each of these is **recorded in the admin Hidden Functions register**, not forgot
   - [ ] 46.7-03-PLAN.md — the autosave endpoint (carrying the sign-off lock) + the per-room notes field + the wiring
   - [ ] 46.7-04-PLAN.md — the end-to-end walk + a blocking human checkpoint judged on a phone, one-handed, on a bad connection
 
-- [ ] **Phase 47: Snagging** — snag items separate from snag visits; three outcomes (fixed, not fixed, deferred); a not-fixed item requires the engineer to state actions and parts needed, closes the visit, and opens a new snag linked to the original. Parts tracked per snag. Snags may sit with the client or others and never have a visit.
+- [ ] **Phase 47: Cockpit — Links, Visits and Returns** — the cockpit becomes the place an engineer link is created, seen, copied and revoked; a visit is managed (accept · send back · office note · raise snag); and what came back is reviewed — photos, room answers, captured serials, client sign-off, the per-room photo ZIP. Replaces the old Phase 47 (Snagging), which moves to 47.1. Inserted 2026-09-30.
+- [ ] **Phase 47.1: Snagging** — snag items separate from snag visits; three outcomes (fixed, not fixed, deferred); a not-fixed item requires the engineer to state actions and parts needed, closes the visit, and opens a new snag linked to the original. Parts tracked per snag. Snags may sit with the client or others and never have a visit.
 - [ ] **Phase 48: Documents** — generate client-facing documents; the PM sends them and confirms sent in-app, recording who, when and which revision. O&M offered as full or mini. Drawings uploaded from StarDrawer.
 - [ ] **Phase 49: Import Review + Self-populating Deliverables** — one import screen showing what the quote contains, with deliverables ticked from its lines and labelled *from quote* / *assumed* / *not found*. All nine always shown. The equipment-line review opens in a side panel.
 - [ ] **Phase 50: Project Data Versioning** — re-import a later QuoteWerks revision: product, quantity and labour replace the old; superseded data is archived and viewable; images on removed rooms are retained against the archived version.
@@ -911,12 +912,65 @@ so a survey ends as a structured document somebody can act on, not a folder of p
 
 ---
 
-### Phase 47: Snagging
+### Phase 47: Cockpit — Links, Visits and Returns
+
+**Goal**: The cockpit stops hiding what it already does. It becomes the place an engineer link is
+created, seen, copied and revoked; where a visit is managed (accept, send back, office note, raise
+a snag); and where what came back is reviewed — photos, room answers, captured serials, client
+sign-off, and the per-room photo ZIP.
+
+**Depends on**: Phase 46 (the visit lifecycle), Phase 46.1 (the evidence review this phase
+re-surfaces), Phase 46.2 (which unsurfaced both).
+
+**Requirements**: LNK-01..LNK-05 (minted 2026-09-30, `.planning/REQUIREMENTS.md` § Group LNK),
+re-using VL-05..VL-08, VL-11 (Phase 46) and RV-01..RV-08 (Phase 46.1).
+
+**Context**: `.planning/phases/47-cockpit-links-and-returns/47-CONTEXT.md`.
+
+⚠️ **This REPLACES the old Phase 47 (Snagging), which moves to Phase 47.1.** Snagging was blocked
+because 46.2 unsurfaced the visit workflow and its premise — "snags are resolved through visits" —
+assumed visits had a screen. This phase gives them one.
+
+⚠️ **Scope partly shipped before planning.** Quick task 260930-qcy (2026-09-30) rendered the
+engineer link as visible text on the document form's collision-refusal path, surfaced the existing
+survey supersede control, and added a document-only regenerate intent. This phase covers what that
+quick task did not reach: an always-visible link-and-state card, the worksheet revoke control, the
+Returned tab's evidence and photo ZIP, and the four visit-management controls beneath it.
+
+**Success Criteria** (what must be TRUE):
+
+  1. A PM can see and copy a live engineer link from the Site survey or Worksheet drawer's Overview
+     tab, as plain selectable text, whenever one exists — not only when a creation attempt collided
+     with one
+  2. Each of those two drawers shows the link's state at a glance, from columns that already exist
+  3. The worksheet's existing revoke-and-reissue control is reachable from the drawer; the site
+     survey's lack of an equivalent is stated, not invented
+  4. A PM can accept, send back, add an office note to, and raise a snag against a visit, from the
+     cockpit, exactly as Phase 46 built — beneath the visit's evidence, never on Overview
+  5. The Returned tab (Phase 46.1) reads live: photos, per-room answers, captured serials and
+     client sign-off, with the per-room photo ZIP hand-off
+  6. `pre_install_confirmations.room_complete.{room}.completed_by` is never rendered on the
+     engineer link (F-46.7-04-01)
+  7. Nothing built by Phase 46, 46.1 or 46.2 is deleted
+
+**Plans**: 5 plans, 4 waves
+
+- [ ] 47-01-PLAN.md — Engineer link visible, copyable, state at a glance; worksheet revoke wired in (wave 1)
+- [ ] 47-02-PLAN.md — F-46.7-04-01: stop rendering the completed_by audit stamp on the engineer link (wave 1, parallel)
+- [ ] 47-03-PLAN.md — Restore the Returned tab: evidence, calm order, the photo ZIP hand-off (wave 2)
+- [ ] 47-04-PLAN.md — Re-surface Accept / Send back / Add note / Raise a snag beneath the evidence (wave 3)
+- [ ] 47-05-PLAN.md — Full gate run, requirement ledger, and the blocking human checkpoint (wave 4)
+
+**UI hint**: yes (link card, Returned tab, visit-row controls — all inside the existing drawer)
+
+---
+
+### Phase 47.1: Snagging
 
 **Goal**: Snags are tracked items with a life of their own, resolved through visits but not dependent
 on them — so an unresolved snag can never be lost in free text.
 
-**Depends on**: Phase 46 (a snag is resolved by a visit, and a not-fixed snag opens a new one).
+**Depends on**: Phase 46 (a snag is resolved by a visit, and a not-fixed snag opens a new one), Phase 47 (the cockpit's visit-management surface this phase's visits render inside).
 
 **Requirements**: Not yet minted. Mint SN-xx into `.planning/REQUIREMENTS.md` § v4.0 at planning time.
 
