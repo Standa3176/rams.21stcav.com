@@ -158,10 +158,13 @@ class LabourResourceClientSurfacePrivacyTest extends TestCase
         'resources/views/pdf/rams.blade.php',
         'resources/views/pdf/rams-v2.blade.php',
         'resources/views/pdf/om-manual.blade.php',
-        'resources/views/pdf/om-manual/create.blade.php',
-        'resources/views/pdf/om-manual/create.blade2703.php',
-        'resources/views/pdf/om-manual/edit.blade.php',
-        'resources/views/pdf/om-manual/index.blade.php',
+        // Quick task 260930-dl4 (D-04) — the four `pdf/om-manual/*.blade.php`
+        // siblings were DELETED. They were never reachable: OmManualController
+        // renders `om-manual.*` (→ resources/views/om-manual/*.blade.php) and
+        // PdfService renders `pdf.om-manual` (→ the FILE above). No caller ever
+        // referenced `pdf.om-manual.<segment>`. Removing them from this list is
+        // required by test_every_enumerated_path_exists(); it loses no coverage
+        // because the files no longer exist to be scanned.
         'resources/views/pdf/site-survey/blank.blade.php',
         'resources/views/pdf/site-survey/field-form.blade.php',
         'resources/views/pdf/site-survey/summary.blade.php',

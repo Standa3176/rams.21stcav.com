@@ -19,10 +19,12 @@ use Tests\TestCase;
  *
  * Excluded, and why (kept deliberately narrow, per D-04's "price of leaving
  * backups untouched" framing):
- *   - resources/views.backup-260430/** and the two "keep border(s)" frozen
- *     copies — 5 backup/legacy files the user chose to leave untouched
- *     rather than edit or delete (D-04). They never regenerate live
- *     document output.
+ *   - resources/views.backup-260430/** — untracked backup scratch the user
+ *     chose to leave untouched (D-04). It is not under a scan root anyway.
+ *     ⚠️ UPDATED 2026-09-30 (quick task 260930-dl4): the two "keep border(s)"
+ *     frozen copies that were also excluded here have been DELETED, so their
+ *     exclusion entries are gone. Nothing under resources/views is
+ *     whitelisted for FFP2 any more.
  *   - ControlTextRuleViolations.php / PpeVocabularyFoldMap.php and their
  *     three test files — these ARE the FFP2-ban/fold mechanism itself. A
  *     detector regex, a fold-map lookup key and their own test fixtures
@@ -47,9 +49,11 @@ class FfpTwoBannedFromSourceTest extends TestCase
      * as generated document content. Paths are relative to the repo root.
      */
     private const EXCLUDED_FILES = [
-        // Frozen backup/legacy copies (D-04) — deliberately untouched.
-        'resources/views/pdf/rams.blade - keep boarder.php',
-        'resources/views/pdf/rams.blade-keep-borders.php',
+        // Quick task 260930-dl4 (D-04 of .planning/consolidation/SCOPE.md) —
+        // the two "keep border(s)" frozen copies that used to be excluded here
+        // were DELETED (non-resolvable filenames, no caller). Their exclusion
+        // entries are gone with them; this is a TIGHTENING, not a loophole —
+        // nothing under resources/views is whitelisted for FFP2 any more.
         // The ban/fold mechanism's own source and its direct test fixtures.
         'app/Services/Rams/ControlTextRuleViolations.php',
         'app/Services/Rams/PpeVocabularyFoldMap.php',
