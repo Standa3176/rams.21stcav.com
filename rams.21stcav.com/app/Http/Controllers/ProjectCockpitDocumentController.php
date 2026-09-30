@@ -108,6 +108,16 @@ final class ProjectCockpitDocumentController extends Controller
         // act that touches no model at all, and putting the branch anywhere
         // below this line would mean a half-finished wizard had already written
         // something by the time it was recognised.
+        // ── QUICK TASK 260930-qcy, TASK 3: THE DOCUMENT-ONLY REGENERATE ─────
+        //
+        // Checked BEFORE the advance/create branch below, and site-survey-only
+        // (enforced inside `regenerateDocumentOnly()`): the worksheet already
+        // has its own no-visit regenerate at `worksheets.retry-generation`, and
+        // RAMS/the O&M are already document-only via `delegate()` below.
+        if ($request->intent() === CockpitDocumentRequest::INTENT_REGENERATE) {
+            return $this->regenerateDocumentOnly($request, $project, $module, $validated);
+        }
+
         if ($request->intent() !== CockpitDocumentRequest::INTENT_CREATE) {
             return $this->advance($request, $project, $module);
         }
@@ -248,6 +258,49 @@ final class ProjectCockpitDocumentController extends Controller
 
         $request->session()->flash('cockpit_document_format', $format === 'pdf' ? 'PDF' : 'Word');
         $request->session()->flash('success', $success);
+
+        return redirect()->to($this->panelUrl($project, $module, false, $request->input('tab')));
+    }
+
+    // ── The document-only regenerate (quick task 260930-qcy) ────────────────
+
+    /**
+     * UPDATE THE SURVEY'S ANSWERED FIELDS AND REBUILD ITS DOCUMENT. NO VISIT,
+     * NO LINK, EVER.
+     *
+     * This is the action a PM was actually reaching for when a pre-existing
+     * survey visit made a plain retry collide (Task 1's refusal): they wanted
+     * to update what they had already answered and get a fresh Word/PDF, not
+     * a second visit. `CockpitCombinedCreator` — and therefore
+     * `VisitLinkIssuer::issue()` — is never called from this path.
+     *
+     * SITE-SURVEY-ONLY. The worksheet already has its own document-only,
+     * no-new-visit regenerate at `worksheets.retry-generation`
+     * (`WorksheetController::retryGeneration()`, re-dispatches
+     * `BuildWorksheetJob` against the EXISTING row), and RAMS/the O&M are
+     * already document-only via the untouched `delegate()` path (D-04). A
+     * hand-crafted `module=worksheet&intent=regenerate-document` gets a 404,
+     * never a silent no-op that could be mistaken for success.
+     *
+     * @param  array<string, mixed>  $validated
+     */
+    private function regenerateDocumentOnly(
+        CockpitDocumentRequest $request,
+        Project $project,
+        string $module,
+        array $validated,
+    ): RedirectResponse {
+        abort_unless($module === ProjectDeliverable::KEY_SITE_SURVEY, 404);
+
+        if ($this->activeSurvey($project) === null) {
+            return back()->withInput()->withErrors([
+                'module' => 'There is no survey yet for this project — generate one first.',
+            ]);
+        }
+
+        $this->persist($project, $module, $validated);
+
+        $request->session()->flash('success', 'The document was updated.');
 
         return redirect()->to($this->panelUrl($project, $module, false, $request->input('tab')));
     }

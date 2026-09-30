@@ -736,6 +736,23 @@
                     <button class="cav-qa__control" type="submit" name="intent" value="next">Next</button>
                 @endif
 
+                {{-- ── QUICK TASK 260930-qcy, TASK 3: UPDATE, NO NEW VISIT ─────
+                     A SECOND submit button in the SAME form, never a new
+                     `<form>` — so this does not move the fence's form count a
+                     second time (Task 2 already moved it 4 -> 5). Placed
+                     AFTER the primary action, so Enter-in-a-text-field still
+                     submits `create` on the last step (the form's own
+                     load-bearing button order, read above before this edit).
+                     SITE SURVEY ONLY, LAST STEP ONLY, and only when the
+                     module already holds a document — there is nothing to
+                     regenerate otherwise. Copy checked as a substring
+                     against the fence before use, same discipline as Tasks
+                     1 and 2. Not `cav-qa__go`: this does not generate a
+                     document in the sense that colour means elsewhere. --}}
+                @if ($isLast && $module['key'] === \App\Models\ProjectDeliverable::KEY_SITE_SURVEY && $holdsDocument)
+                    <button class="cav-qa__control" type="submit" name="intent" value="regenerate-document">Update document only</button>
+                @endif
+
                 @if (! $isFirst)
                     <button class="cav-qa__control" type="submit" name="intent" value="back">Back</button>
                 @endif

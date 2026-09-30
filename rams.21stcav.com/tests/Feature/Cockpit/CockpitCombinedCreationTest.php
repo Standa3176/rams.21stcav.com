@@ -817,4 +817,136 @@ class CockpitCombinedCreationTest extends TestCase
         $this->assertNotNull(session('success'));
         $this->assertNull(session()->get('errors')?->any() ? true : null);
     }
+
+    // ── Quick task 260930-qcy, Task 3: DOCUMENT-ONLY REGENERATE ─────────────
+
+    /**
+     * Test A: submitting `intent=regenerate-document` from the LAST step
+     * (where the button lives) with an edited EARLIER-step field
+     * (`general_notes`, step 2) must persist that field onto the EXISTING
+     * survey — the non-vacuity proof the revision found: a step-3 field alone
+     * would pass even with the `groupsToValidate()` gap, because that gap
+     * only drops OTHER steps' fields.
+     */
+    public function test_regenerate_document_only_persists_an_earlier_step_field_and_creates_no_visit(): void
+    {
+        $project = $this->project();
+        $this->engineer();
+
+        $existing = app(\App\Core\Modules\Survey\SurveyService::class)
+            ->createFromProject($project, $this->user());
+
+        $token = $existing->access_token;
+
+        $response = $this->submit($project, $this->surveyPayload([
+            'intent'        => 'regenerate-document',
+            'general_notes' => 'Edited on regenerate.',
+        ]));
+
+        $response->assertRedirect();
+        $response->assertSessionHasNoErrors();
+
+        $existing->refresh();
+
+        $this->assertSame('Edited on regenerate.', $existing->general_notes, 'The earlier-step field was not persisted.');
+
+        // `visit_rooms` (step 3, the submitting step) is accepted without a
+        // validation error, appears in no survey column, and creates no Visit
+        // — there is no non-readonly `survey.*` field on step 3 to persist.
+        $this->assertSame(0, Visit::where('project_id', $project->id)->count(), 'regenerate-document created a visit.');
+        $this->assertSame($token, $existing->access_token, 'regenerate-document rotated the engineer link token.');
+
+        $success = (string) session('success');
+        $this->assertStringNotContainsString('visit', $success);
+        $this->assertStringNotContainsString('engineer link', $success);
+
+        $response->assertRedirect($this->filesUrl($project, ProjectDeliverable::KEY_SITE_SURVEY));
+    }
+
+    /** The SAME action, starting from NO visit yet — both starting states must work. */
+    public function test_regenerate_document_only_works_with_no_pre_existing_visit(): void
+    {
+        $project = $this->project();
+
+        $existing = app(\App\Core\Modules\Survey\SurveyService::class)
+            ->createFromProject($project, $this->user());
+
+        $this->submit($project, $this->surveyPayload([
+            'intent'        => 'regenerate-document',
+            'general_notes' => 'No visit yet.',
+        ]))->assertRedirect()->assertSessionHasNoErrors();
+
+        $existing->refresh();
+
+        $this->assertSame('No visit yet.', $existing->general_notes);
+        $this->assertSame(0, Visit::where('project_id', $project->id)->count());
+    }
+
+    /** The SAME action, starting from a visit that ALREADY claims the survey. */
+    public function test_regenerate_document_only_works_when_a_visit_already_claims_the_survey(): void
+    {
+        $project = $this->project();
+        $this->engineer();
+
+        $existing = app(\App\Core\Modules\Survey\SurveyService::class)
+            ->createFromProject($project, $this->user());
+
+        $claimingVisit = new Visit();
+        $claimingVisit->fill([
+            'project_id'          => $project->id,
+            'type'                => Visit::TYPE_SITE_SURVEY,
+            'status'              => Visit::STATUS_PLANNED,
+            'source_type'         => Visit::SOURCE_SITE_SURVEY,
+            'source_id'           => $existing->id,
+            'rooms_in_scope'      => [],
+            'labour_resource_ids' => [],
+        ]);
+        $claimingVisit->is_backfilled = false;
+        $claimingVisit->created_by_user_id = $this->user()->id;
+        $claimingVisit->save();
+
+        $this->submit($project, $this->surveyPayload([
+            'intent'        => 'regenerate-document',
+            'general_notes' => 'Already claimed.',
+        ]))->assertRedirect()->assertSessionHasNoErrors();
+
+        $existing->refresh();
+
+        $this->assertSame('Already claimed.', $existing->general_notes);
+        $this->assertSame(1, Visit::where('project_id', $project->id)->count(), 'regenerate-document created a second visit.');
+        $this->assertSame($claimingVisit->id, Visit::where('project_id', $project->id)->sole()->id);
+    }
+
+    /** Test B: no survey yet — a validation-style refusal, never a hidden create. */
+    public function test_regenerate_document_only_refuses_when_there_is_nothing_to_regenerate(): void
+    {
+        $project = $this->project();
+
+        $this->submit($project, $this->surveyPayload(['intent' => 'regenerate-document']))
+            ->assertSessionHasErrors('module');
+
+        $this->assertSame(0, SiteSurvey::where('project_id', $project->id)->count(), 'regenerate-document created a survey.');
+        $this->assertSame(0, Visit::where('project_id', $project->id)->count());
+    }
+
+    /** Test C (non-regression): every existing `intent=create` test is untouched by this file's edits, proven by the whole suite staying green. */
+    public function test_the_create_path_is_unaffected_by_the_regenerate_intent_existing(): void
+    {
+        $project = $this->project();
+        $this->engineer();
+
+        $this->submit($project, $this->surveyPayload())->assertRedirect();
+
+        $this->assertSame(1, SiteSurvey::where('project_id', $project->id)->count());
+        $this->assertSame(1, Visit::where('project_id', $project->id)->count());
+    }
+
+    private function filesUrl(Project $project, string $module): string
+    {
+        return route('projects.cockpit', [
+            'project' => $project->getKey(),
+            'module'  => $module,
+            'tab'     => 'files',
+        ]);
+    }
 }

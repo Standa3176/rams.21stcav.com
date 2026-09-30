@@ -104,13 +104,22 @@ final class CockpitDocumentRequest extends FormRequest
      *
      * @var array<int, string>
      */
-    public const INTENTS = ['next', 'back', 'create', 'spaces-all', 'spaces-none'];
+    public const INTENTS = ['next', 'back', 'create', 'spaces-all', 'spaces-none', 'regenerate-document'];
 
     /** The two intents that rewrite the space ticks instead of changing step. */
     public const SPACE_INTENTS = ['spaces-all', 'spaces-none'];
 
     /** The intent an absent value means, so every pre-46.5 caller is unchanged. */
     public const INTENT_CREATE = 'create';
+
+    /**
+     * SITE-SURVEY-ONLY, DOCUMENT-ONLY, NO VISIT AND NO LINK (quick task
+     * 260930-qcy). The action a PM was actually reaching for when a
+     * pre-existing survey visit made a plain retry collide: update the
+     * survey's answered fields and rebuild its Word/PDF without ever
+     * attempting `VisitLinkIssuer::issue()`.
+     */
+    public const INTENT_REGENERATE = 'regenerate-document';
 
     public function authorize(): bool
     {
@@ -239,7 +248,16 @@ final class CockpitDocumentRequest extends FormRequest
             ? ['required', 'string', Rule::in($offered)]
             : ['nullable', 'string', Rule::in($offered)];
 
-        foreach ($this->groupsToValidate($module, $isCreate) as $group) {
+        // WIDENED, ON PURPOSE, TO MATCH `create` (quick task 260930-qcy).
+        // `regenerate-document` can carry edits from ANY earlier step as
+        // hidden inputs — the whole point of Test A in the quick task's
+        // plan — and must re-validate (and thereby actually RECEIVE) every
+        // one of them, not only the submitting step's. Kept as its own
+        // local rather than folding into `$isCreate` above: `format` stays
+        // `nullable` for this intent exactly as for any non-`create` one.
+        $wantsEveryGroup = $isCreate || $this->intent() === self::INTENT_REGENERATE;
+
+        foreach ($this->groupsToValidate($module, $wantsEveryGroup) as $group) {
             foreach ($group['fields'] as $field) {
                 $rules[$field['key']] = $field['rules'];
 
@@ -265,6 +283,16 @@ final class CockpitDocumentRequest extends FormRequest
      * than trusted because an earlier step validated them. A hand-crafted POST
      * claiming `step=1` therefore cannot skip step 2's rules (T-46.5-04-02),
      * and a forged `readonly` field still trips `prohibited` (T-46.5-04-03).
+     *
+     * ON `regenerate-document` (quick task 260930-qcy) — the SAME as `create`:
+     * every group, never only the submitting step's. This action can carry
+     * edits from ANY earlier step as hidden inputs, and narrowing to the
+     * current step's rules would mean `FormRequest::validated()` silently
+     * drops every earlier step's field — the exact gap that would make the
+     * regenerate action fail to save the very edits it exists to save. The
+     * caller passes `true` for the SAME reason `create` does; the parameter
+     * is still named `$isCreate` for the create case's own history, but a
+     * `true` here means "every group", not "this is a create".
      *
      * ON `next`/`back` — the CURRENT step's groups only, so a PM never reaches
      * step 3 to learn step 1 was wrong, and is never refused step 1 for a field
