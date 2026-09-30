@@ -29,6 +29,40 @@ replacing everything. It does not.
 therefore CORRECT BY DESIGN, not a shortfall.** Earlier framing called the cockpit "a thin shell over
 the old screens" as a criticism; under D-01 that is the intended shape.
 
+## D-01b — SUPERSEDES AND WIDENS D-01 (2026-09-30, same day)
+
+The user, verbatim:
+
+> "so from the project dash , when i click a project , it should show the cockpit and everything will
+> be run from within the cockpit .Engineer link creation/mgt will be done fron the cockpit with
+> dropdown drawers incl review of returned/completed links , creation of internal and external docs etc"
+
+**THE COCKPIT BECOMES THE PROJECT PAGE.** Clicking a project from the project list lands in the
+cockpit, and the work is done there: internal and external document creation, visit management,
+engineer link **creation and management**, and **review of returned/completed links** — in drawers.
+
+⚠️ **This is the inventory's step 11 — the one rated "Highest risk. Last, not first."** It is now
+first. **But the risk assessment assumed the cockpit must ABSORB everything before it can replace
+anything. That premise is false**, because the cockpit already links out
+(`CockpitPanelPresenter.php:99-140`) to `rams.review`, `site-surveys.show`, `worksheets.show`,
+`om-manuals.edit`, `cable-schedules.edit`.
+
+**So the safe shape is: SWITCH THE FRONT DOOR FIRST, ABSORB GRADUALLY.**
+1. The cockpit becomes where a project opens. It keeps linking out for what it does not own.
+2. It gains engineer link creation/management and returned-link review (the genuinely missing piece).
+3. Surfaces move into drawers one at a time, each on its own evidence.
+4. **A screen is retired only when the cockpit covers it** — the sole-capture-point rule (C-1/C-4)
+   is unchanged and still absolute.
+
+**Nothing is deleted to make this happen.** `projects/show.blade.php` stays reachable throughout;
+`rams.review` and `site-surveys.edit` keep their data. **Retirement is a later, separate decision
+per screen.**
+
+⚠️ **The returned-link review already EXISTS and is unsurfaced.** Phase 46.1 built `VisitEvidence`,
+`CockpitEvidencePresenter` and `VisitPhotoZipBuilder` — returned photos, room answers, serials,
+client sign-off, and a per-room photo ZIP. Phase 46.2 D-02 unsurfaced it; the routes are still
+registered. **"Review of returned/completed links" is largely re-surfacing built, tested code.**
+
 ## D-02 — THE GAP THIS OPENS
 
 **The cockpit issues no engineer links today.** Links are minted when a survey or worksheet is
