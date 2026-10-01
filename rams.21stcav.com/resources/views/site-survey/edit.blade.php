@@ -329,6 +329,31 @@
                 </form>
             </div>
         @endforeach
+
+        {{-- ════════════════════════════════════════════════════════════════
+             DOWNLOAD THE REPORTS — added 2026-10-01 (plan 46.6-06, Task 1b).
+             46.6-04 created the completed-report PDF/xlsx routes and this
+             plan's own grep for "completed-report" across resources/views/
+             returned nothing — they, and the pre-existing client-report
+             route, were reachable from nothing. Plain GET anchors, placed
+             OUTSIDE the #survey-form above (HTML forbids nested forms; the
+             46.6-02 panel above hit exactly this and solved it the same
+             way). Labelled unambiguously: the completed report is
+             INTERNAL use (D-05); client-report is the CLIENT-FACING one —
+             getting those two the wrong way round would send an internal
+             document to a client.
+             ════════════════════════════════════════════════════════════ --}}
+        <div style="margin-top:1.5rem;padding-top:1rem;border-top:1px solid #E5E7EB;display:flex;gap:1rem;flex-wrap:wrap;">
+            <a href="{{ route('site-surveys.completed-report', $survey) }}" class="btn btn-outline btn-sm">
+                Download Completed Report (PDF) — Internal
+            </a>
+            <a href="{{ route('site-surveys.completed-report.xlsx', $survey) }}" class="btn btn-outline btn-sm">
+                Download Completed Report (.xlsx) — Internal
+            </a>
+            <a href="{{ route('site-surveys.client-report', $survey) }}" class="btn btn-outline btn-sm">
+                Download Client Report (PDF) — Client-facing
+            </a>
+        </div>
     </div>
 </div>
 
