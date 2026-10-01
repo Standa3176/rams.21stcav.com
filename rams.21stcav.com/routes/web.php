@@ -693,6 +693,14 @@ Route::middleware('auth')->group(function () {
     Route::get('site-surveys/{siteSurvey}/variations.csv', [SiteSurveyController::class, 'variationsCsv'])
         ->name('site-surveys.variations.csv');
 
+    // ── Completed-survey report sections (46.6-CONTEXT.md D-03/D-08; plan 46.6-02) ──
+    // Office annotation of the five-section report, append-only — mirrors
+    // VisitNote's doctrine. INSERT only; there is deliberately no
+    // PUT/PATCH/DELETE route here (SurveyReportSectionTest greps for it).
+    // Guarded by the SAME authorizeSurvey() as client-report/variations.csv.
+    Route::post('site-surveys/{siteSurvey}/report-sections', [SiteSurveyController::class, 'saveReportSection'])
+        ->name('site-surveys.report-sections.store');
+
     // ── O&M Manuals ───────────────────────────────────────────────────────
     // Status polling route MUST be before the resource wildcard to prevent {omManual} swallowing 'status'
     Route::get('om-manuals/{omManual}/status', [OmManualController::class, 'status'])->name('om-manuals.status');

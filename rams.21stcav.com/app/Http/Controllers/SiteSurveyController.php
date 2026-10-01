@@ -9,6 +9,7 @@ use App\Models\SiteSurvey;
 use App\Models\SiteSurveyPhoto;
 use App\Models\SiteSurveyRoom;
 use App\Models\SiteSurveyRoomQuestion;
+use App\Models\SurveyReportSection;
 use App\Services\ProjectDeliverablesService;
 use App\Services\Survey\SiteSurveyTierOneReadinessService;
 use App\Services\SiteSurveyDocxService;
@@ -291,11 +292,51 @@ class SiteSurveyController extends Controller
             }
         }
 
+        // Completed-survey report sections (46.6-CONTEXT.md D-03/D-08) — the
+        // latest body per named section, or null when the office has not yet
+        // written one. Read via SurveyReportSection::latestFor(), never a
+        // direct column, because the surface is append-only.
+        $reportSections = [];
+        foreach (SurveyReportSection::SECTIONS as $sectionKey) {
+            $reportSections[$sectionKey] = SurveyReportSection::latestFor($siteSurvey->id, $sectionKey);
+        }
+
         return view('site-survey.edit', [
-            'survey'    => $siteSurvey,
-            'projects'  => $projects,
-            'kitByArea' => $kitByArea,
+            'survey'         => $siteSurvey,
+            'projects'       => $projects,
+            'kitByArea'      => $kitByArea,
+            'reportSections' => $reportSections,
         ]);
+    }
+
+    /**
+     * POST /site-surveys/{siteSurvey}/report-sections
+     *
+     * Append-only office annotation of one of the completed-survey report's
+     * four named sections (46.6-CONTEXT.md D-03/D-08). Always an INSERT —
+     * never an update — so a second save to the same section adds a new row
+     * rather than overwriting the first. Guarded by the same authorizeSurvey()
+     * as clientReport()/variationsCsv() above, not a looser one.
+     */
+    public function saveReportSection(Request $request, SiteSurvey $siteSurvey): RedirectResponse
+    {
+        $this->authorizeSurvey($siteSurvey);
+
+        $data = $request->validate([
+            'section' => ['required', 'string', 'in:' . implode(',', SurveyReportSection::SECTIONS)],
+            // An empty body is a clearing action with no recovery path under
+            // this append-only design — rejected, not silently stored blank.
+            'body'    => ['required', 'string', 'max:5000'],
+        ]);
+
+        SurveyReportSection::create([
+            'site_survey_id' => $siteSurvey->id,
+            'section'        => $data['section'],
+            'body'           => $data['body'],
+            'user_id'        => auth()->id(),
+        ]);
+
+        return redirect()->route('site-surveys.edit', $siteSurvey);
     }
 
     /**

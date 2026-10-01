@@ -262,6 +262,77 @@
 </form>
 
 {{-- ════════════════════════════════════════════════════════════════════════
+     COMPLETED REPORT — office review of the five-section report
+     (46.6-CONTEXT.md D-03/D-08; plan 46.6-02). Kept visually and structurally
+     DISTINCT from "Office Review Notes" above — that surface is the single-
+     valued client-report cover note; this one is four independently
+     addressable, append-only, attributed sections for 46.6-04's internal
+     report. Each textarea posts to its OWN form (site-surveys/{siteSurvey}/
+     report-sections) — never the main survey-form update — because every
+     save is an INSERT, never an edit of a prior row. The engineer's own
+     capture (room notes, flagged variations) renders read-only beside each
+     textarea so the office is not drafting "points raised" blind; it is
+     NEVER written to by this panel — only ever by the engineer's own survey
+     link.
+     ════════════════════════════════════════════════════════════════════════ --}}
+@php
+    $engineerRoomNotes = $survey->rooms->filter(fn ($r) => filled($r->notes))->pluck('notes', 'room_name');
+    $engineerFlaggedVariations = $survey->variations->whereIn('type', ['access_issue', 'other']);
+    $reportSectionLabels = [
+        'points_raised'          => 'Points Raised / Possible Issues',
+        'items_agreed'           => 'Items Agreed with Client',
+        'client_items_required'  => "Client's List of Items Required",
+        'additional_comments'    => 'Additional Comments',
+    ];
+@endphp
+<div class="form-section" style="margin-top:1.5rem;">
+    <div class="form-section__header">
+        <h2 class="section-heading" style="margin:0;">Completed Report</h2>
+    </div>
+    <div class="form-section__body">
+        <p style="font-size:.875rem;color:#6B7280;margin:0 0 .75rem;">
+            The office's review of what the engineer captured on site. Each section is saved
+            independently and keeps its full history — saving again never overwrites the
+            previous entry.
+        </p>
+
+        @if ($engineerRoomNotes->isNotEmpty() || $engineerFlaggedVariations->isNotEmpty())
+            <div style="background:#F9FAFB;border:1px solid #E5E7EB;border-radius:6px;padding:.75rem 1rem;margin-bottom:1rem;">
+                <h3 class="section-heading" style="margin:0 0 .5rem;font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:#6B7280;">
+                    Engineer's own capture (read-only, for context)
+                </h3>
+                @foreach ($engineerRoomNotes as $roomName => $note)
+                    <p style="font-size:.875rem;margin:0 0 .4rem;"><strong>{{ $roomName }}:</strong> {{ $note }}</p>
+                @endforeach
+                @foreach ($engineerFlaggedVariations as $variation)
+                    <p style="font-size:.875rem;margin:0 0 .4rem;">
+                        <strong>{{ $variation->room_name ?: 'Survey-wide' }}
+                            ({{ str_replace('_', ' ', $variation->type) }}):</strong>
+                        {{ $variation->description }}
+                    </p>
+                @endforeach
+            </div>
+        @endif
+
+        @foreach ($reportSectionLabels as $sectionKey => $sectionLabel)
+            <div class="form-group">
+                <label class="form-label" for="report_section_{{ $sectionKey }}">{{ $sectionLabel }}</label>
+                <form method="POST" action="{{ route('site-surveys.report-sections.store', $survey) }}">
+                    @csrf
+                    <input type="hidden" name="section" value="{{ $sectionKey }}">
+                    <textarea id="report_section_{{ $sectionKey }}" name="body"
+                              class="form-control" rows="4" maxlength="5000"
+                              placeholder="e.g. {{ $sectionLabel }}…">{{ $reportSections[$sectionKey]?->body }}</textarea>
+                    <button type="submit" class="btn btn-teal btn-sm" style="margin-top:.5rem;">
+                        Save {{ $sectionLabel }}
+                    </button>
+                </form>
+            </div>
+        @endforeach
+    </div>
+</div>
+
+{{-- ════════════════════════════════════════════════════════════════════════
      VARIATIONS & ADDITIONS — quick task 260508-v7g
      Separate form (HTML5 doesn't allow nested forms). Each variation Add /
      Edit / Delete posts directly to the variations CRUD endpoints.
