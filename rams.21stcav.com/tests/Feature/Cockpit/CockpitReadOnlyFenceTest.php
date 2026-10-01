@@ -93,12 +93,13 @@ class CockpitReadOnlyFenceTest extends TestCase
         'Open register'            => 'Phase 48',
         'Export CSV'               => 'Phase 48',
 
-        // ══ THREE ENTRIES RETURNED, 18 -> 21, BY 46.2 D-02 (Plan 46.2-03) ═══
+        // ══ TWO ENTRIES REMAIN RETURNED, 18 -> 21 -> 20, BY 46.2 D-02 (Plan
+        //    46.2-03) THEN PLAN 47-03 ═══════════════════════════════════════
         //
         // THE PRINCIPLE THAT BOUNDS THIS, STATED SO THE LIST CANNOT GROW WITHOUT
         // LIMIT: an entry returns to this list when, and ONLY when, it was once
         // LIFTED FROM IT and the affordance it named has since LEFT THE PAGE.
-        // Both halves are required. That is why exactly three come back and not
+        // Both halves are required. That is why exactly three came back and not
         // seven: 'Accept', 'Send back' and 'Raise a snag' also left the page, but
         // they were never entries here — they arrived in 46-05/46-06/46-07
         // without ever having been deferred — so they do not return. (They could
@@ -106,42 +107,43 @@ class CockpitReadOnlyFenceTest extends TestCase
         // as status copy under 46.2 D-06, and banning those strings would ban the
         // row's own record.)
         //
-        // THE OWNER STRING SAYS "Unsurfaced", NEVER "Phase NN". These three are
-        // not deferred. They exist, they are tested, and they work TODAY at the
-        // routes named. Writing a phase number would tell the next reader they
-        // are unbuilt, which is the opposite of the truth.
+        // THE OWNER STRING SAYS "Unsurfaced", NEVER "Phase NN", for the two
+        // remaining. They are not deferred. They exist, they are tested, and
+        // they work TODAY at the routes named. Writing a phase number would
+        // tell the next reader they are unbuilt, which is the opposite of the
+        // truth.
         'Create visit' => 'Unsurfaced by 46.2 D-02 — lives at projects.cockpit.visits.store',
         'Add note'     => 'Unsurfaced by 46.2 D-02 — lives at projects.cockpit.visits.notes',
-        'Download'     => 'Unsurfaced by 46.2 D-02 — the ZIP still lives at projects.cockpit.visits.photos-zip',
 
-        // 'Download' => 'Phase 48' WAS HERE. LIFTED BY PLAN 46.1-04, BY NAME,
-        // for requirement RV-04 — because this phase SHIPS the thing the entry
-        // banned: the Returned tab's per-visit photo archive, which D-03 calls
-        // the Bitrix hand-off. The copy is "Download all photos (ZIP)" and it
-        // is served by a GET on ProjectCockpitEvidenceController (Plan
-        // 46.1-02). An entry is removed when the affordance arrives, in the
-        // SAME commit as the affordance, and never to make a red test fit.
+        // ══ 'Download' LIFTED AGAIN, 21 -> 20, BY PLAN 47-03 (D-04 / RV-04) ═
         //
-        // EXACTLY ONE ENTRY LEFT. The boundary is named here rather than left
-        // to be inferred, because the next reader's real question is not what
-        // went but what stayed:
+        // IT WAS HERE: 'Download' => 'Unsurfaced by 46.2 D-02 — the ZIP still
+        // lives at projects.cockpit.visits.photos-zip'. Plan 47-03 is what
+        // makes that true sentence obsolete — the Returned tab re-surfaces the
+        // hand-off link at the SAME route, so "unsurfaced" is no longer the
+        // fact. Lifted BY NAME, IN THE SAME COMMIT that ships the control, per
+        // this file's own standing rule (46-04 and 46.1-04's precedent). The
+        // copy is "Download all photos (ZIP)" and the lift is PAID FOR —
+        // `populatedProject()` carries a real returned photo so the region
+        // this fence judges really does render the string
+        // (test_none_of_the_deferred_affordances_appears() would otherwise
+        // pass vacuously over an entry removed for a control nobody exercised).
         //
-        //   STILL PHASE 48, STILL BANNED — 'Upload files', 'Add document',
-        //   'Mark as sent', 'Issue to client', 'Open register', 'Export CSV',
-        //   'Add anyway', 'Upload a drawing', 'Send a RAMS to the client'.
-        //   This phase reads evidence and hands it over; it uploads nothing,
-        //   issues nothing and sends nothing to a client.
+        // STILL PHASE 48, STILL BANNED — 'Upload files', 'Add document',
+        // 'Mark as sent', 'Issue to client', 'Open register', 'Export CSV',
+        // 'Add anyway', 'Upload a drawing', 'Send a RAMS to the client'. This
+        // plan reads evidence and hands it over; it uploads nothing, issues
+        // nothing and sends nothing to a client.
         //
-        //   STILL PHASE 47 — 'Add a snag', 'Book a visit', 'Assign parts',
-        //   'Close snag'. STILL PHASE 49 — 'Edit details'. STILL PHASE 50 —
-        //   'Re-import from QuoteWerks', 'Close this project'. STILL PHASE 46 —
-        //   'Book another survey', 'Prepare a visit'.
+        // STILL PHASE 47 — 'Add a snag', 'Book a visit', 'Assign parts',
+        // 'Close snag'. STILL PHASE 49 — 'Edit details'. STILL PHASE 50 —
+        // 'Re-import from QuoteWerks', 'Close this project'. STILL PHASE 46 —
+        // 'Book another survey', 'Prepare a visit'.
         //
         // The word is ALSO still banned on the FILES tab, by
         // CockpitPanelTest::test_the_files_tab_link_copy_is_view_and_never_download(),
-        // which Plan 46.1-04 NARROWED AND RENAMED rather than deleted: a
-        // document row must still say "View". This lift is the Returned tab's
-        // and nothing else's.
+        // unaffected by this plan: a document row must still say "View". This
+        // lift is the Returned tab's and nothing else's.
 
         // Sketch 004's Quick actions block — added by Plan 45-13 (D-15).
         //
@@ -605,7 +607,9 @@ class CockpitReadOnlyFenceTest extends TestCase
 
     public function test_none_of_the_deferred_affordances_appears(): void
     {
-        foreach ($this->everyRegion($this->populatedProject()) as $region) {
+        $regions = $this->everyRegion($this->populatedProject());
+
+        foreach ($regions as $region) {
             foreach (self::DEFERRED_AFFORDANCES as $copy => $owner) {
                 $this->assertStringNotContainsString(
                     $copy,
@@ -614,41 +618,53 @@ class CockpitReadOnlyFenceTest extends TestCase
                 );
             }
         }
+
+        // PLAN 47-03: THE LIFT MUST BITE, THE SAME PROOF 46.1-04 TOOK THE
+        // FIRST TIME. 'Download' just left DEFERRED_AFFORDANCES — this test
+        // would keep passing vacuously if it only checked absence, because an
+        // entry that never rendered costs nothing to remove either. So:
+        // `populatedProject()`'s real returned photo must make at least ONE
+        // judged region carry the lifted string for real.
+        $this->assertTrue(
+            collect($regions)->contains(fn (string $region): bool => str_contains($region, 'Download all photos (ZIP)')),
+            "Read-only fence: lifting 'Download' from DEFERRED_AFFORDANCES is only earned if the ".
+            'region it was lifted for actually renders the string somewhere.'
+        );
     }
 
     /**
-     * RETIRED AND REPLACED BY ITS EXACT INVERSE (46.2 D-02, Plan 46.2-03).
+     * NARROWED BY PLAN 47-03 (D-04 / RV-04), RENAMED TO MATCH.
      *
-     * WAS `test_the_returned_tab_is_among_the_regions_this_fence_judges()`. Plan
-     * 46.1-04 wrote it to PAY FOR the `Download` lift: `everyRegion()` grew a
-     * fourth tab automatically because it iterates TABS, and that growth is worth
-     * nothing unless the tab really renders inside a judged region. So it
-     * asserted `assertContains('returned', TABS)` and that some judged region
-     * carried "Download all photos (ZIP)".
+     * WAS `test_the_unsurfaced_write_routes_all_still_work_with_no_link_on_the_page()`.
+     * Its premise — that NONE of the five POSTs and both evidence GETs is
+     * linked from anywhere on the cockpit — is now only HALF true. The five
+     * visit disclosures (Create visit / Add note / Raise a snag / Send back /
+     * Accept) are still unsurfaced by 46.2 D-02 and that half is UNCHANGED
+     * below. The two evidence GETs are the opposite now: this plan's whole
+     * point is that `photos-zip` and `photo` ARE linked, on the Returned tab
+     * specifically. Asserting their continued absence would make this test
+     * fail the moment the feature it exists to protect started working, which
+     * is the sign a premise needs to be inverted, not patched around.
      *
-     * `returned` has left TABS and the hand-off link has left the page, so both
-     * assertions are impossible. `Download` RETURNED to DEFERRED_AFFORDANCES in
-     * the same commit, which is the bookkeeping half — and this is the half that
-     * matters:
+     * ── WHAT STILL HOLDS, AND WHY IT MATTERS ────────────────────────────────
      *
-     * ── THE ONE ASSERTION THAT MAKES "UNSURFACED" MEAN ANYTHING ──────────────
-     *
-     * Removing a link is not removing a capability, and the difference has to be
-     * PROVED or the next reader is entitled to assume the phase deleted the visit
-     * workflow. So: every one of the five POSTs and both evidence GETs is driven
-     * for real, and every judged region is checked to carry no link to any of
-     * them. The routes answer; the page offers nothing.
-     *
-     * This is also the executable form of threat register entries T-46.2-06 and
-     * T-46.2-07, both dispositioned `accept`: these routes were never protected
-     * by the absence of a link, and their real guards — `auth`, `@csrf`,
-     * per-route validation and route-bound `{project}` scoping — are untouched.
+     * Removing a link is not removing a capability, and the difference has to
+     * be PROVED or the next reader is entitled to assume a phase deleted the
+     * visit workflow. So the five POSTs are still driven for real and still
+     * checked absent from every judged region — that half of T-46.2-06 /
+     * T-46.2-07 (disposition `accept`) is untouched. The two evidence GETs are
+     * driven for real too, and are now checked PRESENT on the one region
+     * where this plan puts them (the Returned tab) and ABSENT from a region
+     * where it does not (Overview) — proving the link lives exactly where it
+     * is meant to, not everywhere or nowhere.
      */
-    public function test_the_unsurfaced_write_routes_all_still_work_with_no_link_on_the_page(): void
+    public function test_the_unsurfaced_visit_posts_still_work_with_no_link_while_the_evidence_gets_are_linked_on_returned(): void
     {
         Bus::fake();
 
-        $this->assertNotContains('returned', ProjectCockpitController::TABS);
+        // 'returned' IS BACK IN TABS (Plan 47-03) — the inverse of the
+        // assertion this test used to make.
+        $this->assertContains('returned', ProjectCockpitController::TABS);
 
         // MOVED BY NAME, `[]` -> `['generate']` (Plan 46.2-05). `ACTIONS` is no
         // longer empty, because that plan re-surfaced the DOCUMENT form on exactly
@@ -757,38 +773,72 @@ class CockpitReadOnlyFenceTest extends TestCase
 
         $this->actingAs($pm)->get($photoUrl)->assertOk();
 
-        // ── 3. AND NOT ONE OF THEM IS LINKED FROM ANYWHERE ON THE PAGE ──────
-        $urls = [
+        // ── 3. THE FIVE VISIT DISCLOSURES ARE STILL LINKED NOWHERE ─────────
+        $postUrls = [
             route('projects.cockpit.visits.store', $project),
             route('projects.cockpit.visits.notes', ['project' => $project, 'visit' => $visit]),
             route('projects.cockpit.visits.snags', ['project' => $project, 'visit' => $visit]),
             route('projects.cockpit.visits.send-back', ['project' => $project, 'visit' => $visit]),
             route('projects.cockpit.visits.accept', ['project' => $project, 'visit' => $visit]),
-            $zip,
-            $photoUrl,
         ];
 
-        $this->assertCount(7, $urls, 'Five POSTs and two evidence GETs — the whole unsurfaced set.');
+        $this->assertCount(5, $postUrls, 'Five POSTs — the visit disclosures 46.2 D-02 still unsurfaces.');
 
         $judged = 0;
 
         foreach ($this->everyRegion($project) as $region) {
             $judged++;
 
-            foreach ($urls as $url) {
+            foreach ($postUrls as $url) {
+                // Quote-bounded, NOT a bare substring check (Plan 47-03). The
+                // store route's URI is `cockpit/visits` with NO trailing
+                // segment — a bare substring check would also "find" it
+                // inside `cockpit/visits/4/photos.zip`, the Returned tab's
+                // OWN legitimate hand-off link, and fail for the wrong
+                // reason. An href or a form action always closes on a quote,
+                // so appending one disambiguates "this exact route" from "a
+                // route nested under the same path prefix".
                 $this->assertStringNotContainsString(
-                    $url,
+                    $url.'"',
                     $region,
                     "The cockpit links to `{$url}`. 46.2 D-02 unsurfaces these routes; a link here undoes it."
                 );
             }
-
-            // Belt and braces on the path shape, so a relative or re-signed href
-            // could not slip past the absolute-URL comparison above.
-            $this->assertStringNotContainsString('/cockpit/visits/', $region);
         }
 
         $this->assertGreaterThan(0, $judged, 'No region was judged — this test would pass vacuously.');
+
+        // ── 4. THE TWO EVIDENCE GETS ARE LINKED, ON THE RETURNED TAB ────────
+        //
+        // PLAN 47-03: THE INVERSE OF STEP 3. Built from the fixture's OWN
+        // module ('worksheet', the same key the store POST above used) rather
+        // than assumed, so a module rename trips this instead of silently
+        // judging the wrong region.
+        $returnedRegion = $this->cockpitRegion($this->render($project, [
+            'module' => 'worksheet',
+            'tab'    => 'returned',
+        ]));
+
+        $this->assertStringContainsString(
+            $zip,
+            $returnedRegion,
+            'The Returned tab must carry the hand-off link for a visit with photos (Plan 47-03, RV-04).'
+        );
+
+        $this->assertStringContainsString(
+            $photoUrl,
+            $returnedRegion,
+            'The Returned tab must carry an inline link to each of this visit\'s photos (Plan 47-03).'
+        );
+
+        // AND THEY ARE NOT ON OVERVIEW — the link lives where this plan puts
+        // it, not everywhere. Non-vacuity: Overview really does render this
+        // same visit (by title), it simply offers neither evidence GET.
+        $overviewRegion = $this->cockpitRegion($this->render($project, ['module' => 'worksheet', 'tab' => 'overview']));
+
+        $this->assertStringContainsString('Unsurfaced acts', $overviewRegion);
+        $this->assertStringNotContainsString($zip, $overviewRegion);
+        $this->assertStringNotContainsString($photoUrl, $overviewRegion);
     }
 
     // -- The write surface, fenced on its own terms (Plan 46-04) ----------
@@ -985,11 +1035,18 @@ class CockpitReadOnlyFenceTest extends TestCase
         // 'Download' by 46.1-04; all three left the page in 46.2-03.
         //
         // Their owner strings read "Unsurfaced by 46.2 D-02 — lives at {route}",
-        // never a phase number, because unlike every other entry here these three
-        // ARE BUILT AND DO WORK. The history of this number is now
-        // 15 -> 18 -> 19 -> 18 -> 21.
+        // never a phase number, because unlike every other entry here these
+        // two (now) ARE BUILT AND DO WORK.
+        //
+        // MOVED AGAIN, 21 -> 20, BY PLAN 47-03 (D-04 / RV-04). 'Download' is
+        // LIFTED a second time — it was returned by 46.2-03 only because the
+        // hand-off link had left the page, and this plan puts it back on the
+        // Returned tab. Named "Download" alone, never deleted outright, so a
+        // THIRD return (should a later phase unsurface it again) follows the
+        // same return rule rather than needing to be reinvented. The history
+        // of this number is now 15 -> 18 -> 19 -> 18 -> 21 -> 20.
         $this->assertCount(
-            21,
+            20,
             self::DEFERRED_AFFORDANCES,
             'Every affordance drawn in either sketch is enumerated; nothing is dropped silently.'
         );
@@ -1359,6 +1416,54 @@ class CockpitReadOnlyFenceTest extends TestCase
                 $before[$table],
                 DB::table($table)->count(),
                 "Opening a panel changed the row count of `{$table}` — a GET on this page writes nothing."
+            );
+        }
+    }
+
+    /**
+     * THE RETURNED TAB'S NEW CALLER PATH, PROVED SEPARATELY (Plan 47-03).
+     *
+     * `test_opening_a_panel_writes_nothing()` above already iterates
+     * `ProjectCockpitController::TABS`, so it picked up `?tab=returned` the
+     * moment the constant grew — rendering the tab's body is already proved
+     * inert over all thirteen tables. What that test does NOT do is follow
+     * the hand-off link it renders: the ZIP is a SEPARATE GET, on a different
+     * controller (`ProjectCockpitEvidenceController`), and "the tab renders
+     * inertly" says nothing about "the link it offers is also inert". This
+     * test closes that gap, reusing the SAME row-count-snapshot shape the two
+     * tests above use rather than a second helper.
+     */
+    public function test_opening_the_returned_tab_and_following_its_handoff_link_writes_nothing(): void
+    {
+        $project = $this->populatedProject();
+
+        $before = [];
+
+        foreach (self::WRITE_SURFACE_TABLES as $table) {
+            $before[$table] = DB::table($table)->count();
+        }
+
+        // The SAME visit `populatedProject()` already carries a photo for —
+        // no new fixture, so this test fails loudly if that fixture ever
+        // stops providing one rather than silently rendering an empty tab.
+        $visit = Visit::where('project_id', $project->id)->where('title', 'Install day one')->sole();
+
+        $returnedRegion = $this->cockpitRegion($this->render($project, [
+            'module' => 'worksheet',
+            'tab'    => 'returned',
+        ]));
+
+        $zip = route('projects.cockpit.visits.photos-zip', ['project' => $project, 'visit' => $visit]);
+
+        $this->assertStringContainsString($zip, $returnedRegion, 'The hand-off link must be on the page for this to be a real follow, not a built URL.');
+
+        $this->actingAs(User::factory()->create())->get($zip)->assertOk();
+
+        foreach (self::WRITE_SURFACE_TABLES as $table) {
+            $this->assertSame(
+                $before[$table],
+                DB::table($table)->count(),
+                "Opening the Returned tab and downloading its ZIP changed the row count of `{$table}`."
             );
         }
     }

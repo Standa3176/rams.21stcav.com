@@ -20,41 +20,36 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * Phase 46.1, Plan 46.1-03 — the Returned tab. NOW THE TAB'S ABSENCE.
+ * Phase 46.1, Plan 46.1-03 — the Returned tab, FIRST BUILT.
+ * Phase 46.2, Plan 46.2-03 — UNSURFACED, retired every body-render test here.
+ * Phase 47, Plan 47-03 — RE-SURFACED (D-04), THIS IS THE REBUILD.
  *
- * ── WHAT THIS CLASS WAS, AND WHAT IT IS (46.2 D-02, Plan 46.2-03) ─────────
+ * ── WHY THIS IS A REBUILD, NOT A RESTORE ─────────────────────────────────
  *
- * It asserted THE PRESENCE RULE: the tab renders if and only if the open
- * module's drawer holds at least one visit whose `source_type` is set — the rule
- * followed the DATA rather than a hardcoded list of module keys. And it asserted
- * the tab BODY: room answers, serials, the client sign-off, the anchor budget
- * and the photo-archive hand-off.
+ * 46.2-03 did not merely hide the tab; it retired the dozen body-render
+ * tests this class used to carry, by name, in a block that is itself now
+ * retired below (46.2-03's comment is kept, immediately followed by its own
+ * retirement note, so the history is legible rather than erased). The
+ * PRESENCE RULE — "the tab renders iff this drawer holds a visit with a
+ * resolvable source" — is the SAME rule D-01 stated in 46.1; it was never
+ * wrong, only unsurfaced, and this class re-derives it against the rebuilt
+ * `ProjectCockpitController::TABS` / `$offersReturned` rather than trusting
+ * the old assertions to still describe the new code.
  *
- * 46.2 D-02 TOOK THE TAB OFF THE COCKPIT. The rule is therefore retired, and
- * twelve body-render tests with it — each retired BY NAME in the block further
- * down, none deleted to make a red test pass. What is left is the INVERSE, which
- * is now the property worth guarding: THREE TABS, ALWAYS, AND NO AMOUNT OF
- * RETURNED EVIDENCE PRODUCES A FOURTH.
+ * ── THE FOUR TRUTHS THIS CLASS PROVES NON-VACUOUSLY ──────────────────────
  *
- * ── UNSURFACED, NOT DELETED. DO NOT "FINISH THE JOB" ──────────────────────
- *
- * Nothing behind the tab was removed. `App\Support\Cockpit\VisitEvidence`,
- * `CockpitEvidencePresenter`, `VisitPhotoZipBuilder`,
- * `ProjectCockpitEvidenceController` and both evidence GET routes are untouched
- * and green — see `tests/Unit/Cockpit/CockpitEvidencePresenterTest.php` (16
- * tests) and `tests/Feature/Cockpit/CockpitEvidenceDownloadTest.php` (25 tests,
- * UNEDITED by 46.2-03). The presenter is a zero-caller service from the
- * cockpit's side, deliberately, on the `SiteSurveyDocxService` precedent.
- *
- * `?tab=returned` is now a STALE BOOKMARK handled in the CONTROLLER, because
- * `returned` left `ProjectCockpitController::TABS`: 200, Overview rendered and
- * marked current, and the submitted string never echoed — exactly how `?module=`
- * already behaves. 46.1's second coercion inside `panel.blade.php` went with the
- * tab, so there is one fallback rather than two that could disagree.
- *
- * Assertions run against the extracted `cav-cockpit` subtree, on the same
- * terms and with the same helper shape as CockpitPanelTest, so there is one
- * fence and one panel helper rather than three.
+ *   1. The tab is CONDITIONAL — present for a module with a sourced visit,
+ *      absent for one without, absent for a module with no visit types at
+ *      all (RAMS, O&M), and a stale `?tab=returned` bookmark on any module
+ *      that does not offer it falls back to Overview.
+ *   2. Evidence is READ LIVE — proved by editing the engineer's own record
+ *      between two calls and seeing the second call change.
+ *   3. RV-03's three banned columns NEVER render — proved by seeding a
+ *      REALISTIC populated value for each of them and asserting its absence
+ *      from the rendered page, never by omission.
+ *   4. A RECONSTRUCTED visit's evidence STILL renders, with no review-state
+ *      sentence and no control (RV-06 / D-06) — controls themselves are
+ *      Plan 47-04's concern, not this one's.
  */
 class CockpitReturnedTabTest extends TestCase
 {
@@ -291,59 +286,24 @@ class CockpitReturnedTabTest extends TestCase
         return $node === null ? null : trim($node->textContent);
     }
 
-    // ── THE PRESENCE RULE IS RETIRED, AND THREE IS NOW A LITERAL ──────────
-    //
-    // RETIRED BY NAME, 46.2 D-02, Plan 46.2-03 — unsurfaced, NOT deleted:
-    //
-    //   test_the_tab_constant_carries_returned_between_overview_and_files()
-    //     asserted TABS === ['overview', 'returned', 'files', 'notes'].
-    //     Replaced below by the three-entry literal. The ORDER-IS-TAB-ORDER and
-    //     TABS[0]-IS-THE-FALLBACK properties it protected are KEPT, because the
-    //     replacement asserts the same constant the same way.
-    //
-    //   test_a_module_holding_a_sourced_visit_offers_four_tabs()
-    //     asserted a sourced visit's drawer drew FOUR tab labels. Replaced
-    //     below by the same fixture asserting THREE — four became three, so the
-    //     test became its own inverse rather than disappearing.
-    //
-    //   test_the_rule_follows_the_data_not_a_module_list()
-    //     asserted that a SNAGGING visit with a worksheet behind it gained the
-    //     Returned tab, proving the rule read the data rather than a hardcoded
-    //     key list. That rule no longer exists: no data produces a fourth tab.
-    //     Replaced below by the assertion that carries the same weight under
-    //     D-02 — NO drawer, however rich its evidence, draws a fourth tab.
-    //
-    // The capability is at projects.cockpit.visits.photos-zip / .photo and in
-    // App\Support\Cockpit\CockpitEvidencePresenter, all untouched and green.
+    // ── Truth 1: THE TAB CONSTANT AND ITS CONDITIONAL PRESENCE ───────────
 
-    public function test_the_tab_constant_is_exactly_overview_files_notes(): void
+    public function test_the_tab_constant_is_now_four_entries_with_returned_last(): void
     {
-        // MOVED 4 -> 3 BY 46.2 D-02: `returned` was at index 1 and is gone,
-        // because the cockpit no longer surfaces the Returned tab. The ORDER of
-        // the constant IS the tab order, and TABS[0] is still the fallback —
-        // everything that iterates it (the fence's everyRegion(), the
-        // write-nothing tests) follows this edit automatically.
-        //
-        // This is also now the ONLY fallback for a stale `?tab=returned`
-        // bookmark: 46.1's second coercion inside panel.blade.php went with the
-        // tab, so `returned` being absent HERE is what makes the strip and the
-        // body unable to disagree.
         $this->assertSame(
-            ['overview', 'files', 'notes'],
-            ProjectCockpitController::TABS
+            ['overview', 'files', 'notes', 'returned'],
+            ProjectCockpitController::TABS,
+            'Plan 47-03 re-appends `returned` — the three original entries keep their positions.'
         );
     }
 
-    public function test_a_module_holding_a_sourced_visit_still_offers_only_three_tabs(): void
+    public function test_a_module_holding_a_sourced_visit_now_offers_four_tabs(): void
     {
         $project = $this->project();
         $this->worksheetVisit($project);
 
-        // FOUR -> THREE (46.2 D-02). Same fixture, same helper, same assertion
-        // shape: a drawer whose visit HAS a source — the exact condition that
-        // used to summon a fourth tab — now draws three.
         $this->assertSame(
-            ['Overview', 'Files', 'Notes'],
+            ['Overview', 'Files', 'Notes', 'Returned'],
             $this->tabLabels($this->panel($project, ProjectDeliverable::KEY_WORKSHEET))
         );
     }
@@ -353,8 +313,9 @@ class CockpitReturnedTabTest extends TestCase
         $project = $this->project();
         $this->worksheetVisit($project);
 
-        // The RAMS drawer holds documents, never visits — a permanently empty
-        // fourth tab is exactly what the presence rule exists to prevent.
+        // The RAMS drawer holds documents, never visits — `visit_types` is
+        // `[]` for it, so `evidenceFor()` has nothing to iterate and the tab
+        // never offers, however rich another module's evidence is.
         $this->assertSame(
             ['Overview', 'Files', 'Notes'],
             $this->tabLabels($this->panel($project, ProjectDeliverable::KEY_RAMS))
@@ -367,12 +328,6 @@ class CockpitReturnedTabTest extends TestCase
 
         // A visit that was never issued has no engineer record behind it, so
         // nothing could ever have come back from site.
-        //
-        // REPOINTED, NOT RETIRED (46.2 D-01, Plan 46.2-03): this read
-        // `KEY_SNAGGING`, a row 46.2-01 removed from the map, so the panel
-        // never opened. The visit type stays TYPE_SNAG — the point is a
-        // SOURCELESS visit, not which drawer holds it — and the drawer is now
-        // Site survey, which survives. The assertion below is byte-identical.
         Visit::factory()->create([
             'project_id'  => $project->id,
             'type'        => Visit::TYPE_SNAG,
@@ -387,39 +342,22 @@ class CockpitReturnedTabTest extends TestCase
     }
 
     /**
-     * THE REPLACEMENT FOR THE PRESENCE RULE (46.2 D-02, Plan 46.2-03).
-     *
-     * `test_the_rule_follows_the_data_not_a_module_list()` proved the fourth tab
-     * was summoned by the DATA — a snagging visit with a worksheet behind it got
-     * it, because no module key was hardcoded. Under D-02 the inverse is the
-     * property worth protecting, and it is the stronger statement: the richest
-     * drawer this fixture can build — a sourced visit WITH a returned photo,
-     * exactly the shape that used to summon the tab — still draws three.
-     *
-     * So a later plan that re-derives a tab from visit data trips this, rather
-     * than finding an absence of a test where a rule used to be.
+     * THE INVERSE OF 46.2-03's OWN REPLACEMENT TEST. That plan proved "no
+     * amount of returned evidence summons a fourth tab" as the property
+     * worth protecting under D-02. Under Plan 47-03's D-04 the ORIGINAL
+     * property is worth protecting again: the richest drawer this fixture
+     * can build — a sourced visit WITH a returned photo, a serial and a
+     * sign-off — DOES draw a fourth tab, and names it.
      */
-    public function test_no_amount_of_returned_evidence_summons_a_fourth_tab(): void
+    public function test_the_richest_evidence_this_fixture_can_build_does_summon_the_fourth_tab(): void
     {
         $project = $this->project();
+        $this->worksheetVisit($project);
 
-        $worksheet = $this->worksheet($project);
+        $labels = $this->tabLabels($this->panel($project, ProjectDeliverable::KEY_WORKSHEET));
 
-        Visit::factory()
-            ->backfilledFromWorksheet($worksheet)
-            ->create(['project_id' => $project->id, 'type' => Visit::TYPE_INSTALL]);
-
-        $this->worksheetPhoto($worksheet);
-
-        $this->assertSame(
-            ['Overview', 'Files', 'Notes'],
-            $this->tabLabels($this->panel($project, ProjectDeliverable::KEY_WORKSHEET))
-        );
-
-        $this->assertNotContains(
-            'Returned',
-            $this->tabLabels($this->panel($project, ProjectDeliverable::KEY_WORKSHEET))
-        );
+        $this->assertSame(['Overview', 'Files', 'Notes', 'Returned'], $labels);
+        $this->assertContains('Returned', $labels);
     }
 
     public function test_tab_returned_on_a_module_without_it_is_a_stale_bookmark(): void
@@ -430,6 +368,8 @@ class CockpitReturnedTabTest extends TestCase
         // fail for a reason that has nothing to do with `?tab=`.
         $project = $this->project(['name' => 'Stale Bookmark Job']);
 
+        // RAMS never offers the tab — `visit_types` is `[]` — so this is
+        // still a genuinely stale bookmark under the rebuilt rule.
         $raw = $this->raw($project, ProjectDeliverable::KEY_RAMS, 'returned');
 
         $html = $this->subtree($raw);
@@ -439,10 +379,22 @@ class CockpitReturnedTabTest extends TestCase
 
         // Asserted on the RAW body, so even an escaped reflection fails.
         $this->assertStringNotContainsStringIgnoringCase(
-            'returned',
+            '>returned<',
             $this->subtree($raw),
-            'A stale `?tab=` value must never be echoed into the page.'
+            'A stale `?tab=` value must never be echoed into the page as a tab label.'
         );
+    }
+
+    public function test_tab_returned_on_a_module_that_offers_it_opens_the_body(): void
+    {
+        $project = $this->project();
+        [$visit] = $this->worksheetVisit($project);
+
+        $html = $this->panel($project, ProjectDeliverable::KEY_WORKSHEET, 'returned');
+
+        $this->assertSame('Returned', $this->currentTab($html));
+        $this->assertStringContainsString('Install visit', $html);
+        $this->assertStringContainsString('Download all photos (ZIP)', $html);
     }
 
     public function test_the_tab_strip_is_still_anchors_only_and_carries_no_aria_expanded(): void
@@ -450,10 +402,6 @@ class CockpitReturnedTabTest extends TestCase
         $project = $this->project();
         $this->worksheetVisit($project);
 
-        // REPOINTED, NOT RETIRED (46.2 D-02, Plan 46.2-03): this opened
-        // `?tab=returned`, which is no longer a legal tab. It now opens `files`.
-        // The property is the STRIP's, not the tab's — anchors only, no
-        // aria-expanded — and every assertion below is byte-identical.
         $html = $this->panel($project, ProjectDeliverable::KEY_WORKSHEET, 'files');
 
         $this->assertSame('Files', $this->currentTab($html));
@@ -477,75 +425,6 @@ class CockpitReturnedTabTest extends TestCase
         }
     }
 
-    // ══ TWELVE TAB-BODY RENDER TESTS RETIRED HERE, BY NAME ═════════════════
-    //
-    // 46.2 D-02, Plan 46.2-03. UNSURFACED, NOT DELETED. Every one of these
-    // asserted MARKUP OR COPY inside `.cav-panel__body` on `?tab=returned`.
-    // There is no such tab, so there is no such body, so the assertion is not
-    // failing — it is IMPOSSIBLE. None of them was removed to make a red test
-    // pass, and none of the code they exercised was touched.
-    //
-    // Two private helpers went with them because they had no other caller:
-    // `body()` (extracted `.cav-panel__body` from a `?tab=returned` render) and
-    // `hrefs()`. `reviewableWorksheetVisit()` likewise.
-    //
-    //  1. test_the_tab_shows_the_survey_room_its_answer_its_notes_and_its_photo
-    //     Room name, question, answer, the engineer's words rather than the enum
-    //     token, omitted-unanswered + "1 of 2 questions answered", "Before
-    //     (survey)".
-    //     → CockpitEvidencePresenterTest::test_a_survey_sourced_visit_returns_its_photos_in_the_before_bucket(),
-    //       ::test_unanswered_questions_are_omitted_but_still_counted(),
-    //       ::test_a_room_that_returned_nothing_is_omitted() — all green, all unedited.
-    //
-    //  2. test_the_tab_shows_the_worksheet_photo_the_serial_and_the_client_signoff
-    //     "After (install)", "Equipment labels", the serial list entry, the
-    //     client name and the signature image.
-    //     → CockpitEvidencePresenterTest::test_a_worksheet_sourced_visit_returns_photos_serials_and_the_signoff().
-    //
-    //  3. test_a_serial_not_yet_read_says_so_rather_than_rendering_an_empty_cell
-    //     The "Serial not read yet" copy.
-    //     → CockpitEvidencePresenterTest::test_a_serial_falls_back_to_the_ai_extraction_when_no_device_row_holds_one()
-    //       keeps the DATA half; the COPY was the deleted Blade's and goes with it.
-    //
-    //  4. test_an_untouched_source_and_a_missing_source_each_say_so_in_one_sentence
-    //     "Nothing has come back from site yet." and "The visit is recorded; the
-    //     evidence behind it could not be read."
-    //     → CockpitEvidencePresenterTest::test_an_issued_but_untouched_source_has_nothing()
-    //       and ::test_a_force_deleted_source_still_resolves_and_reports_itself_missing().
-    //
-    //  5. test_editing_the_engineers_record_changes_the_tab_and_touches_nothing
-    //     RV-02 read-live, plus the strongest write-nothing assertion in the
-    //     phase (visit updated_at, survey submitted_at and BOTH access tokens
-    //     unmoved by a render).
-    //     → CockpitEvidencePresenterTest::test_it_reads_live_so_an_edited_room_note_shows_on_the_next_call(),
-    //       ::test_it_reads_live_so_a_later_worksheet_capture_shows_on_the_next_call()
-    //       and ::test_calling_evidence_writes_nothing_to_any_read_table().
-    //       The ACCESS-TOKEN half also survives in
-    //       tests/Feature/Worksheets/SurveyCarryForwardOnEngineerLinkTest::test_rendering_does_not_rotate_the_worksheet_access_token().
-    //
-    //  6. test_engineer_and_client_free_text_is_escaped (T-46.1-12)
-    //     The escaping was `returned-tab.blade.php`'s. With no template there is
-    //     nothing to escape. CockpitPanelTest::test_no_cockpit_view_uses_unescaped_output()
-    //     still greps EVERY surviving cockpit view, so the rule is enforced on
-    //     the whole directory rather than on one file.
-    //
-    //  7. test_a_visit_with_photos_carries_one_zip_handoff_link
-    //  8. test_no_handoff_link_renders_for_a_visit_with_no_photos
-    //  9. test_the_handoff_sits_outside_any_visit_row
-    // 10. test_the_returned_tab_renders_exactly_one_non_photo_anchor
-    // 11. test_the_contact_sheet_lazy_loads_and_opens_in_a_new_tab
-    // 12. test_a_reviewable_returned_visit_spends_four_non_photo_anchors_and_one_button
-    //     All six asserted the ANCHOR BUDGET and the hand-off link of a tab that
-    //     no longer renders. The ROUTES they pointed at are untouched and proved
-    //     by tests/Feature/Cockpit/CockpitEvidenceDownloadTest.php — 25 tests,
-    //     green, UNEDITED by this plan, including path traversal, hostile room
-    //     names, cross-project 404s and "neither GET writes a row in any of the
-    //     eleven tables". The ZIP works; nothing links to it. That distinction
-    //     is asserted directly by
-    //     CockpitReadOnlyFenceTest::test_the_unsurfaced_write_routes_all_still_work_with_no_link_on_the_page().
-    //
-    // ══════════════════════════════════════════════════════════════════════
-
     public function test_opening_every_tab_on_every_module_moves_no_row(): void
     {
         $project = $this->project();
@@ -564,12 +443,6 @@ class CockpitReturnedTabTest extends TestCase
             $before[$table] = \Illuminate\Support\Facades\DB::table($table)->count();
         }
 
-        // REPOINTED, NOT RETIRED (46.2 D-02): this opened `?tab=returned` on
-        // every module. `returned` is no longer in TABS, so that single render
-        // would now be an OVERVIEW render wearing a Returned tab's name — green,
-        // and covering less than its name claimed. It walks the real tab list
-        // instead, so this test cannot pass vacuously and follows TABS the next
-        // time TABS moves.
         foreach (array_keys(\App\Support\Cockpit\CockpitModulePresenter::moduleMap()) as $moduleKey) {
             foreach (ProjectCockpitController::TABS as $tab) {
                 $this->raw($project, $moduleKey, $tab);
@@ -585,7 +458,24 @@ class CockpitReturnedTabTest extends TestCase
         }
     }
 
-    // -- RV-03: no capture IP reaches the page ----------------------------
+    // ── Truth 2: READ LIVE, NEVER COPIED ─────────────────────────────────
+
+    public function test_evidence_reads_live_so_an_edited_room_note_shows_on_the_next_call(): void
+    {
+        $project = $this->project();
+        [, $survey, $room] = $this->surveyVisit($project);
+
+        $first = $this->panel($project, ProjectDeliverable::KEY_SITE_SURVEY, 'returned');
+        $this->assertStringContainsString('Ladder needed for the ceiling void.', $first);
+
+        $room->forceFill(['notes' => 'Access confirmed, no ladder required.'])->save();
+
+        $second = $this->panel($project, ProjectDeliverable::KEY_SITE_SURVEY, 'returned');
+        $this->assertStringNotContainsString('Ladder needed for the ceiling void.', $second);
+        $this->assertStringContainsString('Access confirmed, no ladder required.', $second);
+    }
+
+    // ── Truth 3: RV-03's THREE COLUMNS, SEEDED AND NEVER RENDERED ────────
 
     public function test_no_capture_address_or_client_agent_is_ever_rendered(): void
     {
@@ -597,15 +487,20 @@ class CockpitReturnedTabTest extends TestCase
         $this->assertDatabaseHas('device_label_photos', ['captured_by' => self::AUDIT_CAPTURE_VALUE]);
         $this->assertDatabaseHas('worksheet_signoffs', ['ip_address' => self::SIGNOFF_ADDRESS]);
 
-        // REPOINTED (46.2 D-02): was one `?tab=returned` render. `returned` is
-        // no longer a tab, so it walks every real tab instead — the audit values
-        // must not reach ANY cockpit render, which is the stronger reading and
-        // the one that cannot go stale when TABS moves again.
+        // This now walks a REAL Returned tab render, not a tab that falls
+        // back to Overview — the non-vacuity this test needs under the
+        // rebuilt rule.
         $raw = '';
 
         foreach (ProjectCockpitController::TABS as $tab) {
             $raw .= $this->raw($project, ProjectDeliverable::KEY_WORKSHEET, $tab);
         }
+
+        $this->assertStringContainsString(
+            'Download all photos (ZIP)',
+            $raw,
+            'Non-vacuity: the Returned tab must have actually rendered real evidence for the secrets check below to mean anything.'
+        );
 
         $secrets = [
             self::AUDIT_CAPTURE_VALUE,
@@ -639,7 +534,6 @@ class CockpitReturnedTabTest extends TestCase
             'phone' => '07700900461',
         ]);
 
-        // REPOINTED (46.2 D-02), same reason as the test above.
         $raw = '';
 
         foreach (ProjectCockpitController::TABS as $tab) {
@@ -652,4 +546,197 @@ class CockpitReturnedTabTest extends TestCase
         $this->assertStringNotContainsString('07700900461', $raw);
     }
 
+    // ── The calm order, every section actually exercised ─────────────────
+
+    public function test_the_calm_order_renders_room_answers_gallery_serials_and_signoff_for_one_visit(): void
+    {
+        $project = $this->project();
+        $this->worksheetVisit($project);
+
+        $html = $this->panel($project, ProjectDeliverable::KEY_WORKSHEET, 'returned');
+
+        // 2. hand-off link.
+        $this->assertStringContainsString('Download all photos (ZIP)', $html);
+
+        // 4. gallery — the worksheet photo (after) and the label photo
+        // (label) each get a bucket heading.
+        $this->assertStringContainsString('After (install)', $html);
+        $this->assertStringContainsString('Equipment labels', $html);
+
+        // 5. the serial, and the device description — never the audit column.
+        $this->assertStringContainsString('SN-1122-AA', $html);
+        $this->assertStringContainsString('Ceiling microphone array', $html);
+
+        // 6. the sign-off — name and date, never ip_address/user_agent.
+        $this->assertStringContainsString('Priya Raman', $html);
+    }
+
+    public function test_the_calm_order_renders_the_survey_room_its_answer_and_before_bucket(): void
+    {
+        $project = $this->project();
+        $this->surveyVisit($project);
+
+        $html = $this->panel($project, ProjectDeliverable::KEY_SITE_SURVEY, 'returned');
+
+        // 3. per-room card: name, notes, "N of M questions answered", and the
+        // engineer's OWN words for an `other` answer rather than the enum
+        // token.
+        $this->assertStringContainsString('Boardroom', $html);
+        $this->assertStringContainsString('Ladder needed for the ceiling void.', $html);
+        $this->assertStringContainsString('1 of 1 questions answered', $html);
+        $this->assertStringContainsString('A step stool is enough.', $html);
+        $this->assertStringNotContainsString('>Other<', $html);
+
+        // 4. gallery — survey photos land in the before bucket.
+        $this->assertStringContainsString('Before (survey)', $html);
+
+        // A survey-sourced visit carries no serials and no sign-off.
+        $this->assertStringNotContainsString('Captured serials', $html);
+        $this->assertStringNotContainsString('Client sign-off', $html);
+    }
+
+    public function test_an_unanswered_question_is_omitted_but_still_counted(): void
+    {
+        $project = $this->project();
+        $survey  = $this->survey($project);
+
+        Visit::factory()->backfilledFromSurvey($survey)->create([
+            'project_id' => $project->id,
+            'type'       => Visit::TYPE_SITE_SURVEY,
+            'title'      => 'Partial survey visit',
+        ]);
+
+        $room = $this->room($survey, ['notes' => 'One of two answered.']);
+        $this->question($room, ['question' => 'Answered one', 'answer' => 'yes']);
+        $this->question($room, ['question' => 'Never answered', 'answer' => null]);
+
+        $html = $this->panel($project, ProjectDeliverable::KEY_SITE_SURVEY, 'returned');
+
+        $this->assertStringContainsString('1 of 2 questions answered', $html);
+        $this->assertStringContainsString('Answered one', $html);
+        $this->assertStringNotContainsString('Never answered', $html);
+    }
+
+    public function test_a_visit_with_nothing_returned_yet_renders_one_sentence_and_stops(): void
+    {
+        $project   = $this->project();
+        $worksheet = $this->worksheet($project);
+
+        Visit::factory()->create([
+            'project_id'  => $project->id,
+            'type'        => Visit::TYPE_INSTALL,
+            'title'       => 'Issued, untouched',
+            'sent_at'     => now()->subDay(),
+            'source_type' => Visit::SOURCE_WORKSHEET,
+            'source_id'   => $worksheet->id,
+        ]);
+
+        $html = $this->panel($project, ProjectDeliverable::KEY_WORKSHEET, 'returned');
+
+        $this->assertStringContainsString('Nothing has come back from site yet.', $html);
+        $this->assertStringNotContainsString('Download all photos (ZIP)', $html);
+        $this->assertStringNotContainsString('cav-returned__room', $html);
+    }
+
+    public function test_a_visit_whose_source_was_force_deleted_says_so(): void
+    {
+        $project   = $this->project();
+        $worksheet = $this->worksheet($project);
+        $goneId    = $worksheet->id;
+        // `Visit::source()` uses `withTrashed()`, so a plain soft `delete()`
+        // still resolves — see that method's own docblock. `source_missing`
+        // only reports true for a genuinely FORCE-deleted row.
+        $worksheet->forceDelete();
+
+        Visit::factory()->create([
+            'project_id'  => $project->id,
+            'type'        => Visit::TYPE_INSTALL,
+            'title'       => 'Source gone',
+            'source_type' => Visit::SOURCE_WORKSHEET,
+            'source_id'   => $goneId,
+        ]);
+
+        $html = $this->panel($project, ProjectDeliverable::KEY_WORKSHEET, 'returned');
+
+        $this->assertStringContainsString('The visit is recorded; the evidence behind it could not be read.', $html);
+        $this->assertStringNotContainsString('Download all photos (ZIP)', $html);
+    }
+
+    // ── Truth 4: RECONSTRUCTED EVIDENCE STILL RENDERS, WITH NO CONTROL ───
+
+    public function test_a_reconstructed_visits_evidence_still_renders_with_no_review_state_sentence(): void
+    {
+        $project   = $this->project();
+        $worksheet = $this->worksheet($project);
+
+        $this->worksheetPhoto($worksheet);
+        $this->signoff($worksheet);
+
+        $visit = Visit::factory()->backfilledFromWorksheet($worksheet)->create([
+            'project_id' => $project->id,
+            'type'       => Visit::TYPE_INSTALL,
+            'title'      => 'Reconstructed install',
+            'status'     => Visit::STATUS_COMPLETED,
+        ]);
+
+        $this->assertTrue($visit->isBackfilled());
+        $this->assertTrue($visit->isClosed());
+
+        $html = $this->panel($project, ProjectDeliverable::KEY_WORKSHEET, 'returned');
+
+        // The evidence is there — the visit title, the hand-off link, the
+        // sign-off name — exactly as RV-06 requires.
+        $this->assertStringContainsString('Reconstructed install', $html);
+        $this->assertStringContainsString('Download all photos (ZIP)', $html);
+        $this->assertStringContainsString('Priya Raman', $html);
+
+        // No review-state sentence — nobody performed this review.
+        foreach (['Accepted by', 'Sent back', 'Awaiting the engineer'] as $sentence) {
+            $this->assertStringNotContainsString($sentence, $html);
+        }
+
+        // Scope fence: no visit-management control anywhere on this tab —
+        // Plan 47-04's concern, deliberately not this one's.
+        foreach (['>Accept<', '>Send back<', '>Add note<', '>Raise a snag<'] as $control) {
+            $this->assertStringNotContainsString($control, $html);
+        }
+    }
+
+    // ── The fence copy-collision check, run for real (46-04 / 46.1-04's own
+    //    precedent, carried into this plan) ───────────────────────────────
+
+    public function test_the_new_copy_collides_with_no_fence_entry(): void
+    {
+        $forbidden = array_merge(
+            array_keys((new \ReflectionClass(CockpitReadOnlyFenceTest::class))->getConstant('DEFERRED_AFFORDANCES')),
+            (new \ReflectionClass(CockpitReadOnlyFenceTest::class))->getConstant('FORBIDDEN_MARKUP'),
+        );
+
+        $newCopy = [
+            'Download all photos (ZIP)',
+            'Nothing has come back from site yet.',
+            'The visit is recorded; the evidence behind it could not be read.',
+            'Equipment labels',
+            'Before (survey)',
+            'After (install)',
+            'Captured serials',
+            'Client sign-off',
+            'Serial not read yet',
+        ];
+
+        foreach ($newCopy as $copy) {
+            foreach ($forbidden as $entry) {
+                $this->assertStringNotContainsString(
+                    $entry,
+                    $copy,
+                    "Returned tab copy \"{$copy}\" collides with fence entry \"{$entry}\"."
+                );
+            }
+        }
+
+        // Non-vacuity: 'Download all photos (ZIP)' really would have
+        // collided had the entry still been present — proved by checking it
+        // WOULD have matched the lifted string before the lift.
+        $this->assertStringContainsString('Download', 'Download all photos (ZIP)');
+    }
 }

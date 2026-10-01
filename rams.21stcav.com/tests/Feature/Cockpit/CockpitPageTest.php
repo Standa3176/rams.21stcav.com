@@ -8,6 +8,8 @@ use App\Models\Project;
 use App\Models\ProjectDeliverable;
 use App\Models\User;
 use App\Models\Visit;
+use App\Models\Worksheet;
+use App\Models\WorksheetPhoto;
 use App\Services\ProjectHealthService;
 use App\Support\Cockpit\CockpitModulePresenter;
 use App\Support\Cockpit\CockpitWizardPresenter;
@@ -777,18 +779,60 @@ class CockpitPageTest extends TestCase
         $this->assertStringContainsString($worksheet['title'], $html);
         $this->assertStringContainsString($worksheet['description'], $html);
 
-        // Tab strip — THREE anchors, and a close control that is also an
-        // anchor, back to the bare cockpit URL. Three is re-taken, not
-        // inherited: Phase 46.1 could make this drawer draw a conditional
-        // FOURTH (`Returned`), and 46.2 D-02 removed that tab, so three is
-        // now unconditional. Asserted against TABS so it cannot drift.
+        // Tab strip — THREE anchors on THIS fixture, and a close control
+        // that is also an anchor, back to the bare cockpit URL.
+        // `projectWithInstallVisits()`'s two visits carry no `source_type`
+        // (the VisitFactory default), so neither resolves evidence and this
+        // module does not offer a fourth tab — the "module WITHOUT a
+        // returnable visit" case. `TABS` ITSELF now holds FOUR entries
+        // (Plan 47-03, D-04 — the Returned tab is back, conditionally); the
+        // constant-level count below is asserted separately from this
+        // fixture's own three-anchor strip so the two cannot be confused.
         $this->assertSame(3, $this->countByClass($html, 'cav-panel__tab'));
-        $this->assertCount(3, ProjectCockpitController::TABS);
+        $this->assertCount(4, ProjectCockpitController::TABS);
         $this->assertStringNotContainsString('Returned', $html);
         $this->assertStringContainsString('Overview', $html);
         $this->assertStringContainsString('Files', $html);
         $this->assertStringContainsString('Notes', $html);
         $this->assertStringContainsString('href="'.e(route('projects.cockpit', $project)).'"', $html);
+    }
+
+    /**
+     * THE INVERSE OF THE TEST ABOVE (Plan 47-03, D-04). A module whose open
+     * visit DOES carry a resolvable source — here, a real photo behind it —
+     * offers the fourth tab, and the strip draws FOUR anchors including
+     * `Returned`.
+     */
+    public function test_a_module_with_a_returnable_visit_offers_a_fourth_returned_tab(): void
+    {
+        $project   = $this->project();
+        $worksheet = Worksheet::factory()->create(['project_id' => $project->id]);
+
+        Visit::factory()->create([
+            'project_id'     => $project->id,
+            'type'           => Visit::TYPE_INSTALL,
+            'title'          => 'Install visit with evidence',
+            'scheduled_date' => '2026-09-05',
+            'source_type'    => Visit::SOURCE_WORKSHEET,
+            'source_id'      => $worksheet->id,
+        ]);
+
+        WorksheetPhoto::create([
+            'worksheet_id'  => $worksheet->id,
+            'room_name'     => 'Boardroom',
+            'filename'      => 'worksheet-photos/page-test-01.jpg',
+            'original_name' => 'install-01.jpg',
+            'mime_type'     => 'image/jpeg',
+            'sort_order'    => 0,
+        ]);
+
+        $html = $this->renderPanel($project, ProjectDeliverable::KEY_WORKSHEET);
+
+        $this->assertSame(4, $this->countByClass($html, 'cav-panel__tab'));
+        $this->assertStringContainsString('Returned', $html);
+        $this->assertStringContainsString('Overview', $html);
+        $this->assertStringContainsString('Files', $html);
+        $this->assertStringContainsString('Notes', $html);
     }
 
     public function test_only_the_active_tab_carries_aria_current_and_nothing_carries_aria_expanded(): void
@@ -924,9 +968,13 @@ class CockpitPageTest extends TestCase
         }
 
         // `Create visit` SHIPPED (Plan 46-04) and `Add note` ships in 46-05.
-        // These four are still Phase 48.
+        // 'Upload files', 'Add document' and 'Issue to client' are still
+        // Phase 48. 'Download' is back (Plan 47-03) but CONDITIONALLY — this
+        // fixture's visits carry no `source_type` (the VisitFactory default),
+        // so this module offers no Returned tab and the string is absent on
+        // this render for that reason, not because it is still deferred.
         foreach (['Upload files', 'Add document', 'Download', 'Issue to client'] as $deferred) {
-            $this->assertStringNotContainsString($deferred, $html, "\"{$deferred}\" is a Phase 46/48 write.");
+            $this->assertStringNotContainsString($deferred, $html, "\"{$deferred}\" must not appear on a module with no returnable visit.");
         }
     }
 
