@@ -149,6 +149,52 @@ class SurveyPdfService
         return $path;
     }
 
+    /**
+     * Build the completed-survey report PDF (D-05/D-08) and return its
+     * absolute path. This is a THIRD mode of the same unified Blade
+     * (pdf.site-survey.summary) — not a second renderer — gated by a new
+     * $completed flag independent of $internal. When $completed is true the
+     * template renders ONLY the five named sections (rooms summary derived
+     * from the survey's own rooms, plus the four office-annotated sections
+     * read via SurveyReportSection::latestFor()); it does not also render
+     * the internal/client room-by-room detail blocks.
+     *
+     * Persists via DocumentArtifactStorage TYPE_SURVEY, under a filename
+     * prefix distinct from buildSummary()'s legacy path and
+     * buildClientReport()'s client-survey- prefix so none of the three
+     * outputs can ever collide on disk.
+     */
+    public function buildCompletedReport(SiteSurvey $survey): string
+    {
+        // Same eager-load buildClientReport() already uses — no new relation
+        // beyond what's already fetched for the unified summary view.
+        $survey->loadMissing(['rooms.photos', 'rooms.questions', 'variations.photo', 'project:id,name']);
+
+        $reportSections = [];
+        foreach (\App\Models\SurveyReportSection::SECTIONS as $sectionKey) {
+            $reportSections[$sectionKey] = \App\Models\SurveyReportSection::latestFor($survey->id, $sectionKey)?->body;
+        }
+
+        $slug      = \Illuminate\Support\Str::slug($survey->project_name ?: ('survey-' . $survey->id));
+        $timestamp = now()->format('Ymd_His_u');
+        $filename  = "completed-report-{$survey->id}-{$slug}-{$timestamp}.pdf";
+
+        /** @var \App\Services\DocumentArtifactStorage $artifacts */
+        $artifacts = app(\App\Services\DocumentArtifactStorage::class);
+        $path      = $artifacts->writePath(\App\Services\DocumentArtifactStorage::TYPE_SURVEY, $filename);
+
+        $this->renderer->fromBlade(
+            'pdf.site-survey.summary',
+            ['survey' => $survey, 'completed' => true, 'reportSections' => $reportSections],
+            $path,
+            $this->browsershotOptions(
+                'Completed Survey Report | ' . $survey->project_name . ' | ' . now()->format('d/m/Y'),
+            ),
+        );
+
+        return $path;
+    }
+
     // ── Private ───────────────────────────────────────────────────────────────
 
     /**

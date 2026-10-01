@@ -12,6 +12,17 @@
     //    Default = true preserves back-compat for any caller invoking the
     //    blade without the flag (the legacy buildSummary() pathway).
     $internal = $internal ?? true;
+
+    // Phase 46.6, Plan 04 — a THIRD mode, independent of $internal/$internal
+    // chrome above: the completed-survey report (D-05/D-08). When true, the
+    // body below renders ONLY the five named sections (rooms summary +
+    // the four office-annotated sections) instead of the full internal/
+    // client room-by-room detail. $reportSections is a
+    // [section_key => ?string body] map built by
+    // SurveyPdfService::buildCompletedReport() from
+    // SurveyReportSection::latestFor().
+    $completed = $completed ?? false;
+    $reportSections = $reportSections ?? [];
 @endphp
 {{-- Client-mode cover chrome overlay — kept here so the engineer mode's
      base _styles.blade.php is untouched and we don't fork CSS. Mirrors the
@@ -61,6 +72,82 @@
     <tr><td class="label">Survey Date</td><td>{{ $dateStr }}</td></tr>
 </table>
 
+@if($completed)
+    {{-- ─────────────────────────────────────────────────────────────────
+         Phase 46.6, Plan 04 — the completed-survey report's five named
+         sections (D-05/D-08). Rooms Summary is DERIVED from the survey's
+         own rooms (no new capture); the other four read the latest
+         SurveyReportSection row per section, or render a named
+         placeholder when the office has not yet written one. Headings
+         below are static markup, not echoed PHP strings, so the
+         apostrophe in "Client's Items Required" is never HTML-entity
+         escaped by a Blade {{ }} echo.
+         ───────────────────────────────────────────────────────────────── --}}
+    @php
+        $workTypeLabels = [
+            'new_install' => 'New install',
+            'upgrade'     => 'Upgrade',
+            'retrofit'    => 'Retrofit',
+            'fault'       => 'Fault',
+        ];
+    @endphp
+
+    <h2>Rooms Summary</h2>
+    <table>
+        <tr>
+            <td class="label" style="width:25%;">Room</td>
+            <td class="label" style="width:15%;">Type</td>
+            <td class="label" style="width:15%;">Work Type</td>
+            <td class="label">Notes</td>
+        </tr>
+        @foreach($survey->rooms as $room)
+            @php
+                $digest = trim((string) ($room->notes ?? ''));
+                $digest = $digest !== '' ? \Illuminate\Support\Str::limit($digest, 160) : '—';
+                $workTypeKey   = strtolower((string) ($room->work_type ?? ''));
+                $workTypeLabel = $workTypeLabels[$workTypeKey] ?? ($room->work_type ?: '—');
+            @endphp
+            <tr>
+                <td>{{ $room->room_name }}</td>
+                <td>{{ $room->space_type ?? '—' }}</td>
+                <td>{{ $workTypeLabel }}</td>
+                <td>{{ $digest }}</td>
+            </tr>
+        @endforeach
+    </table>
+
+    <h2>Points Raised / Possible Issues</h2>
+    @php $prBody = $reportSections['points_raised'] ?? null; @endphp
+    @if(filled($prBody))
+        <p>{!! nl2br(e($prBody)) !!}</p>
+    @else
+        <p class="meta">Not yet reviewed.</p>
+    @endif
+
+    <h2>Items Agreed With Client</h2>
+    @php $iaBody = $reportSections['items_agreed'] ?? null; @endphp
+    @if(filled($iaBody))
+        <p>{!! nl2br(e($iaBody)) !!}</p>
+    @else
+        <p class="meta">Not yet reviewed.</p>
+    @endif
+
+    <h2>Client's Items Required</h2>
+    @php $cirBody = $reportSections['client_items_required'] ?? null; @endphp
+    @if(filled($cirBody))
+        <p>{!! nl2br(e($cirBody)) !!}</p>
+    @else
+        <p class="meta">Not yet reviewed.</p>
+    @endif
+
+    <h2>Additional Comments</h2>
+    @php $acBody = $reportSections['additional_comments'] ?? null; @endphp
+    @if(filled($acBody))
+        <p>{!! nl2br(e($acBody)) !!}</p>
+    @else
+        <p class="meta">Not yet reviewed.</p>
+    @endif
+@else
 {{-- Survey-level office review summary — client-only, rendered once at the
      top above the per-room blocks. Mirrors the client-report.blade.php
      cover-page callout that used to live there (260508-v7g D-LOCK-2). --}}
@@ -448,5 +535,6 @@
         </p>
     @endif
 @endunless
+@endif
 
 </body></html>
