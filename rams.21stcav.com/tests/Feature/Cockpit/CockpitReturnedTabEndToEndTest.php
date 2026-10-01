@@ -744,17 +744,25 @@ class CockpitReturnedTabEndToEndTest extends TestCase
         // The presenter still resolves all three: see
         // CockpitEvidencePresenterTest::test_a_worksheet_sourced_visit_returns_photos_serials_and_the_signoff().
         //
-        // THE "AND IT OFFERS NOTHING" HALF STAYS, AND IS NOW UNIVERSAL RATHER
-        // THAN SPECIAL. This was the one visit shape that offered no control;
-        // under D-02 no visit shape does, so the same four strings are asserted
-        // absent for a reason that has grown rather than gone.
+        // THE "AND IT OFFERS NOTHING VISIT-SHAPED" HALF STAYS, NARROWED BY
+        // PLAN 47-01. This was the one visit shape that offered no VISIT
+        // control (Accept / Send back / Add note / Raise a snag); under
+        // D-02 no visit shape does, and that is still true below.
         $this->assertStringNotContainsString('Download all photos (ZIP)', $region);
 
         foreach (['Accept', 'Send back', 'Add note', 'Raise a snag'] as $act) {
             $this->assertStringNotContainsString($act, $region);
         }
 
-        $this->assertSame(0, substr_count($region, '<button'));
+        // 0 -> 1, BY PLAN 47-01 (D-01 remainder / D-02), AND NAMED RATHER
+        // THAN LEFT AT A STALE ZERO. The worksheet this reconstructed visit
+        // sources from DOES hold a live link, so `CockpitLinkPresenter`
+        // resolves `can_revoke => true` for it and the card's revoke form
+        // renders — one `<button>`, read by its own name below, never a
+        // VISIT act. That is a document-link control, not a visit control,
+        // and it is unrelated to the four strings just asserted absent.
+        $this->assertSame(1, substr_count($region, '<button'));
+        $this->assertStringContainsString('Revoke and reissue', $region);
 
         // Non-vacuity: the visit really is on the page, reported and not offered.
         $this->assertStringContainsString('Install visit', $region);

@@ -608,6 +608,28 @@ class CockpitCreateVisitTest extends TestCase
         );
     }
 
+    /**
+     * T-46-04-04, NARROWED BY PLAN 47-01 — AND THE CHECK IS NOW AGAINST
+     * `<form>` ELEMENTS, NOT THE WHOLE REGION.
+     *
+     * The claim this test protects has always been "a token is minted in a
+     * model boot hook and never travels through a form" — a token inside a
+     * hidden or visible form FIELD is attacker-controlled the moment it is
+     * resubmitted, which is the real risk T-46-04-04 named. "It is not even
+     * rendered on the cockpit" was true only because, in Plan 46-04, nothing
+     * rendered the engineer link anywhere on this page at all.
+     *
+     * Plan 47-01 (D-01 remainder / D-02) deliberately changes that: the
+     * link card renders `publicUrl()` — which carries the token as a query
+     * string — as plain, selectable `<a>` text on the Overview tab, exactly
+     * because a PM could not otherwise copy a link to send. That is this
+     * plan's whole objective, not a regression of this one. The security
+     * property this test exists to prove is unchanged and is now asserted
+     * directly: the token is checked ONLY inside `<form>` elements, where a
+     * resubmission risk would actually exist. The revoke form itself posts
+     * to `worksheets.revoke-token` keyed by the worksheet's id (default
+     * route-model binding), never by its token, so it carries none either.
+     */
     public function test_no_access_token_appears_in_any_form_field(): void
     {
         Bus::fake();
@@ -620,9 +642,31 @@ class CockpitCreateVisitTest extends TestCase
 
         $region = $this->region($project, ['module' => 'worksheet', 'action' => 'create-visit']);
 
-        // T-46-04-04: a token is minted in a model boot hook and never travels
-        // through a form. It is not even rendered on the cockpit.
-        $this->assertStringNotContainsString($worksheet->access_token, $region);
+        // Non-vacuity: Plan 47-01's link card renders the token (inside the
+        // URL) on this very region, so a check that found nothing at all
+        // would not be proving the scoped claim below — it would be proving
+        // the region was empty.
+        $this->assertStringContainsString($worksheet->access_token, $region);
+
+        $dom = new \DOMDocument();
+        libxml_use_internal_errors(true);
+        $dom->loadHTML('<?xml encoding="utf-8" ?>'.$region);
+        libxml_clear_errors();
+
+        $forms   = (new \DOMXPath($dom))->query('//form');
+        $checked = 0;
+
+        foreach ($forms as $form) {
+            $checked++;
+
+            $this->assertStringNotContainsString(
+                $worksheet->access_token,
+                $dom->saveHTML($form),
+                'T-46-04-04: a token must never travel through a form.'
+            );
+        }
+
+        $this->assertGreaterThan(0, $checked, 'No form was judged — this test would pass vacuously.');
     }
 
     public function test_an_unknown_action_value_discloses_nothing_and_is_never_echoed(): void

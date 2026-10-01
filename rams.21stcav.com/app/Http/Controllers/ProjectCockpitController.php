@@ -10,6 +10,7 @@ use App\Services\RamsReviewDataService;
 use App\Services\ProjectContextResolver;
 use App\Support\Cockpit\CockpitDocumentFormPresenter;
 use App\Support\Cockpit\CockpitHeaderPresenter;
+use App\Support\Cockpit\CockpitLinkPresenter;
 use App\Support\Cockpit\CockpitModulePresenter;
 use App\Support\Cockpit\CockpitPanelPresenter;
 use App\Support\Cockpit\CockpitSectionPresenter;
@@ -131,6 +132,10 @@ class ProjectCockpitController extends Controller
         // `?action=` and `ACTIONS`.
         private CockpitWizardPresenter $wizardPresenter,
         private RamsReviewDataService $reviewData,
+        // Plan 47-01 (D-01 remainder / D-02). Read-only, exactly as the other
+        // nine: linkFor() resolves the current engineer link and mints no
+        // token, so disclosing it changes nothing a GET is not allowed to.
+        private CockpitLinkPresenter $linkPresenter,
     ) {
     }
 
@@ -183,6 +188,13 @@ class ProjectCockpitController extends Controller
         $panelFiles = $moduleKey === null ? collect() : $this->panelPresenter->files($project, $moduleKey);
         $panelNotes = $moduleKey === null ? collect() : $this->panelPresenter->notes($project, $moduleKey);
         $activity   = $this->panelPresenter->activity($project);
+
+        // THE ENGINEER LINK AND ITS STATE (Plan 47-01). Read-only, derived
+        // here rather than in Blade on this page's standing rule: the
+        // controller wires, the presenter derives, the view draws. null for
+        // rams/om and for a module with no document yet — `link-card.blade.php`
+        // renders nothing for either.
+        $panelLink = $moduleKey === null ? null : $this->linkPresenter->linkFor($project, $moduleKey);
 
         // ── THE DOCUMENT FORM'S FOUR WIRINGS (Phase 46.2, Plan 46.2-05) ────
         //
@@ -262,6 +274,7 @@ class ProjectCockpitController extends Controller
             'progress',
             'panelFiles',
             'panelNotes',
+            'panelLink',
             'activity',
             'action',
             'docFields',

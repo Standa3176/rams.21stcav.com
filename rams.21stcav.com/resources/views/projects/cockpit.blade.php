@@ -222,7 +222,13 @@
                                      the plan that consumes them. --}}
                                 :doc-step="$docStep"
                                 :doc-steps="$docSteps"
-                                :doc-step-title="$docStepTitle" />
+                                :doc-step-title="$docStepTitle"
+                                {{-- ADDED BY PLAN 47-01 (D-01 remainder / D-02):
+                                     the current engineer link and its state,
+                                     read-only. null for rams/om and for a
+                                     module with no document yet — the card
+                                     itself renders nothing then. --}}
+                                :link="$panelLink" />
                             {{-- FIVE ATTRIBUTES REMOVED BY 46.2 D-02 (Plan 46.2-03):
                                  `evidence`, `action`, `action-visit-id`, `rooms` and
                                  `people`. They fed the Create visit form and the

@@ -139,6 +139,13 @@
     'docStep'      => 1,
     'docSteps'     => [],
     'docStepTitle' => null,
+    // THE ENGINEER LINK AND ITS STATE (Plan 47-01, D-01 remainder / D-02).
+    // Derived in ProjectCockpitController from CockpitLinkPresenter — this
+    // file decides no URL and no state sentence of its own, exactly as it
+    // decides no field and no step of its own. null for rams/om and for a
+    // module with no document yet; `link-card.blade.php` renders nothing
+    // for either.
+    'link'         => null,
 ])
 
 @php
@@ -293,6 +300,16 @@
 
     <div class="cav-panel__body">
         @if ($tab === 'overview')
+            {{-- THE ENGINEER LINK, WHENEVER ONE EXISTS (Plan 47-01, D-01
+                 remainder / D-02). Rendered ABOVE the Visits card and
+                 BEFORE the Progress ring, so the thing a PM most often
+                 wants on an ordinary day — "copy the link and send it" —
+                 is the first thing this tab shows, not something found only
+                 after a creation collided. `link-card.blade.php` renders
+                 nothing when `$link` is null (rams/om, or a module with no
+                 document yet). --}}
+            <x-cockpit.link-card :link="$link" />
+
             @if ($progress !== null)
                 <div class="cav-panel__card">
                     <span class="cav-panel__card-head">Progress</span>

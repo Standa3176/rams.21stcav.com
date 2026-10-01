@@ -2,9 +2,11 @@
 
 namespace Tests\Feature\Cockpit;
 
+use App\Http\Controllers\ProjectCockpitController;
 use App\Models\Project;
 use App\Models\SiteSurvey;
 use App\Models\User;
+use App\Models\Visit;
 use App\Models\Worksheet;
 use App\Models\WorksheetSignoff;
 use App\Support\Cockpit\CockpitLinkPresenter;
@@ -191,5 +193,209 @@ class CockpitLinkCardTest extends TestCase
         foreach ($tables as $table) {
             $this->assertSame($before[$table], DB::table($table)->count(), "CockpitLinkPresenter moved `{$table}`.");
         }
+    }
+
+    // -- Task 2: the card as rendered ---------------------------------------
+
+    /**
+     * The new copy, checked as a substring against the fence's own
+     * DEFERRED_AFFORDANCES and FORBIDDEN_MARKUP constants — not a second,
+     * hand-maintained list of them, so the check cannot silently drift from
+     * the fence it is meant to prove compliance with.
+     *
+     * @return array<int, string>
+     */
+    private function fenceStrings(string $constant): array
+    {
+        $reflection = new \ReflectionClass(CockpitReadOnlyFenceTest::class);
+
+        $value = $reflection->getConstant($constant);
+
+        return $constant === 'DEFERRED_AFFORDANCES' ? array_keys($value) : $value;
+    }
+
+    private function render(Project $project, array $query = []): string
+    {
+        config(['cockpit.enabled' => true]);
+
+        $url = route('projects.cockpit', ['project' => $project] + $query);
+
+        return $this->actingAs(User::factory()->create())
+            ->get($url)
+            ->assertOk()
+            ->getContent();
+    }
+
+    public function test_the_new_copy_collides_with_no_fence_entry(): void
+    {
+        $newCopy = [
+            'Engineer link',
+            'Current link:',
+            'Revoke and reissue',
+            'Revoking mints a fresh link and invalidates the one shown above.',
+            'There is no way to revoke a survey link. Superseding this survey below starts a fresh one instead.',
+            'Issued — awaiting the engineer',
+            'Link expired',
+        ];
+
+        foreach ($this->fenceStrings('DEFERRED_AFFORDANCES') as $deferred) {
+            foreach ($newCopy as $copy) {
+                $this->assertStringNotContainsString(
+                    $deferred,
+                    $copy,
+                    "\"{$copy}\" collides with the deferred affordance \"{$deferred}\"."
+                );
+            }
+        }
+
+        foreach ($this->fenceStrings('FORBIDDEN_MARKUP') as $forbidden) {
+            foreach ($newCopy as $copy) {
+                $this->assertStringNotContainsString($forbidden, $copy);
+            }
+        }
+    }
+
+    public function test_opening_site_survey_with_a_live_survey_shows_the_link_above_visits(): void
+    {
+        $project = Project::factory()->create();
+
+        $survey = SiteSurvey::create([
+            'project_id'    => $project->id,
+            'user_id'       => User::factory()->create()->id,
+            'project_name'  => $project->name,
+            'status'        => 'draft',
+            'surveyor_name' => 'Rendered Surveyor',
+        ]);
+
+        // A visit, so the Visits card actually renders — without one the
+        // ordering assertion below would be proving the link card sits
+        // above a card that was never there.
+        Visit::factory()->backfilledFromSurvey($survey)->create([
+            'project_id'     => $project->id,
+            'title'          => 'Site survey',
+            'scheduled_date' => '2026-08-11',
+        ]);
+
+        $body = $this->render($project, ['module' => 'site_survey', 'tab' => 'overview']);
+
+        $this->assertStringContainsString('Engineer link', $body);
+        $this->assertStringContainsString(
+            '<a href="'.e($survey->publicUrl()).'">'.e($survey->publicUrl()).'</a>',
+            $body
+        );
+        $this->assertStringContainsString('Issued — awaiting the engineer', $body);
+        $this->assertStringContainsString(
+            'There is no way to revoke a survey link. Superseding this survey below starts a fresh one instead.',
+            $body
+        );
+
+        // The link card is ABOVE the Visits card.
+        $linkPos   = strpos($body, 'Engineer link');
+        $visitsPos = strpos($body, 'cav-panel__card-head">Visits');
+        $this->assertNotFalse($linkPos);
+        $this->assertNotFalse($visitsPos);
+        $this->assertLessThan($visitsPos, $linkPos);
+    }
+
+    public function test_opening_worksheet_with_a_worksheet_shows_the_link_and_a_working_revoke_form(): void
+    {
+        $project   = Project::factory()->create();
+        $worksheet = Worksheet::factory()->create(['project_id' => $project->id]);
+
+        $body = $this->render($project, ['module' => 'worksheet', 'tab' => 'overview']);
+
+        $this->assertStringContainsString('Engineer link', $body);
+        $this->assertStringContainsString(
+            '<a href="'.e($worksheet->publicUrl()).'">'.e($worksheet->publicUrl()).'</a>',
+            $body
+        );
+        $this->assertStringContainsString(
+            'action="'.e(route('worksheets.revoke-token', $worksheet)).'"',
+            $body
+        );
+        $this->assertStringContainsString('Revoke and reissue', $body);
+        $this->assertStringContainsString('Revoking mints a fresh link and invalidates the one shown above.', $body);
+
+        // No "no revoke" sentence on a module that CAN revoke.
+        $this->assertStringNotContainsString('There is no way to revoke a survey link.', $body);
+    }
+
+    public function test_a_module_with_no_document_yet_shows_no_link_card(): void
+    {
+        $project = Project::factory()->create();
+
+        foreach (['site_survey', 'worksheet'] as $moduleKey) {
+            $body = $this->render($project, ['module' => $moduleKey, 'tab' => 'overview']);
+
+            $this->assertStringNotContainsString('Engineer link', $body);
+            $this->assertStringNotContainsString('Current link:', $body);
+        }
+    }
+
+    public function test_rams_and_om_never_show_a_link_card(): void
+    {
+        $project = Project::factory()->create();
+
+        foreach (['rams', 'om'] as $moduleKey) {
+            foreach (ProjectCockpitController::TABS as $tab) {
+                $body = $this->render($project, ['module' => $moduleKey, 'tab' => $tab]);
+
+                $this->assertStringNotContainsString('Engineer link', $body);
+                $this->assertStringNotContainsString('Current link:', $body);
+            }
+        }
+    }
+
+    /**
+     * Scoped to the `.cav-panel` subtree, not the whole response — the page
+     * shell's own @vite bundle tag is a real, pre-existing `<script` outside
+     * this plan's scope (the same scoping `CockpitReadOnlyFenceTest` applies
+     * to `.cav-cockpit`).
+     */
+    private function panelRegion(string $html): string
+    {
+        $dom = new \DOMDocument();
+        libxml_use_internal_errors(true);
+        $dom->loadHTML('<?xml encoding="utf-8" ?>'.$html);
+        libxml_clear_errors();
+
+        $node = (new \DOMXPath($dom))
+            ->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' cav-panel ')]")
+            ->item(0);
+
+        $this->assertNotNull($node, 'The cav-panel element was not found.');
+
+        return html_entity_decode($dom->saveHTML($node), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    }
+
+    public function test_the_card_renders_no_select_no_script_and_no_handler_attribute(): void
+    {
+        $project   = Project::factory()->create();
+        $worksheet = Worksheet::factory()->create(['project_id' => $project->id]);
+
+        $body   = $this->render($project, ['module' => 'worksheet', 'tab' => 'overview']);
+        $region = $this->panelRegion($body);
+
+        $this->assertStringContainsString('Engineer link', $region, 'The panel region does not carry the card — the check below would be vacuous.');
+
+        $forbidden = ['<select', '<script', 'onclick', 'wire:', 'x-on:', '@click', 'x-data', 'x-show', 'x-init', 'x-if', 'x-text'];
+
+        foreach ($forbidden as $banned) {
+            $this->assertStringNotContainsString($banned, $region);
+        }
+
+        // The URL is escaped output, never a raw directive.
+        $this->assertStringNotContainsString('{!!', $region);
+    }
+
+    public function test_opening_an_unmapped_module_key_still_renders_no_link_card(): void
+    {
+        $this->assertNotContains('snagging', VisitLinkIssuer::moduleKeys());
+
+        $project = Project::factory()->create();
+
+        $body = $this->render($project, ['module' => 'snagging']);
+
+        $this->assertStringNotContainsString('Engineer link', $body);
     }
 }
