@@ -17,8 +17,10 @@ recorded in `.planning/sketches/002-install-cockpit/README.md` (cockpit + panels
 the user says otherwise.
 **Total requirements:** 67 defined so far (LR-01..LR-05, Phase 44; VIS-01..VIS-10, Phase 45;
 VL-01..VL-12, Phase 46; RV-01..RV-08, Phase 46.1; DC-01..DC-11, Phase 46.2;
-DL-01..DL-06, Phase 46.3; IC-01..IC-07, Phase 46.4; GCW-01..GCW-08, Phase 46.5).
-Phases 47–51 are outlined in the roadmap but their requirement IDs are **not yet minted** — each
+DL-01..DL-06, Phase 46.3; IC-01..IC-07, Phase 46.4; GCW-01..GCW-08, Phase 46.5); plus LNK-01..LNK-05
+(Phase 47, minted 2026-09-30) and **SRV-01..SRV-06 (Phase 46.6, PROPOSED 2026-10-01 at planning
+time — confirm at the phase checkpoint)**, neither yet folded into this count.
+Phases 47.1–51 are outlined in the roadmap but their requirement IDs are **not yet minted** — each
 will be added here when its phase is planned.
 
 ### Why this milestone exists
@@ -534,6 +536,36 @@ evidence, the count ledger, the five walks and every place a summary disagreed w
 this phase (DC-06, DC-07, IC-03, the four pre-existing engineer-link findings, 46.3's unanswered
 checkpoint and 46.4's unprovable airplane-mode walk) are listed there with their reasons; **none of
 them is a GCW row.**
+
+### Group SRV — Survey engineer link: tabbed layout, review and report (Phase 46.6)
+
+**PROPOSED at planning time, 2026-10-01 — no `REQUIREMENTS.md` group existed yet for either half of
+this phase.** Six requirements, mapping to D-01, D-03..D-09 in `46.6-CONTEXT.md` (D-02 is a research
+instruction, not a product requirement, and mints nothing). Confirm this group at the phase's
+blocking checkpoint rather than treating it as already settled.
+
+- **SRV-01** — The survey engineer link (`surveys/show.blade.php`) renders rooms as **tabs along a
+  sticky bottom bar**, in SCC's shape, with the **first tab holding site/contract details** —
+  client, site, address, site contact — replacing today's `screen: 'rooms'` picker screen (D-01).
+- **SRV-02** — Each room's existing **8-step sequential wizard flattens into one scrolling tab**,
+  keeping the former 8 steps as **labelled sections** so nothing captured today is lost — the
+  user's own choice (D-06), made after being told it is the larger of two diffs.
+- **SRV-03** — Tab state **survives a reload** and autosave of typed fields **never silently loses
+  an engineer's words offline** — both following the **worksheet's** (Phase 46.7) mechanics
+  (`location.hash` + `sessionStorage` for the tab, `localStorage`-only for the draft, never the
+  `engineer-capture` IndexedDB queue), not SCC's own weaker version of either (D-09).
+- **SRV-04** — The office's review of a returned survey is a **separate, append-only annotation
+  layer** seeded from the engineer's own captured record. The engineer's record — `site_survey_rooms`
+  columns, `SurveyVariation` rows — is **never overwritten**; the office's words sit alongside it,
+  attributed and timestamped, the same doctrine `VisitReworkState`/`VisitNote` already use for a
+  visit's send-back note (D-03, D-08).
+- **SRV-05** — A completed-survey report carries **five sections**: rooms summary (derived from the
+  survey, no new capture), and four office-authored sections — points raised / possible issues,
+  items agreed with client, client's list of items required, additional comments (D-05).
+- **SRV-06** — The report is produced as **both** a PDF, extending the existing
+  `site-surveys.client-report` route / `SurveyPdfService::buildClientReport` pipeline (no second PDF
+  renderer), **and** a real `.xlsx`, built with the already-installed `phpoffice/phpspreadsheet`
+  following `CableScheduleXlsxService`'s existing pattern (no new dependency) (D-04, D-07, D-08).
 
 ### Out of scope for v4.0
 

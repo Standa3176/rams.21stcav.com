@@ -311,7 +311,7 @@ Each of these is **recorded in the admin Hidden Functions register**, not forgot
 - [ ] **Phase 46.3: Inline Drawer Layout** — the module panel becomes a drawer beneath the row you clicked, the other rows collapse away, Recent activity moves to its own right-hand panel, and the vestigial "N visits" phrase comes off the rows. Inserted 2026-09-26 from the user's first real use of the live page.
 - [ ] **Phase 46.4: Engineer Link — Install Capture** — room start/completion photos that can carry labels, serial capture surfaced as an asset list, and a per-room additional-kit list (engineer · qty · part description) that queues offline, so the office gets a clean list instead of prose in a comments box. Worksheet link only — a site survey is a room survey, so no kit.
 - [ ] **Phase 46.5: Guided Creation Wizard** — the long panel form becomes stepped (dates/contact/engineer → notes → confirm spaces), and one creation produces the document, the visit and the engineer link together. RAMS joins it as doc-only, standalone or attached to an install, driven by the deliverable tick that already exists. Adds the company name to the header and a third photo stage (start/during/end).
-- [ ] **Phase 46.6: Survey Review + Completed Report** — a Review report tab where the office actions what the engineer sent back (re-surfacing the evidence review and per-space photo ZIP that Phase 46.2 unsurfaced), and a NEW completed site-survey report PDF: rooms summary, points raised, items agreed with client, client's list of items required, additional comments.
+- [ ] **Phase 46.6: Survey Engineer Link — SCC Layout, Review, and Report Output** — the survey engineer link gets the SCC-shaped tabbed layout (site/contract details first, rooms along the bottom, each room flattened to one scrolling tab) that Phase 46.7 gave the worksheet link but deferred for the survey; plus a Review report tab where the office actions what the engineer sent back (re-surfacing the evidence review and per-space photo ZIP that Phase 46.2 unsurfaced), and a NEW completed site-survey report PDF + XLSX: rooms summary, points raised, items agreed with client, client's list of items required, additional comments. ⚠️ Renamed 2026-10-01 — the roadmap's old name covered only half the phase; the tabbed-layout half was reported twice against the live link and is folded in here rather than re-split.
 - [ ] **Phase 46.7: Engineer Link — Tabbed Layout + Autosave** — rooms become tabs with a sticky bar showing which are done, a site header carries client/ref/address, and autosave replaces the POST-and-reload cycle. ⚠️ Corrects a gap: 46.4 was asked to follow SCC's PMV design and delivered the capture fields but not the layout.
 
   **Plans:** 4 plans in 4 waves (sequential — all four touch the one standalone page file, so no two can share a wave)
@@ -879,15 +879,28 @@ tick that already exists).
 
 ---
 
-### Phase 46.6: Survey Review + Completed Report
+### Phase 46.6: Survey Engineer Link — SCC Layout, Review, and Report Output
 
-**Goal**: The office actions what an engineer sent back and produces a completed site-survey report —
-so a survey ends as a structured document somebody can act on, not a folder of photos.
+⚠️ **RENAMED 2026-10-01 — this phase is wider than its old name.** The roadmap previously called
+this `Survey Review + Completed Report`, covering only the review/report half. The user's
+2026-10-01 request added the other half — **the SCC-shaped tabbed layout for the SURVEY engineer
+link** — which Phase 46.7 gave the worksheet link but explicitly deferred for the survey (its own
+Deferred Ideas: *"The same treatment for the site-survey link"*). Both halves are the same page's
+lifecycle, so they are one phase, not two, and the user has now asked for the layout half twice
+after receiving it once (46.4, then 46.7, both for the worksheet only). See
+`.planning/phases/46.6-survey-review-completed-report/46.6-CONTEXT.md` for the full record.
+
+**Goal**: The survey engineer link gets SCC's tabbed layout — site/contract details first, rooms as
+tabs along the bottom, each room flattened to one scrolling tab per the user's own choice (D-06) —
+AND the office actions what an engineer sent back to produce a completed site-survey report, so a
+survey ends as a structured document somebody can act on, not a folder of photos and a step-wizard
+nobody but SCC's design matches.
 
 **Depends on**: Phase 46.1 (the evidence review and per-room photo ZIP this re-surfaces), Phase 46.5
-(the creation flow that issues the link).
+(the creation flow that issues the link), Phase 46.7 (the in-repo tab/autosave precedent this phase
+follows rather than SCC's own, lesser, reload-losing version — D-09).
 
-**Decided 2026-09-27, before planning:**
+**Decided 2026-09-27, before planning (the review/report half):**
 - The report PDF carries five sections: **rooms summary · points raised / possible issues · items
   agreed with client · client's list of items required · additional comments.** Typically internal.
 - **The ENGINEER raises points on site; the OFFICE edits them.** The user's words, asked and answered.
@@ -908,7 +921,40 @@ so a survey ends as a structured document somebody can act on, not a folder of p
 - Per-space image download already exists — `VisitPhotoZipBuilder` groups by room and is built,
   tested and merely unsurfaced.
 
-**UI hint**: yes (an office review surface plus a new PDF)
+**Decided 2026-10-01 (the layout half, D-01..D-09 in 46.6-CONTEXT.md):** rooms become tabs with the
+first tab site/contract details (D-01); each room's existing 8-step wizard **flattens into one
+scrolling tab**, keeping the 8 steps as labelled sections — the user's own choice, made after being
+told it is the larger diff (D-06); "XLS" means a real `.xlsx` via the already-installed
+`phpoffice/phpspreadsheet`, following `CableScheduleXlsxService`'s pattern (D-07); no second PDF
+renderer — extend `site-surveys.client-report` / `SurveyPdfService::buildClientReport` (D-08); tab
+persistence and autosave follow the **worksheet's** (46.7) mechanics, not SCC's own weaker ones
+(D-09).
+
+**Requirements**: SRV-01..SRV-06 (minted at planning time, 2026-10-01 — proposed below; no
+`REQUIREMENTS.md` group existed yet for either half of this phase).
+
+**UI hint**: yes (tabbed engineer link, an office review surface, a new PDF, a new XLSX)
+
+**Plans**: 7 plans in 5 waves (the tab-bar scaffold and the 8-step flatten both touch the one
+standalone `surveys/show.blade.php` file, so they cannot share a wave with each other; the review
+schema/UI and the report/XLSX output touch a disjoint file set and run alongside the layout work)
+
+- [ ] 46.6-01-PLAN.md — wave 1: tab-bar scaffold + site/contract-details first tab (D-01), survey
+      link only
+- [ ] 46.6-02-PLAN.md — wave 1 (parallel, disjoint files): the office review-section schema +
+      capture UI, seeded from the engineer's existing immutable capture (D-03, D-08)
+- [ ] 46.6-03-PLAN.md — wave 2 (depends on 46.6-01, same file): the 8-step-per-room flatten into one
+      scrolling tab, keeping the 8 steps as labelled sections (D-06) — the risky centre of the phase
+- [ ] 46.6-04-PLAN.md — wave 2 (parallel, depends on 46.6-02, disjoint files): the five-section
+      completed-survey report (PDF, extending `site-surveys.client-report`) + the `.xlsx` export
+      (D-04, D-05, D-07, D-08)
+- [ ] 46.6-05-PLAN.md — wave 3 (depends on 46.6-03, same file): autosave rewire — debounced
+      input-level autosave + hash/sessionStorage tab persistence, following the worksheet's (46.7)
+      mechanics, never SCC's own (D-09)
+- [ ] 46.6-06-PLAN.md — wave 4 (depends on 46.6-04 and 46.6-05): full gate run, the requirement
+      ledger, the deploy note, ROADMAP checkbox updates
+- [ ] 46.6-07-PLAN.md — wave 5: the **blocking human checkpoint** — opened on a real phone, never
+      self-approved
 
 ---
 
