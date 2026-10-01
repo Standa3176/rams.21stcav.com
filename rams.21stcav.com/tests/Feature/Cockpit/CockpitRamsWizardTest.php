@@ -617,9 +617,10 @@ class CockpitRamsWizardTest extends TestCase
     }
 
     /**
-     * The copy, checked as a SUBSTRING against all 21 `DEFERRED_AFFORDANCES`
-     * keys and both `FORBIDDEN_MARKUP` entries - before use, and now as an
-     * assertion so a later copy edit cannot collide quietly.
+     * The copy, checked as a SUBSTRING against all 20 `DEFERRED_AFFORDANCES`
+     * keys (21 before Plan 47-03 lifted "Download") and both
+     * `FORBIDDEN_MARKUP` entries - before use, and now as an assertion so a
+     * later copy edit cannot collide quietly.
      *
      * `Send a RAMS to the client` is the entry this plan's copy sits closest to,
      * and no line may contain it: this plan ships no client issue.
@@ -642,7 +643,7 @@ class CockpitRamsWizardTest extends TestCase
             $fence->getConstant('FORBIDDEN_MARKUP'),
         );
 
-        $this->assertCount(23, $banned, 'The fence is 21 deferred affordances and 2 forbidden markup entries.');
+        $this->assertCount(22, $banned, 'The fence is 20 deferred affordances (Plan 47-03 lifted "Download") and 2 forbidden markup entries.');
 
         foreach ($copy as $line) {
             foreach ($banned as $entry) {

@@ -555,7 +555,9 @@ class CockpitVisitActionsTest extends TestCase
      * projects.cockpit.visits.accept / .send-back / .notes / .snags, are proved
      * by the route half of this very file, and are asserted to be reachable with
      * no link on the page by
-     * CockpitReadOnlyFenceTest::test_the_unsurfaced_write_routes_all_still_work_with_no_link_on_the_page().
+     * CockpitReadOnlyFenceTest::test_the_unsurfaced_visit_posts_still_work_with_no_link_while_the_evidence_gets_are_linked_on_returned()
+     * (renamed by Plan 47-03, which re-links the two evidence GETs on the
+     * Returned tab — the five POSTs named above remain unlinked).
      *
      * @return array<int, string>
      */

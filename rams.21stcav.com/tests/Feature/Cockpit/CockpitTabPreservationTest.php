@@ -281,18 +281,22 @@ class CockpitTabPreservationTest extends TestCase
             ]));
         }
 
-        // `'returned'` ADDED TO THIS LIST BY 46.2 D-02 (Plan 46.2-03). It was a
-        // REAL tab when this list was written, which is why only `'returned"'`
-        // appeared; it is a non-tab now, and asserting its rejection here is the
-        // POST-side half of `returned` leaving
-        // ProjectCockpitController::TABS.
+        // `'returned'` REMOVED FROM THIS LIST BY PLAN 47-03 (D-04). It was
+        // added here by 46.2 D-02 when `returned` left
+        // ProjectCockpitController::TABS; this plan puts it back
+        // (conditionally — see that constant's own docblock), so it is a
+        // REAL tab again and belongs in the first loop above, which already
+        // covers it by iterating `TABS` directly. Asserting its rejection
+        // here would now be asserting something false. `'RETURNED'` (wrong
+        // case) and `'returned"'` (a traversal-shaped near-miss) stay: they
+        // are NOT the real string and must still be rejected.
         //
         // STILL NOT in this list: `'returned '`. The `TrimStrings` middleware
         // trims it before the controller sees it, so it would now be rejected for
         // the same reason as the bare string rather than for its own, and
         // asserting it would be asserting against the framework. Case, traversal,
         // emptiness and encoding ARE the rule's business, and each is here.
-        foreach (['returned', 'RETURNED', 'overview/../files', '', '0', 'notes%00', 'returned"'] as $notATab) {
+        foreach (['RETURNED', 'overview/../files', '', '0', 'notes%00', 'returned"'] as $notATab) {
             $this->actingAs($pm)->post(
                 route('projects.cockpit.visits.accept', ['project' => $project, 'visit' => $this->returnedVisit($project)]),
                 ['tab' => $notATab],
