@@ -15,11 +15,14 @@ recorded in `.planning/sketches/002-install-cockpit/README.md` (cockpit + panels
 `.planning/sketches/003-quote-import/README.md` (import review). The sketches are the
 **visual contract**; where an implementation and a sketch disagree, the sketch wins unless
 the user says otherwise.
-**Total requirements:** 67 defined so far (LR-01..LR-05, Phase 44; VIS-01..VIS-10, Phase 45;
+**Total requirements:** 73 defined so far (LR-01..LR-05, Phase 44; VIS-01..VIS-10, Phase 45;
 VL-01..VL-12, Phase 46; RV-01..RV-08, Phase 46.1; DC-01..DC-11, Phase 46.2;
-DL-01..DL-06, Phase 46.3; IC-01..IC-07, Phase 46.4; GCW-01..GCW-08, Phase 46.5); plus LNK-01..LNK-05
-(Phase 47, minted 2026-09-30) and **SRV-01..SRV-06 (Phase 46.6, PROPOSED 2026-10-01 at planning
-time — confirm at the phase checkpoint)**, neither yet folded into this count.
+DL-01..DL-06, Phase 46.3; IC-01..IC-07, Phase 46.4; GCW-01..GCW-08, Phase 46.5;
+**SRV-01..SRV-06, Phase 46.6 — folded into this count 2026-10-01 at Plan 46.6-06, each with its
+own named-test evidence in `46.6-LEDGER.md`; still awaiting the phase's blocking checkpoint
+(46.6-07) before Phase 46.6 itself is considered complete**); plus LNK-01..LNK-05 (Phase 47,
+minted 2026-09-30), **not yet folded into this count** — that is Phase 47's own closing plan's job,
+not this one's.
 Phases 47.1–51 are outlined in the roadmap but their requirement IDs are **not yet minted** — each
 will be added here when its phase is planned.
 
@@ -539,33 +542,56 @@ them is a GCW row.**
 
 ### Group SRV — Survey engineer link: tabbed layout, review and report (Phase 46.6)
 
-**PROPOSED at planning time, 2026-10-01 — no `REQUIREMENTS.md` group existed yet for either half of
-this phase.** Six requirements, mapping to D-01, D-03..D-09 in `46.6-CONTEXT.md` (D-02 is a research
-instruction, not a product requirement, and mints nothing). Confirm this group at the phase's
-blocking checkpoint rather than treating it as already settled.
+**Minted PROPOSED at planning time, 2026-10-01; evidence filled in 2026-10-01 at Plan 46.6-06
+after every plan in the phase shipped and every gate below was re-run for real.** Six
+requirements, mapping to D-01, D-03..D-09 in `46.6-CONTEXT.md` (D-02 is a research instruction,
+not a product requirement, and mints nothing). Per-requirement Status/Evidence/open-question
+detail lives in `.planning/phases/46.6-survey-review-completed-report/46.6-LEDGER.md` — four of
+the six (SRV-01, SRV-02, SRV-05, SRV-06) are **DELIVERED**; SRV-03 and SRV-04 are **DELIVERED BUT
+UNSETTLED** (both genuinely shipped and tested to PHPUnit's limit, both carrying an open question
+only the user can close). **None of the six is confirmed settled until the phase's blocking
+checkpoint (46.6-07) is answered — do not treat this section as closed.**
 
 - **SRV-01** — The survey engineer link (`surveys/show.blade.php`) renders rooms as **tabs along a
   sticky bottom bar**, in SCC's shape, with the **first tab holding site/contract details** —
   client, site, address, site contact — replacing today's `screen: 'rooms'` picker screen (D-01).
+  **DELIVERED** — `SurveyLinkTabbedLayoutTest` (7 tests) + `SurveyEngineerLinkEndToEndTest`
+  (46.6-LEDGER.md).
 - **SRV-02** — Each room's existing **8-step sequential wizard flattens into one scrolling tab**,
   keeping the former 8 steps as **labelled sections** so nothing captured today is lost — the
   user's own choice (D-06), made after being told it is the larger of two diffs.
+  **DELIVERED** — `SurveyRoomTabFlattenTest` (6 tests) + `SurveyEngineerLinkEndToEndTest`
+  (46.6-LEDGER.md).
 - **SRV-03** — Tab state **survives a reload** and autosave of typed fields **never silently loses
   an engineer's words offline** — both following the **worksheet's** (Phase 46.7) mechanics
   (`location.hash` + `sessionStorage` for the tab, `localStorage`-only for the draft, never the
   `engineer-capture` IndexedDB queue), not SCC's own weaker version of either (D-09).
+  **DELIVERED BUT UNSETTLED** — `SurveyLinkOfflineAutosaveTest` (11 tests) proves the mechanism's
+  source ships and is wired; the three central browser-only behaviours are not PHPUnit-provable
+  (46.6-LEDGER.md) — open question for 46.6-07.
 - **SRV-04** — The office's review of a returned survey is a **separate, append-only annotation
   layer** seeded from the engineer's own captured record. The engineer's record — `site_survey_rooms`
   columns, `SurveyVariation` rows — is **never overwritten**; the office's words sit alongside it,
   attributed and timestamped, the same doctrine `VisitReworkState`/`VisitNote` already use for a
   visit's send-back note (D-03, D-08).
+  **DELIVERED BUT UNSETTLED** — `SurveyReportSectionTest` (8) + `SurveyReportSectionReviewTest` (6)
+  + `SurveyEngineerLinkEndToEndTest` prove the append-only/non-overwrite doctrine; the **choice of
+  a new table over `visit_notes`** was a planning-time discretion call never put to the user —
+  open question for 46.6-07 (46.6-LEDGER.md).
 - **SRV-05** — A completed-survey report carries **five sections**: rooms summary (derived from the
   survey, no new capture), and four office-authored sections — points raised / possible issues,
   items agreed with client, client's list of items required, additional comments (D-05).
+  **DELIVERED, with one surfaced finding** — `CompletedSurveyReportTest` + `SurveyEngineerLinkEndToEndTest`;
+  the `.xlsx` never writes a literal "Rooms Summary" heading (table instead) where the PDF does —
+  see 46.6-LEDGER.md.
 - **SRV-06** — The report is produced as **both** a PDF, extending the existing
   `site-surveys.client-report` route / `SurveyPdfService::buildClientReport` pipeline (no second PDF
   renderer), **and** a real `.xlsx`, built with the already-installed `phpoffice/phpspreadsheet`
   following `CableScheduleXlsxService`'s existing pattern (no new dependency) (D-04, D-07, D-08).
+  **DELIVERED** — `CompletedSurveyReportTest` (D-07/D-08 proofs) + `SurveyEngineerLinkEndToEndTest`
+  (real 55,625-byte PDF via Browsershot, `ZipArchive`-openable `.xlsx`); all three report routes,
+  previously unreachable from any UI, are now linked from `site-survey/edit.blade.php`
+  (`SurveyReportLinksReachableTest`, 46.6-LEDGER.md).
 
 ### Out of scope for v4.0
 

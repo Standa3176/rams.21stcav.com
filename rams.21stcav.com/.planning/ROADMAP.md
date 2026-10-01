@@ -939,22 +939,24 @@ persistence and autosave follow the **worksheet's** (46.7) mechanics, not SCC's 
 standalone `surveys/show.blade.php` file, so they cannot share a wave with each other; the review
 schema/UI and the report/XLSX output touch a disjoint file set and run alongside the layout work)
 
-- [ ] 46.6-01-PLAN.md — wave 1: tab-bar scaffold + site/contract-details first tab (D-01), survey
+- [x] 46.6-01-PLAN.md — wave 1: tab-bar scaffold + site/contract-details first tab (D-01), survey
       link only
-- [ ] 46.6-02-PLAN.md — wave 1 (parallel, disjoint files): the office review-section schema +
+- [x] 46.6-02-PLAN.md — wave 1 (parallel, disjoint files): the office review-section schema +
       capture UI, seeded from the engineer's existing immutable capture (D-03, D-08)
-- [ ] 46.6-03-PLAN.md — wave 2 (depends on 46.6-01, same file): the 8-step-per-room flatten into one
+- [x] 46.6-03-PLAN.md — wave 2 (depends on 46.6-01, same file): the 8-step-per-room flatten into one
       scrolling tab, keeping the 8 steps as labelled sections (D-06) — the risky centre of the phase
-- [ ] 46.6-04-PLAN.md — wave 2 (parallel, depends on 46.6-02, disjoint files): the five-section
+- [x] 46.6-04-PLAN.md — wave 2 (parallel, depends on 46.6-02, disjoint files): the five-section
       completed-survey report (PDF, extending `site-surveys.client-report`) + the `.xlsx` export
       (D-04, D-05, D-07, D-08)
-- [ ] 46.6-05-PLAN.md — wave 3 (depends on 46.6-03, same file): autosave rewire — debounced
+- [x] 46.6-05-PLAN.md — wave 3 (depends on 46.6-03, same file): autosave rewire — debounced
       input-level autosave + hash/sessionStorage tab persistence, following the worksheet's (46.7)
       mechanics, never SCC's own (D-09)
-- [ ] 46.6-06-PLAN.md — wave 4 (depends on 46.6-04 and 46.6-05): full gate run, the requirement
-      ledger, the deploy note, ROADMAP checkbox updates
+- [x] 46.6-06-PLAN.md — wave 4 (depends on 46.6-04 and 46.6-05): full gate run, the requirement
+      ledger, the deploy note, ROADMAP checkbox updates — also added Task 1b (2026-10-01): the
+      three completed-report/client-report links were unreachable from any UI; now surfaced on
+      `site-survey/edit.blade.php`
 - [ ] 46.6-07-PLAN.md — wave 5: the **blocking human checkpoint** — opened on a real phone, never
-      self-approved
+      self-approved. **OUTSTANDING — this phase is NOT complete until the user answers it.**
 
 ---
 
