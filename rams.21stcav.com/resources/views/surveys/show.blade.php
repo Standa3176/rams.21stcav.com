@@ -1900,6 +1900,13 @@
      ALPINE.JS COMPONENT
 ════════════════════════════════════════════════════════════ --}}
 <script>
+// SURVEY_ID — injected once, the same shape WORKSHEET_ID uses on the
+// worksheet link (public-show.blade.php). Keys both persistence
+// mechanisms this plan (46.6-05 / D-09) adds below: tab state
+// ('svTab_' + SURVEY_ID, sessionStorage) and the offline draft queue
+// ('svDraft_' + SURVEY_ID / 'svDraftProbe_' + SURVEY_ID, localStorage).
+var SURVEY_ID = {{ (int) $survey->id }};
+
 function surveyWizard() {
     return {
         // ── State ─────────────────────────────────────────────────────────────
@@ -1954,7 +1961,32 @@ function surveyWizard() {
         // ──────────────────────────────────────────────────────────────────────
         _autosaveTimers: {},
 
+        // ── Tab persistence (46.6-05, D-09) ────────────────────────────────────
+        // Ported from the worksheet's location.hash + sessionStorage mechanics
+        // (public-show.blade.php ~:3073-3153) BY SHAPE, not literal copy — this
+        // page's tab state lives on Alpine's reactive `activeTab` property, not
+        // the worksheet's imperative DOM toggling, so the write side is a
+        // $watch('activeTab', ...) below and the read side seeds `activeTab`
+        // here in init(), before Alpine's first paint (the page carries
+        // `x-cloak` on <body>, so there is no flash of the wrong tab).
+        _draftStorageWorks: null,
+
         init() {
+            // Seed activeTab from a reload-surviving source, first match wins:
+            // 1. location.hash naming a real tab (explicit, possibly a link
+            //    somebody was just handed),
+            // 2. sessionStorage's last-known tab for this survey,
+            // 3. the default already set above ('site').
+            this._seedActiveTabFromPersistence();
+            this.$watch('activeTab', (value) => this._persistActiveTab(value));
+
+            // Drain the offline draft queue when connectivity returns — mirrors
+            // the worksheet's drain-on-reconnect shape. Never touches the
+            // shared engineer offline-photo database (a separate, frozen
+            // binary queue for photos only — see the AUTOSAVE USES
+            // localStorage block on autosave() below).
+            window.addEventListener('online', () => this._draftDrain());
+
             // Room Context (1): work_type only — name/type save via the
             // section's own @focusout="autosave(1)".
             const step1Fields = ['work_type'];
@@ -1993,6 +2025,166 @@ function surveyWizard() {
             this.rooms.forEach((_, idx) => {
                 this.$watch(`rooms.${idx}.engineer_feedback`, () => this.debouncedAutosave(4), { deep: true });
             });
+        },
+
+        // ── Tab persistence helpers (46.6-05, D-09) ────────────────────────────
+        _validTabKeys() {
+            const keys = ['site'];
+            this.rooms.forEach((_, idx) => keys.push('room-' + idx));
+            return keys;
+        },
+
+        _seedActiveTabFromPersistence() {
+            const valid = this._validTabKeys();
+            const hashKey = (window.location.hash || '').replace(/^#/, '');
+            let seeded = null;
+            if (hashKey && valid.includes(hashKey)) {
+                seeded = hashKey;
+            } else {
+                let stored = null;
+                try {
+                    stored = window.sessionStorage.getItem('svTab_' + SURVEY_ID);
+                } catch (e) {
+                    // sessionStorage disabled — silently fall through to default.
+                }
+                if (stored && valid.includes(stored)) seeded = stored;
+            }
+            if (!seeded) return;
+            this.activeTab = seeded;
+            // Keep currentRoomIdx in sync with a restored room tab, same as
+            // selectRoom() does on an explicit tab click — the shared wizard
+            // panel beneath the tab bar reads currentRoomIdx, not activeTab.
+            if (seeded !== 'site') {
+                const idx = parseInt(seeded.replace('room-', ''), 10);
+                if (!isNaN(idx) && this.rooms[idx]) this.currentRoomIdx = idx;
+            }
+        },
+
+        _persistActiveTab(value) {
+            try {
+                if (window.history && window.history.replaceState) {
+                    window.history.replaceState(null, '', '#' + value);
+                }
+            } catch (e) {
+                // file:// or a locked-down browser — the tab still switched.
+            }
+            try {
+                window.sessionStorage.setItem('svTab_' + SURVEY_ID, value);
+            } catch (e) {
+                // sessionStorage disabled — silently skip, the hash still works.
+            }
+        },
+
+        /*
+         * ══════════════════════════════════════════════════════════════════
+         * OFFLINE DRAFT QUEUE (46.6-05, D-09) — WHAT AUTOSAVE DOES WHEN THERE
+         * IS NO SIGNAL. Ported from the worksheet's DraftStore (public-show
+         * .blade.php ~:4825-5095) BY SHAPE, under survey-specific key names.
+         *
+         * AUTOSAVE USES localStorage, NEVER THE PHOTO QUEUE. The shared
+         * engineer offline-photo database (included below via the shared
+         * partial, schema-frozen at v1) holds real unsent photos on
+         * engineers' phones right now — this queue is a completely separate
+         * localStorage map, keyed 'svDraft_' + SURVEY_ID, and never opens
+         * that database.
+         *
+         * A failed autosave writes the WHOLE in-flight payload here (one
+         * entry per room+step, latest wins — the same "full snapshot, keep
+         * only the latest" doctrine SCC's own offline queue uses) so nothing
+         * typed is lost, and the status text reads "Needs a connection"
+         * instead of appearing to have saved. A write-probe guards the whole
+         * mechanism so a private-browsing/quota-full environment degrades to
+         * the pre-existing saveError behaviour rather than throwing.
+         * ══════════════════════════════════════════════════════════════════
+         */
+        _draftProbe() {
+            if (this._draftStorageWorks !== null) return this._draftStorageWorks;
+            try {
+                window.localStorage.setItem('svDraftProbe_' + SURVEY_ID, '1');
+                window.localStorage.removeItem('svDraftProbe_' + SURVEY_ID);
+                this._draftStorageWorks = true;
+            } catch (e) {
+                this._draftStorageWorks = false;
+            }
+            return this._draftStorageWorks;
+        },
+
+        _draftReadAll() {
+            if (!this._draftProbe()) return {};
+            let raw;
+            try {
+                raw = window.localStorage.getItem('svDraft_' + SURVEY_ID);
+            } catch (e) {
+                return {};
+            }
+            if (!raw) return {};
+            try {
+                const parsed = JSON.parse(raw);
+                return (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : {};
+            } catch (e) {
+                // Corrupt payload — treat as empty rather than throwing into
+                // whatever was typing at the time.
+                return {};
+            }
+        },
+
+        _draftWriteAll(map) {
+            if (!this._draftProbe()) return false;
+            try {
+                window.localStorage.setItem('svDraft_' + SURVEY_ID, JSON.stringify(map));
+                return true;
+            } catch (e) {
+                // Quota exceeded, private mode, or site data blocked.
+                return false;
+            }
+        },
+
+        _draftPut(roomIndex, step, data) {
+            const map = this._draftReadAll();
+            map[roomIndex + ':' + step] = { room_index: roomIndex, step, data, queuedAt: Date.now() };
+            return this._draftWriteAll(map);
+        },
+
+        _draftClear(roomIndex, step) {
+            const map = this._draftReadAll();
+            const key = roomIndex + ':' + step;
+            if (!Object.prototype.hasOwnProperty.call(map, key)) return;
+            delete map[key];
+            this._draftWriteAll(map);
+        },
+
+        // Drain every queued draft back through stepSave on reconnect. Stops
+        // at the first failure (still offline) rather than looping forever —
+        // the next 'online' event tries again.
+        async _draftDrain() {
+            if (this.readonly) return;
+            const map = this._draftReadAll();
+            for (const key of Object.keys(map)) {
+                const entry = map[key];
+                try {
+                    const resp = await fetch('/survey/' + this.token + '/step-save', {
+                        method:  'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                            'Accept':       'application/json',
+                        },
+                        body: JSON.stringify({
+                            room_index: entry.room_index,
+                            step:       entry.step,
+                            data:       entry.data,
+                        }),
+                    });
+                    if (!resp.ok) throw new Error('Drain failed');
+                    this._draftClear(entry.room_index, entry.step);
+                    this.lastSaved = new Date();
+                    this.saveError = null;
+                } catch (e) {
+                    // Still offline (or the request raced the 'online' event
+                    // and lost) — leave it queued, the next reconnect retries.
+                    break;
+                }
+            }
         },
 
         debouncedAutosave(step) {
@@ -2087,8 +2279,16 @@ function surveyWizard() {
         // saving via the SAME per-step stepSave endpoint/payload shape as
         // before. Finer-grained on-input scoping per section is deferred to
         // 46.6-05; this is still "once per section on blur/explicit-save".
+        //
+        // 46.6-05 (D-09): on a failed save, the in-flight payload is queued
+        // to the localStorage draft store (never the IndexedDB photo queue —
+        // see the block comment on _draftProbe() above) and the status text
+        // reads "Needs a connection" rather than a generic error, so the
+        // engineer is told plainly which case they are in.
         async autosave(step) {
             if (!this.currentRoom || this.readonly) return;
+            const roomIndex = this.currentRoomIdx;
+            const payload   = this.buildStepPayload(step);
             this.saving    = true;
             this.saveError = null;
             try {
@@ -2099,15 +2299,17 @@ function surveyWizard() {
                         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
                         'Accept':       'application/json',
                     },
-                    body: JSON.stringify(this.buildStepPayload(step)),
+                    body: JSON.stringify(payload),
                 });
                 if (!resp.ok) {
                     const body = await resp.json().catch(() => ({}));
                     throw new Error(body.message || 'Save failed');
                 }
+                this._draftClear(roomIndex, step);
                 this.lastSaved = new Date();
             } catch (e) {
-                this.saveError = e.message || 'Could not save. Check your connection.';
+                this._draftPut(roomIndex, step, payload.data);
+                this.saveError = 'Needs a connection';
             } finally {
                 this.saving = false;
             }
