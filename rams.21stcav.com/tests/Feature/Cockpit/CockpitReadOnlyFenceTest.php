@@ -93,28 +93,45 @@ class CockpitReadOnlyFenceTest extends TestCase
         'Open register'            => 'Phase 48',
         'Export CSV'               => 'Phase 48',
 
-        // ══ TWO ENTRIES REMAIN RETURNED, 18 -> 21 -> 20, BY 46.2 D-02 (Plan
-        //    46.2-03) THEN PLAN 47-03 ═══════════════════════════════════════
+        // ══ ONE ENTRY REMAINS RETURNED, 18 -> 21 -> 20 -> 19, BY 46.2 D-02
+        //    (Plan 46.2-03) THEN PLAN 47-03 THEN PLAN 47-04 ══════════════════
         //
         // THE PRINCIPLE THAT BOUNDS THIS, STATED SO THE LIST CANNOT GROW WITHOUT
         // LIMIT: an entry returns to this list when, and ONLY when, it was once
         // LIFTED FROM IT and the affordance it named has since LEFT THE PAGE.
-        // Both halves are required. That is why exactly three came back and not
-        // seven: 'Accept', 'Send back' and 'Raise a snag' also left the page, but
-        // they were never entries here — they arrived in 46-05/46-06/46-07
-        // without ever having been deferred — so they do not return. (They could
-        // not, either: the visit row still REPORTS "Sent back" and "Accepted by"
-        // as status copy under 46.2 D-06, and banning those strings would ban the
-        // row's own record.)
+        // Both halves are required. That is why exactly three came back in
+        // 46.2-03 and not seven: 'Accept', 'Send back' and 'Raise a snag' also
+        // left the page then, but they were never entries here — they arrived
+        // in 46-05/46-06/46-07 without ever having been deferred — so they
+        // never returned. (They could not, either: the visit row still
+        // REPORTS "Sent back" and "Accepted by" as status copy under 46.2
+        // D-06, and banning those strings would ban the row's own record.)
         //
-        // THE OWNER STRING SAYS "Unsurfaced", NEVER "Phase NN", for the two
-        // remaining. They are not deferred. They exist, they are tested, and
-        // they work TODAY at the routes named. Writing a phase number would
-        // tell the next reader they are unbuilt, which is the opposite of the
-        // truth.
+        // THE OWNER STRING SAYS "Unsurfaced", NEVER "Phase NN", for the one
+        // remaining. It is not deferred. It exists, it is tested, and it
+        // works TODAY at the route named. Writing a phase number would tell
+        // the next reader it is unbuilt, which is the opposite of the truth.
         'Create visit' => 'Unsurfaced by 46.2 D-02 — lives at projects.cockpit.visits.store',
-        'Add note'     => 'Unsurfaced by 46.2 D-02 — lives at projects.cockpit.visits.notes',
 
+        // ══ 'Add note' LIFTED A SECOND TIME, 20 -> 19, BY PLAN 47-04 (D-03 /
+        //    VL-07 / RV-05) ═══════════════════════════════════════════════
+        //
+        // IT WAS HERE, ALONGSIDE 'Create visit': 'Add note' => 'Unsurfaced by
+        // 46.2 D-02 — lives at projects.cockpit.visits.notes'. Plan 47-04 is
+        // what makes that sentence obsolete a second time — the control
+        // renders again, beneath the evidence on the Returned tab, at the
+        // SAME route. 'Create visit' does NOT lift alongside it: D-03 names
+        // four acts on an EXISTING visit and Create visit stays out of this
+        // plan's scope fence, so it is the one entry that stays Unsurfaced.
+        //
+        // THE REMAINING THREE OF D-03's FOUR ACTS — 'Accept', 'Send back' and
+        // 'Raise a snag' — NEVER NEEDED A LIFT, for the same reason they never
+        // returned to this list above: they arrived in 46-05/46-06/46-07
+        // without ever having been deferred, so there is no entry to remove.
+        // Checked against the remaining 19 entries before use (46-05 checked
+        // it once already; the entry it collided with THEN was itself, which
+        // is now gone, so this is a fresh check against a different set).
+        //
         // ══ 'Download' LIFTED AGAIN, 21 -> 20, BY PLAN 47-03 (D-04 / RV-04) ═
         //
         // IT WAS HERE: 'Download' => 'Unsurfaced by 46.2 D-02 — the ZIP still
@@ -153,9 +170,11 @@ class CockpitReadOnlyFenceTest extends TestCase
         //                     the same reason as '<textarea', and named, so the
         //                     fence is not edited twice for one decision.
         //
-        // BOTH RETURNED ABOVE BY 46.2 D-02 (Plan 46.2-03), because the cockpit
-        // stopped rendering them. They are still SHIPPED — this is the one case
-        // where an entry on this list names something that exists and works.
+        // BOTH RETURNED BY 46.2 D-02 (Plan 46.2-03), because the cockpit
+        // stopped rendering them. 'Add note' LEFT AGAIN BY PLAN 47-04, above
+        // — this is the one case where an entry on this list is history for
+        // an affordance that LIFTED, RETURNED, then LIFTED a second time.
+        // 'Create visit' remains Unsurfaced, above.
         //
         // 'Upload files' STAYS: it is Phase 48 and this phase deliberately does
         // not grow a second half (D-04).
@@ -633,32 +652,33 @@ class CockpitReadOnlyFenceTest extends TestCase
     }
 
     /**
-     * NARROWED BY PLAN 47-03 (D-04 / RV-04), RENAMED TO MATCH.
+     * NARROWED AGAIN BY PLAN 47-04 (D-03), RENAMED IN SPIRIT A SECOND TIME.
      *
-     * WAS `test_the_unsurfaced_write_routes_all_still_work_with_no_link_on_the_page()`.
-     * Its premise — that NONE of the five POSTs and both evidence GETs is
-     * linked from anywhere on the cockpit — is now only HALF true. The five
-     * visit disclosures (Create visit / Add note / Raise a snag / Send back /
-     * Accept) are still unsurfaced by 46.2 D-02 and that half is UNCHANGED
-     * below. The two evidence GETs are the opposite now: this plan's whole
-     * point is that `photos-zip` and `photo` ARE linked, on the Returned tab
-     * specifically. Asserting their continued absence would make this test
-     * fail the moment the feature it exists to protect started working, which
-     * is the sign a premise needs to be inverted, not patched around.
+     * WAS `test_the_unsurfaced_write_routes_all_still_work_with_no_link_on_the_page()`,
+     * then NARROWED BY PLAN 47-03 (D-04 / RV-04) to say the two evidence GETs
+     * ARE now linked on Returned while all five visit POSTs stayed unsurfaced.
+     * Plan 47-04 is what makes THAT half only four-fifths true: `accept`,
+     * `send-back` and `notes`/`snags` are now linked too — exactly where this
+     * plan puts them, beneath the evidence on the Returned tab — and the
+     * `.store` route (Create visit) is the ONE of the five that stays
+     * unsurfaced, because D-03 names four acts on an EXISTING visit and
+     * Create visit is explicitly out of this plan's scope fence.
      *
      * ── WHAT STILL HOLDS, AND WHY IT MATTERS ────────────────────────────────
      *
      * Removing a link is not removing a capability, and the difference has to
      * be PROVED or the next reader is entitled to assume a phase deleted the
-     * visit workflow. So the five POSTs are still driven for real and still
-     * checked absent from every judged region — that half of T-46.2-06 /
-     * T-46.2-07 (disposition `accept`) is untouched. The two evidence GETs are
-     * driven for real too, and are now checked PRESENT on the one region
-     * where this plan puts them (the Returned tab) and ABSENT from a region
-     * where it does not (Overview) — proving the link lives exactly where it
-     * is meant to, not everywhere or nowhere.
+     * visit workflow. So all five POSTs are still driven for real against a
+     * single fixture to prove the routes work end to end — unchanged from
+     * 47-03. `.store` is still checked absent from every judged region. The
+     * other four are checked PRESENT on the Returned tab, against FRESH
+     * fixtures each in the exact state that offers the act (reusing one
+     * mutating fixture would mean checking for `accept`'s link on a visit
+     * already accepted, which proves nothing), and ABSENT from Overview for
+     * the identical visit — proving each link lives exactly where 47-04 puts
+     * it, not everywhere and not nowhere.
      */
-    public function test_the_unsurfaced_visit_posts_still_work_with_no_link_while_the_evidence_gets_are_linked_on_returned(): void
+    public function test_create_visit_stays_unsurfaced_while_the_four_visit_acts_and_evidence_gets_are_linked_on_returned(): void
     {
         Bus::fake();
 
@@ -666,21 +686,17 @@ class CockpitReadOnlyFenceTest extends TestCase
         // assertion this test used to make.
         $this->assertContains('returned', ProjectCockpitController::TABS);
 
-        // MOVED BY NAME, `[]` -> `['generate']` (Plan 46.2-05). `ACTIONS` is no
-        // longer empty, because that plan re-surfaced the DOCUMENT form on exactly
-        // the mechanism 46.2-03 kept dormant for it. The property this test cares
-        // about is unchanged and is now asserted DIRECTLY rather than by emptiness:
-        // NONE OF THE FOUR VISIT DISCLOSURES IS A LEGAL ACTION. An empty list said
-        // that only by accident.
-        $this->assertSame(['generate'], ProjectCockpitController::ACTIONS);
-
-        foreach (['create-visit', 'send-back', 'note', 'snag'] as $retired) {
-            $this->assertNotContains(
-                $retired,
-                ProjectCockpitController::ACTIONS,
-                "`{$retired}` is unsurfaced by 46.2 D-02 and must not be a disclosable action."
-            );
-        }
+        // GROWN BY NAME, `['generate']` -> four entries (Plan 47-04, D-03):
+        // `send-back`, `note` and `snag` re-join `ACTIONS`, each disclosing
+        // the row's own form on the Returned tab. `create-visit` is the ONE
+        // string that stays illegal — it is not among `ACTIONS` and this
+        // plan's own scope fence keeps it that way.
+        $this->assertSame(['generate', 'send-back', 'note', 'snag'], ProjectCockpitController::ACTIONS);
+        $this->assertNotContains(
+            'create-visit',
+            ProjectCockpitController::ACTIONS,
+            '`create-visit` must not be a disclosable action — D-03 names four acts on an EXISTING visit, never creating one.'
+        );
 
         $project = $this->populatedProject();
         $pm      = User::factory()->create();
@@ -773,37 +789,33 @@ class CockpitReadOnlyFenceTest extends TestCase
 
         $this->actingAs($pm)->get($photoUrl)->assertOk();
 
-        // ── 3. THE FIVE VISIT DISCLOSURES ARE STILL LINKED NOWHERE ─────────
-        $postUrls = [
-            route('projects.cockpit.visits.store', $project),
-            route('projects.cockpit.visits.notes', ['project' => $project, 'visit' => $visit]),
-            route('projects.cockpit.visits.snags', ['project' => $project, 'visit' => $visit]),
-            route('projects.cockpit.visits.send-back', ['project' => $project, 'visit' => $visit]),
-            route('projects.cockpit.visits.accept', ['project' => $project, 'visit' => $visit]),
-        ];
-
-        $this->assertCount(5, $postUrls, 'Five POSTs — the visit disclosures 46.2 D-02 still unsurfaces.');
+        // ── 3. `CREATE VISIT` IS THE ONE DISCLOSURE STILL LINKED NOWHERE ───
+        //
+        // NARROWED FROM FIVE TO ONE (Plan 47-04, D-03). `.notes`, `.snags`,
+        // `.send-back` and `.accept` are no longer judged here — they ARE
+        // linked now, on the Returned tab specifically, and step 5 below is
+        // where that is proved. `.store` (Create visit) is the one act this
+        // plan does not ship and its scope fence keeps it that way.
+        $createVisitUrl = route('projects.cockpit.visits.store', $project);
 
         $judged = 0;
 
         foreach ($this->everyRegion($project) as $region) {
             $judged++;
 
-            foreach ($postUrls as $url) {
-                // Quote-bounded, NOT a bare substring check (Plan 47-03). The
-                // store route's URI is `cockpit/visits` with NO trailing
-                // segment — a bare substring check would also "find" it
-                // inside `cockpit/visits/4/photos.zip`, the Returned tab's
-                // OWN legitimate hand-off link, and fail for the wrong
-                // reason. An href or a form action always closes on a quote,
-                // so appending one disambiguates "this exact route" from "a
-                // route nested under the same path prefix".
-                $this->assertStringNotContainsString(
-                    $url.'"',
-                    $region,
-                    "The cockpit links to `{$url}`. 46.2 D-02 unsurfaces these routes; a link here undoes it."
-                );
-            }
+            // Quote-bounded, NOT a bare substring check (Plan 47-03). The
+            // store route's URI is `cockpit/visits` with NO trailing
+            // segment — a bare substring check would also "find" it
+            // inside `cockpit/visits/4/photos.zip`, the Returned tab's
+            // OWN legitimate hand-off link, and fail for the wrong
+            // reason. An href or a form action always closes on a quote,
+            // so appending one disambiguates "this exact route" from "a
+            // route nested under the same path prefix".
+            $this->assertStringNotContainsString(
+                $createVisitUrl.'"',
+                $region,
+                "The cockpit links to `{$createVisitUrl}`. Create visit stays unsurfaced; a link here would undo that."
+            );
         }
 
         $this->assertGreaterThan(0, $judged, 'No region was judged — this test would pass vacuously.');
@@ -839,6 +851,76 @@ class CockpitReadOnlyFenceTest extends TestCase
         $this->assertStringContainsString('Unsurfaced acts', $overviewRegion);
         $this->assertStringNotContainsString($zip, $overviewRegion);
         $this->assertStringNotContainsString($photoUrl, $overviewRegion);
+
+        // ── 5. THE FOUR VISIT ACTS ARE LINKED ON RETURNED, NOWHERE ELSE ─────
+        //
+        // NEW (Plan 47-04, D-03). Each act needs its OWN fresh visit in the
+        // exact state that offers it — the mutated `$visit` above is already
+        // ACCEPTED by this point in the test, which would prove nothing about
+        // `accept` or `send-back`'s own link ever having been present.
+        // ACCEPT RENDERS AS A REAL FORM, so its link IS the POST route
+        // directly — no disclosure needed, there is nothing to type.
+        $acceptProject = Project::factory()->create(['name' => self::PROJECT_NAME, 'status' => Project::STATUS_INSTALLING]);
+        $acceptVisit   = Visit::factory()->returned()->create([
+            'project_id' => $acceptProject->id,
+            'type'       => Visit::TYPE_INSTALL,
+        ]);
+        $acceptUrl = route('projects.cockpit.visits.accept', ['project' => $acceptProject, 'visit' => $acceptVisit]);
+
+        // SEND BACK, ADD NOTE AND RAISE A SNAG EACH DISCLOSE A REASON FIELD —
+        // their CLOSED-state link is the cockpit's own `?action=` URL, never
+        // the POST route directly (visit-row.blade.php's `$sendBackUrl` /
+        // `$noteUrl` / `$snagUrl`). The POST route only appears once the form
+        // is disclosed, which is a different, already-covered, scenario.
+        $sendBackProject = Project::factory()->create(['name' => self::PROJECT_NAME, 'status' => Project::STATUS_INSTALLING]);
+        $sendBackVisit   = Visit::factory()->returned()->create([
+            'project_id' => $sendBackProject->id,
+            'type'       => Visit::TYPE_INSTALL,
+        ]);
+        $sendBackUrl = route('projects.cockpit', [
+            'project' => $sendBackProject, 'module' => 'worksheet', 'action' => 'send-back', 'visit' => $sendBackVisit->id, 'tab' => 'returned',
+        ]);
+
+        $noteProject = Project::factory()->create(['name' => self::PROJECT_NAME, 'status' => Project::STATUS_INSTALLING]);
+        $noteVisit   = Visit::factory()->returned()->create([
+            'project_id' => $noteProject->id,
+            'type'       => Visit::TYPE_INSTALL,
+        ]);
+        $noteUrl = route('projects.cockpit', [
+            'project' => $noteProject, 'module' => 'worksheet', 'action' => 'note', 'visit' => $noteVisit->id, 'tab' => 'returned',
+        ]);
+
+        $snagProject = Project::factory()->create(['name' => self::PROJECT_NAME, 'status' => Project::STATUS_INSTALLING]);
+        $snagVisit   = Visit::factory()->returned()->create([
+            'project_id' => $snagProject->id,
+            'type'       => Visit::TYPE_INSTALL,
+        ]);
+        $snagUrl = route('projects.cockpit', [
+            'project' => $snagProject, 'module' => 'worksheet', 'action' => 'snag', 'visit' => $snagVisit->id, 'tab' => 'returned',
+        ]);
+
+        foreach ([
+            ['accept', $acceptProject, $acceptUrl],
+            ['send-back', $sendBackProject, $sendBackUrl],
+            ['note', $noteProject, $noteUrl],
+            ['snag', $snagProject, $snagUrl],
+        ] as [$name, $actProject, $url]) {
+            $onReturned = $this->cockpitRegion($this->render($actProject, ['module' => 'worksheet', 'tab' => 'returned']));
+
+            $this->assertStringContainsString(
+                $url.'"',
+                $onReturned,
+                "The Returned tab must link to `.{$name}` for a RETURNED visit — Plan 47-04 ships this control."
+            );
+
+            $onOverview = $this->cockpitRegion($this->render($actProject, ['module' => 'worksheet', 'tab' => 'overview']));
+
+            $this->assertStringNotContainsString(
+                $url.'"',
+                $onOverview,
+                "Overview must never link to `.{$name}` — the controls render ONLY on the Returned tab."
+            );
+        }
     }
 
     // -- The write surface, fenced on its own terms (Plan 46-04) ----------
@@ -1043,10 +1125,17 @@ class CockpitReadOnlyFenceTest extends TestCase
         // hand-off link had left the page, and this plan puts it back on the
         // Returned tab. Named "Download" alone, never deleted outright, so a
         // THIRD return (should a later phase unsurface it again) follows the
-        // same return rule rather than needing to be reinvented. The history
-        // of this number is now 15 -> 18 -> 19 -> 18 -> 21 -> 20.
+        // same return rule rather than needing to be reinvented.
+        //
+        // MOVED AGAIN, 20 -> 19, BY PLAN 47-04 (D-03 / VL-07 / RV-05). 'Add
+        // note' is LIFTED a second time, for the identical reason 'Download'
+        // was: it was returned by 46.2-03 only because the control had left
+        // the page, and this plan puts it back beneath the evidence on the
+        // Returned tab. 'Create visit' does NOT lift alongside it — D-03
+        // never ships it, so it stays the one Unsurfaced entry. The history
+        // of this number is now 15 -> 18 -> 19 -> 18 -> 21 -> 20 -> 19.
         $this->assertCount(
-            20,
+            19,
             self::DEFERRED_AFFORDANCES,
             'Every affordance drawn in either sketch is enumerated; nothing is dropped silently.'
         );
@@ -1094,10 +1183,15 @@ class CockpitReadOnlyFenceTest extends TestCase
         // `<form` here would make Plan 46.2-05 — the very next plan, already
         // planned — lift it again three commits later. An entry that would be
         // lifted again immediately is churn, not a fence. The forms' ABSENCE is
-        // asserted instead, exactly and in three places:
-        // test_every_form_in_the_region_carries_a_csrf_token() at 0,
+        // asserted instead, exactly and in three places AT THE TIME:
+        // test_every_form_in_the_region_carries_a_csrf_token() at 0 (moved by
+        // name since, as the document and visit forms shipped),
         // CockpitCreateVisitTest::test_no_module_panel_renders_any_visit_control()
-        // and CockpitVisitActionsTest::test_no_visit_row_in_any_state_renders_any_control().
+        // and CockpitVisitActionsTest::test_no_visit_row_in_any_state_renders_any_control()
+        // — THE LATTER NOW JUDGES OVERVIEW ONLY (Plan 47-04, D-03): three of
+        // the four visit forms disclose again, on the Returned tab, where
+        // `CockpitVisitActionsTest::test_the_returned_tabs_four_control_cap_holds_through_http_per_visit()`
+        // is the test that now judges them.
         //
         // 9 -> 9: RE-TAKEN FOR THE FOURTH TIME. There is still no JavaScript on
         // this page, and there is still no pressure to add any: the document

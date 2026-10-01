@@ -553,11 +553,11 @@ class CockpitVisitActionsTest extends TestCase
      *
      * The four acts are NOT deleted. They live at
      * projects.cockpit.visits.accept / .send-back / .notes / .snags, are proved
-     * by the route half of this very file, and are asserted to be reachable with
-     * no link on the page by
-     * CockpitReadOnlyFenceTest::test_the_unsurfaced_visit_posts_still_work_with_no_link_while_the_evidence_gets_are_linked_on_returned()
-     * (renamed by Plan 47-03, which re-links the two evidence GETs on the
-     * Returned tab — the five POSTs named above remain unlinked).
+     * by the route half of this very file, and their LINKING is asserted by
+     * CockpitReadOnlyFenceTest::test_create_visit_stays_unsurfaced_while_the_four_visit_acts_and_evidence_gets_are_linked_on_returned()
+     * (renamed a second time by Plan 47-04, which re-links the four visit
+     * acts on the Returned tab specifically — only `.store`, Create visit,
+     * remains unsurfaced everywhere).
      *
      * @return array<int, string>
      */
