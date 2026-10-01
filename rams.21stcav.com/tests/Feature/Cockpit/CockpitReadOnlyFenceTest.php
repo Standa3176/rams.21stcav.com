@@ -918,32 +918,41 @@ class CockpitReadOnlyFenceTest extends TestCase
             }
         }
 
-        // ══ 0 -> 4 -> 5, AN EXACT POSITIVE (Plan 46.2-05, then quick task
-        //    260930-qcy) ═══════════════════════════════════════════════════
+        // ══ 0 -> 4 -> 5 -> 6, AN EXACT POSITIVE (Plan 46.2-05, then quick
+        //    task 260930-qcy, then Plan 47-01) ═══════════════════════════
         //
         // The history of this number is `>= 5` (46-04) -> `=== 0` (46.2-03,
-        // finding F-7) -> `=== 4` (46.2-05) -> `=== 5` (here). It has NEVER
-        // gone back to a floor and must not: `assertGreaterThanOrEqual` was
-        // removed from this file by 46.2-03 and is not to be reintroduced.
+        // finding F-7) -> `=== 4` (46.2-05) -> `=== 5` (260930-qcy) -> `=== 6`
+        // (here). It has NEVER gone back to a floor and must not:
+        // `assertGreaterThanOrEqual` was removed from this file by 46.2-03
+        // and is not to be reintroduced.
         //
-        // FOUR WAS ONE FORM PER MODULE. FIVE IS THAT PLUS ONE: quick task
-        // 260930-qcy adds a SECOND form to the site_survey module's open
-        // panel — a form posting to `site-surveys.supersede-from-project`,
-        // rendered ONLY when the module already holds a document
-        // (`$holdsDocument`). It surfaces the existing supersede action so a
-        // PM whose survey already has a visit and a link has a real path to
-        // a genuinely fresh survey, rather than only a refusal. A FIFTH form
-        // inside the cockpit region is therefore now correct on a project
-        // with a document, and a SIXTH would be a red test.
+        // FOUR WAS ONE FORM PER MODULE. FIVE WAS THAT PLUS THE SITE SURVEY'S
+        // SUPERSEDE FORM (quick task 260930-qcy, posting to
+        // `site-surveys.supersede-from-project`, rendered ONLY when
+        // `$holdsDocument`).
+        //
+        // SIX IS THAT PLUS ONE MORE, BY PLAN 47-01 (D-01 remainder / D-02):
+        // the worksheet's revoke form, rendered by `link-card.blade.php`
+        // ONLY when `CockpitLinkPresenter::linkFor()` resolves a link with
+        // `can_revoke => true` — true for exactly one module, worksheet,
+        // and only once that module actually holds a document (there is no
+        // link to revoke otherwise). It posts to the already-registered
+        // `worksheets.revoke-token` — no new route — so this is a form
+        // COUNT change, never a WRITE_SURFACE_TABLES change (the revoke
+        // writes to `worksheets`, already named there). A SEVENTH form
+        // inside the cockpit region would now be a red test.
         //
         // The literal is kept rather than derived from `moduleMap()` so this test
-        // pins the ARITHMETIC (one form per row, plus the site survey's second),
-        // with the module count asserted next door so drift in either is loud.
+        // pins the ARITHMETIC (one form per row, plus the site survey's second,
+        // plus the worksheet's revoke), with the module count asserted next door
+        // so drift in either is loud.
         $this->assertSame(
-            5,
+            6,
             $checked,
             'Exactly one document form per module panel, plus the site survey\'s supersede form '
-            .'(quick task 260930-qcy). Move this number BY NAME, never to a floor.'
+            .'(quick task 260930-qcy), plus the worksheet\'s revoke form (Plan 47-01). Move this '
+            .'number BY NAME, never to a floor.'
         );
 
         $this->assertCount(
@@ -1130,6 +1139,39 @@ class CockpitReadOnlyFenceTest extends TestCase
         // still moves none of them. Asserted for real by
         // test_rendering_the_cockpit_changes_no_row_count() and
         // test_opening_a_panel_writes_nothing().
+        //
+        // ══ PLAN 47-01 RE-TAKES ALL THREE OF THESE COUNTS, BY NAME. NONE IS
+        //    INHERITED — ONLY THE FORM COUNT MOVES, AND IT MOVES ELSEWHERE ═══
+        //
+        // This plan ships the engineer link card and, for the worksheet only,
+        // a working revoke form. The expectation going in was 2 / 21 / 9 / 13
+        // unchanged and the judged-form count (a SEPARATE assertion, in
+        // test_every_form_in_the_region_carries_a_csrf_token()) moving 5 -> 6
+        // BY NAME — each checked rather than assumed.
+        //
+        // 2 -> 2: `<select` AND `<script` BOTH STAY. The revoke is a plain
+        // `<button type="submit">`, and the card's URL is an `<a>`; neither
+        // is a form control this fence bans.
+        //
+        // 21 -> 21: DEFERRED_AFFORDANCES UNCHANGED. The card's new copy —
+        // "Engineer link", "Revoke and reissue", "Revoking mints a fresh
+        // link and invalidates the one shown above.", "There is no way to
+        // revoke a survey link. Superseding this survey below starts a
+        // fresh one instead.", and every state-vocabulary sentence
+        // `CockpitLinkPresenter` can return — was each checked as a
+        // SUBSTRING against all 21 keys and both FORBIDDEN_MARKUP entries
+        // before use, in `CockpitLinkCardTest::test_the_new_copy_collides_with_no_fence_entry()`.
+        // None collides. Nothing was lifted, because nothing this plan
+        // ships was ever deferred.
+        //
+        // 9 -> 9: RE-TAKEN AGAIN. The card's disclosure is unconditional —
+        // it renders whenever `$link` resolves, on the SAME `?module=`
+        // query-string GET every other disclosure on this page already
+        // uses. No directive, no handler, no new argument for Alpine.
+        //
+        // 13 -> 13: WRITE_SURFACE_TABLES UNCHANGED. The revoke POST writes
+        // to `worksheets`, already named on this list since Plan 46-04 — a
+        // new CALLER of an existing write-surface table is not a new table.
         $this->assertCount(2, self::FORBIDDEN_MARKUP);
         $this->assertCount(13, self::WRITE_SURFACE_TABLES);
         $this->assertCount(9, self::BANNED_HANDLER_ATTRIBUTES);

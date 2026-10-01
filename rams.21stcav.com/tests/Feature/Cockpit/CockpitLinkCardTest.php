@@ -398,4 +398,43 @@ class CockpitLinkCardTest extends TestCase
 
         $this->assertStringNotContainsString('Engineer link', $body);
     }
+
+    // -- Task 3: the revoke, walked through HTTP -----------------------------
+
+    /**
+     * The revoke button's REAL effect, driven through the actual HTTP route
+     * rather than asserted from the presenter alone — proving the drawer's
+     * control and `worksheets.revoke-token` agree about what "revoke and
+     * reissue" means, and that it is a replace, never a second row.
+     */
+    public function test_the_revoke_replaces_the_shown_token_through_http(): void
+    {
+        $project   = Project::factory()->create();
+        $worksheet = Worksheet::factory()->create(['project_id' => $project->id]);
+
+        $oldToken = $worksheet->access_token;
+
+        $before = $this->render($project, ['module' => 'worksheet', 'tab' => 'overview']);
+        $this->assertStringContainsString($oldToken, $before);
+
+        $worksheetsBefore = DB::table('worksheets')->count();
+
+        $this->actingAs(User::factory()->create())
+            ->post(route('worksheets.revoke-token', $worksheet))
+            ->assertRedirect();
+
+        $this->assertSame(
+            $worksheetsBefore,
+            DB::table('worksheets')->count(),
+            'The revoke updates one row; it must not create a second one.'
+        );
+
+        $after = $this->render($project, ['module' => 'worksheet', 'tab' => 'overview']);
+
+        $newToken = $worksheet->fresh()->access_token;
+
+        $this->assertNotSame($oldToken, $newToken, 'Revoking must mint a genuinely different token.');
+        $this->assertStringNotContainsString($oldToken, $after, 'The old token must no longer appear anywhere on the drawer.');
+        $this->assertStringContainsString($newToken, $after, 'The new token must appear in its place.');
+    }
 }
