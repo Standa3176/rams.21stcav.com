@@ -228,13 +228,26 @@
                                      read-only. null for rams/om and for a
                                      module with no document yet — the card
                                      itself renders nothing then. --}}
-                                :link="$panelLink" />
-                            {{-- FIVE ATTRIBUTES REMOVED BY 46.2 D-02 (Plan 46.2-03):
-                                 `evidence`, `action`, `action-visit-id`, `rooms` and
-                                 `people`. They fed the Create visit form and the
-                                 Returned tab, neither of which this page surfaces any
-                                 more. The capability is unsurfaced, NOT deleted — see
-                                 the routes named in panel.blade.php's docblock. --}}
+                                :link="$panelLink"
+                                {{-- TWO ATTRIBUTES ADDED BY PLAN 47-03 (D-04):
+                                     the Returned tab's payload and its offer,
+                                     resolved in ProjectCockpitController by
+                                     evidenceFor(). `evidence` is the ONE of
+                                     the five 46.2-03 removed that comes back
+                                     here — `action-visit-id`, `rooms` and
+                                     `people` fed the Create visit form and
+                                     remain unsurfaced; `action` is already
+                                     back above for the document form's
+                                     `?action=generate` (Plan 46.2-05) and is
+                                     not this plan's. --}}
+                                :evidence="$panelEvidence"
+                                :offers-returned="$offersReturned" />
+                            {{-- THREE ATTRIBUTES REMAIN REMOVED BY 46.2 D-02 (Plan
+                                 46.2-03): `action-visit-id`, `rooms` and `people`.
+                                 They fed the Create visit form, which this page
+                                 does not surface. The capability is unsurfaced,
+                                 NOT deleted — see the routes named in
+                                 panel.blade.php's docblock. --}}
                         @endif
                     @endforeach
                 </div>

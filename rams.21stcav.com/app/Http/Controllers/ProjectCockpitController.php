@@ -9,6 +9,7 @@ use App\Services\ProjectHealthService;
 use App\Services\RamsReviewDataService;
 use App\Services\ProjectContextResolver;
 use App\Support\Cockpit\CockpitDocumentFormPresenter;
+use App\Support\Cockpit\CockpitEvidencePresenter;
 use App\Support\Cockpit\CockpitHeaderPresenter;
 use App\Support\Cockpit\CockpitLinkPresenter;
 use App\Support\Cockpit\CockpitModulePresenter;
@@ -16,6 +17,7 @@ use App\Support\Cockpit\CockpitPanelPresenter;
 use App\Support\Cockpit\CockpitSectionPresenter;
 use App\Support\Cockpit\CockpitWizardPresenter;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Illuminate\View\View;
@@ -70,24 +72,29 @@ class ProjectCockpitController extends Controller
      * change up on the day it lands. That is the point of iterating the
      * constant, and the reason a hand-maintained second list is never written.
      *
-     * `returned` WAS AT INDEX 1 AND IS GONE (Phase 46.2, Plan 46.2-03, D-02).
-     * The Returned tab is no longer surfaced on the cockpit, so `returned` is
-     * no longer a legal thing for the URL to say, and a stale `?tab=returned`
-     * bookmark falls back to `overview` HERE — one fallback, in
-     * `resolveTab()`. Phase 46.1's second fallback inside `panel.blade.php`
-     * (the `$offersReturned` coercion) went with it, so the strip and the body
-     * can no longer disagree about which tab is open. The page is still 200 and
-     * the submitted string is still never echoed.
+     * `returned` IS BACK (Phase 47, Plan 47-03, D-04), AND IT IS CONDITIONAL.
+     * It was at index 1, left by Phase 46.2 (Plan 46.2-03, D-02), and this plan
+     * re-injects `CockpitEvidencePresenter` to bring it back — LAST, not at its
+     * old index 1, because the tab list is read by `panel.blade.php` as an
+     * ordered map and appending is the one edit that cannot disturb the three
+     * existing entries' positions.
      *
-     * UNSURFACED, NOT DELETED: the returned-evidence review still exists in
-     * full — `App\Support\Cockpit\CockpitEvidencePresenter`,
-     * `App\Support\Cockpit\VisitEvidence`, `ProjectCockpitEvidenceController`
-     * and the five `ProjectCockpitActionController` POSTs are all untouched and
-     * still green at their own routes.
+     * UNLIKE 45-13's ERA, THIS IS NOT UNCONDITIONAL. `overview`, `files` and
+     * `notes` render for every module; `returned` renders ONLY for a module
+     * whose open visit(s) include at least one with a resolvable source
+     * (`CockpitEvidencePresenter::evidence()` returns non-null for it) — RAMS
+     * and O&M, which carry no visit types at all, never show it. That
+     * derivation is `$offersReturned`, rebuilt below from `evidenceFor()`
+     * rather than guessed at a new shape.
+     *
+     * A stale `?tab=returned` bookmark on a module that does NOT offer it
+     * falls back to `overview` HERE — one fallback, in `resolveTab()`, which
+     * now takes `$offersReturned` as a second argument rather than `panel.
+     * blade.php` carrying a second coercion that could disagree with it.
      *
      * @var array<int, string>
      */
-    public const TABS = ['overview', 'files', 'notes'];
+    public const TABS = ['overview', 'files', 'notes', 'returned'];
 
     /**
      * The panel's THIRD piece of URL state (Phase 46, Plan 46-04) — LIVE AGAIN,
@@ -136,6 +143,12 @@ class ProjectCockpitController extends Controller
         // nine: linkFor() resolves the current engineer link and mints no
         // token, so disclosing it changes nothing a GET is not allowed to.
         private CockpitLinkPresenter $linkPresenter,
+        // Plan 47-03 (D-04). RE-INJECTED exactly where it sat before 46.2-03
+        // removed it alongside its only caller, `evidenceFor()`. Read-only:
+        // `evidence()` asks `VisitEvidence::for()` once and reshapes what that
+        // already loaded, writing nothing — the same contract every other
+        // presenter on this page keeps.
+        private CockpitEvidencePresenter $evidencePresenter,
     ) {
     }
 
@@ -177,9 +190,25 @@ class ProjectCockpitController extends Controller
         $modules = $this->modulePresenter->modules($project);
 
         $moduleKey  = $this->resolveModuleKey($request);
-        $tab        = $this->resolveTab($request);
         $openModule = $moduleKey === null ? null : $modules->firstWhere('key', $moduleKey);
         $progress   = $moduleKey === null ? null : $this->modulePresenter->progress($project, $moduleKey);
+
+        // THE RETURNED TAB'S PAYLOAD AND ITS OFFER (Plan 47-03, D-04).
+        // `evidenceFor()` is the one call site for `CockpitEvidencePresenter`
+        // on this page — keyed by visit id, a `null` entry from the presenter
+        // is never stored (RV-06: a visit with no resolvable source offers no
+        // evidence rather than an empty one). `$offersReturned` is derived
+        // FROM that map rather than re-asking the presenter a second time, so
+        // the tab's offer and its body can never disagree about which visits
+        // qualify.
+        //
+        // Resolved BEFORE `$tab`, deliberately: `resolveTab()` needs to know
+        // whether THIS module offers the tab before it can decide whether a
+        // submitted `?tab=returned` is live or stale.
+        $panelEvidence  = $this->evidenceFor($project, $openModule);
+        $offersReturned = $panelEvidence !== [];
+
+        $tab = $this->resolveTab($request, $offersReturned);
 
         // The panel's three bodies. Derived HERE rather than in Blade, on the
         // same rule as everything else on this page: the controller wires, the
@@ -235,26 +264,26 @@ class ProjectCockpitController extends Controller
         $docSteps     = $moduleKey === null ? [] : $this->wizardPresenter->stepsFor($moduleKey);
         $docStepTitle = $moduleKey === null ? null : $this->wizardPresenter->stepTitle($moduleKey, $docStep);
 
-        // FOUR WIRINGS REMOVED BY 46.2 D-02 (Plan 46.2-03), unsurfaced not
-        // deleted — and with them four private helpers:
+        // $panelEvidence ← evidenceFor() IS BACK (Plan 47-03, D-04) — SEE ABOVE,
+        // resolved before $tab rather than here, because resolveTab() now needs
+        // $offersReturned to decide a stale `?tab=returned` bookmark.
         //
-        //   $panelEvidence     ← evidenceFor()          the Returned tab payload
+        // THREE WIRINGS REMAIN REMOVED BY 46.2 D-02 (Plan 46.2-03), unsurfaced
+        // not deleted — and with them three private helpers:
+        //
         //   $action            ← resolveAction()        the four visit disclosures
         //   $quickActionRooms  ← roomNames()            Create visit's room list
         //   $quickActionPeople ← activePeople()         Create visit's people list
         //   $actionVisitId     ← resolveActionVisitId() the send-back row id
         //
-        // Nothing behind them was touched. `CockpitEvidencePresenter` and
-        // `VisitEvidence` still exist, still have their own green unit tests,
-        // and are now ZERO-CALLER SERVICES from the cockpit's side. That is
-        // deliberate and it matches this repo's own precedent — SiteSurveyDocxService
-        // sat written and tested with no caller until Plan 46.2-02 wired it up.
-        // DO NOT delete them to tidy the dependency graph. The five POST routes
-        // and the two evidence GETs remain registered and green.
+        // ($action is itself back for the DOCUMENT form's `?action=generate`,
+        // Plan 46.2-05 — see resolveAction()'s own docblock. The four visit
+        // disclosures are not among `ACTIONS` and do not come back here.)
         //
-        // The `CockpitEvidencePresenter` constructor injection went with
-        // evidenceFor(), its only caller. Re-inject it in the commit that ships
-        // a surface that reads it.
+        // Nothing behind any of them was touched beyond this plan's own
+        // re-injection. `VisitEvidence`, `VisitPhotoZipBuilder` and
+        // `ProjectCockpitEvidenceController` are untouched; the five POST
+        // routes and the two evidence GETs remain registered and green.
 
         $masthead   = $this->headerPresenter->masthead($project);
         $kpis       = $this->headerPresenter->kpis($project, $health);
@@ -275,6 +304,8 @@ class ProjectCockpitController extends Controller
             'panelFiles',
             'panelNotes',
             'panelLink',
+            'panelEvidence',
+            'offersReturned',
             'activity',
             'action',
             'docFields',
@@ -290,16 +321,10 @@ class ProjectCockpitController extends Controller
     }
 
     /*
-     * FIVE PRIVATE HELPERS WERE HERE, AND ARE RETIRED BY NAME (46.2 D-02,
+     * FOUR PRIVATE HELPERS WERE HERE, AND REMAIN RETIRED BY NAME (46.2 D-02,
      * Plan 46.2-03). Each fed a control the cockpit no longer surfaces. None
      * of the CAPABILITY they fed was deleted:
      *
-     *   evidenceFor()           — reshaped CockpitEvidencePresenter's payload
-     *                             for the Returned tab. The presenter,
-     *                             VisitEvidence, VisitPhotoZipBuilder and
-     *                             ProjectCockpitEvidenceController are all
-     *                             untouched and still green; the photo and ZIP
-     *                             GETs are still registered.
      *   resolveAction()         — resolved `?action=` against ACTIONS, which is
      *                             now empty. Plan 46.2-05 brings this back for
      *                             the document form's `?action=generate`.
@@ -310,11 +335,54 @@ class ProjectCockpitController extends Controller
      *   roomNames()             — Create visit's "Rooms in scope" option list.
      *   activePeople()          — Create visit's engineer option list.
      *
-     * The acts themselves live at projects.cockpit.visits.store / .accept /
-     * .send-back / .notes / .snags and .photos-zip / .photo. If you need one of
-     * these helpers back, the surface is what you are adding — write it in the
-     * commit that ships the control, do not resurrect the wiring first.
+     * `evidenceFor()` IS NO LONGER ON THIS LIST (Plan 47-03, D-04) — it is
+     * re-injected below, with `CockpitEvidencePresenter` back in the
+     * constructor. The acts themselves live at projects.cockpit.visits.store /
+     * .accept / .send-back / .notes / .snags and .photos-zip / .photo. If you
+     * need one of the four REMAINING helpers back, the surface is what you are
+     * adding — write it in the commit that ships the control, do not
+     * resurrect the wiring first.
      */
+
+    /**
+     * The Returned tab's payload for the open module, keyed by visit id.
+     *
+     * Plan 47-03 (D-04). A visit for which `CockpitEvidencePresenter::
+     * evidence()` answers null — no resolvable source, or a visit belonging
+     * to another project — is skipped rather than stored as null: the Blade
+     * never has to distinguish "no entry" from "a null entry", and the map's
+     * own emptiness is `$offersReturned`'s whole derivation below.
+     *
+     * READ-ONLY, exactly as the presenter's own contract: this method issues
+     * no query of its own and calls `evidence()` once per visit on the open
+     * module, never twice, so a render and an `?offersReturned` check always
+     * agree about which visits qualify.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function evidenceFor(Project $project, ?array $openModule): array
+    {
+        if ($openModule === null) {
+            return [];
+        }
+
+        /** @var Collection<int, \App\Models\Visit> $visits */
+        $visits = $openModule['section']['visits'] ?? collect();
+
+        $evidence = [];
+
+        foreach ($visits as $visit) {
+            $payload = $this->evidencePresenter->evidence($project, $visit);
+
+            if ($payload === null) {
+                continue;
+            }
+
+            $evidence[$visit->id] = $payload;
+        }
+
+        return $evidence;
+    }
 
     /**
      * The open module, or null.
@@ -579,8 +647,15 @@ class ProjectCockpitController extends Controller
      * The active tab. Resolved independently of the module: a `?tab=` with no
      * `?module=` opens nothing, because the panel itself is only rendered when
      * a module resolved.
+     *
+     * `$offersReturned` IS THE ONE PLACE A STALE `?tab=returned` BOOKMARK IS
+     * CAUGHT (Plan 47-03, D-04). `returned` is a member of `TABS`, so a
+     * generic membership check alone would now accept it on ANY module —
+     * including RAMS and O&M, which never offer it. This method is still the
+     * single fallback point: `panel.blade.php` carries no second coercion, so
+     * the tab strip and the body can never disagree about which tab is open.
      */
-    private function resolveTab(Request $request): string
+    private function resolveTab(Request $request, bool $offersReturned): string
     {
         $submitted = $request->query('tab');
 
@@ -588,7 +663,15 @@ class ProjectCockpitController extends Controller
             return self::TABS[0];
         }
 
-        return in_array($submitted, self::TABS, true) ? $submitted : self::TABS[0];
+        if (! in_array($submitted, self::TABS, true)) {
+            return self::TABS[0];
+        }
+
+        if ($submitted === 'returned' && ! $offersReturned) {
+            return self::TABS[0];
+        }
+
+        return $submitted;
     }
 
     /**
