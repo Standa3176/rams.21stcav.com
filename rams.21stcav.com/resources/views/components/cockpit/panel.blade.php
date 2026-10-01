@@ -132,11 +132,19 @@
     //   'evidence'                — the Returned tab's payload
     //
     // `action` IS BACK (Plan 46.2-05) FOR THE DOCUMENT FORM'S `?action=generate`
-    // DISCLOSURE. It is a new prop for a new control, not the old one restored:
-    // `ACTIONS` holds exactly one string and none of the four visit disclosures
-    // is among them — those acts live at their own routes now (see the docblock).
-    // `actionVisitId`, `rooms`, `people` and `evidence` do NOT come back.
-    'action'       => null,
+    // DISCLOSURE, and THREE MORE VALUES JOINED IT (Plan 47-04, D-03):
+    // `send-back`, `note` and `snag`, resolved by the same membership rule
+    // against the same (now four-entry) `ACTIONS` constant. `rooms` and
+    // `people` do NOT come back — they fed Create visit's option lists, and
+    // that act is still out of scope (47-04's own scope fence).
+    'action'         => null,
+    // THE VISIT-SCOPED DISCLOSURE'S ROW ID (Plan 47-04, D-03). Resolved in
+    // ProjectCockpitController from `?visit=`, carried straight through to
+    // `returned-tab.blade.php` and from there into `visit-row`'s own
+    // `actionVisitId` prop — the SAME comparison-never-lookup value that prop
+    // has always expected. null whenever `$action` names no visit (null or
+    // `generate`).
+    'actionVisitId'  => null,
     // The document form's data, all of it derived in ProjectCockpitController
     // from CockpitDocumentFormPresenter — this file decides no field and no
     // format of its own.
@@ -611,14 +619,19 @@
                  renders; `returned-tab.blade.php` filters it to the ones
                  carrying a non-null entry in `$evidence` and draws the
                  calm reference order: state → hand-off link → rooms →
-                 gallery → sign-off. NO controls here — `controls="false"`
-                 is `visit-row`'s own default and Plan 47-04 is the one
-                 that flips it. --}}
+                 gallery → sign-off → controls.
+
+                 `:action` AND `:action-visit-id` ARE NEW (Plan 47-04, D-03) —
+                 the same two values the document form already uses, threaded
+                 through to the visit-management controls `returned-tab`
+                 now renders beneath each visit's evidence. --}}
             <x-cockpit.returned-tab
                 :visits="$visits"
                 :evidence="$evidence"
                 :project="$project"
-                :module="$module" />
+                :module="$module"
+                :action="$action"
+                :action-visit-id="$actionVisitId" />
         @endif
     </div>
 </aside>

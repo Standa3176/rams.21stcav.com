@@ -40,12 +40,21 @@
     comes out of the presenter's array, which cannot carry a key it never
     produced. Do not reach past this array for "just one more field".
 
-    NO VISIT-MANAGEMENT CONTROL RENDERS HERE (scope fence). This file draws
-    its own read-only sentences rather than including `<x-cockpit.visit-row>`
-    with `controls` omitted, because that component ALSO draws the
-    Reconstructed/Superseded chips and the lock sentence — which Overview
-    already shows — and this tab's job is the evidence, not a second copy of
-    the row. Plan 47-04 decides whether a control-bearing row belongs here.
+    THE CONTROLS NOW RENDER HERE (Plan 47-04, D-03) — beneath every visit's
+    evidence, via `<x-cockpit.visit-row controls="true" tab="returned">`. This
+    file still draws its OWN read-only sentences above the evidence (the
+    review-state line, the chips elsewhere are Overview's) rather than relying
+    on `visit-row` for them, because `visit-row` draws the WHOLE row — title,
+    date, chips, lock sentence AND the action area — and `controls` is
+    deliberately an AND on top of `visit-row`'s own eight gates, never a
+    replacement for them (see that component's own docblock). The duplication
+    between this file's review-state sentence and `visit-row`'s own is a known
+    cosmetic overlap, not a gate difference: both read the SAME `Visit::state()`
+    and `isBackfilled()` and can never disagree about WHETHER a control
+    renders, only about how many times the same fact is printed. Nothing in
+    `visit-row.blade.php`'s internal gates was touched to accommodate this —
+    per 47-04's own scope fence, a gate that looks wrong once reachable here is
+    a finding to report, not a silent edit.
 
     EVERY VALUE IS ESCAPED. Nothing here uses the unescaped-output directive.
     No `<select`, no `<script`, none of the nine banned handler attributes.
@@ -53,7 +62,18 @@
     prohibited on this tab, same ruling as the CSS block this file renders
     into.
 --}}
-@props(['visits', 'evidence', 'project', 'module'])
+@props([
+    'visits',
+    'evidence',
+    'project',
+    'module',
+    // THE TWO VALUES visit-row's ACTION AREA NEEDS (Plan 47-04, D-03). Passed
+    // straight through from the controller via panel.blade.php — this file
+    // decides no disclosure of its own, exactly as it decides no evidence
+    // shape of its own.
+    'action'        => null,
+    'actionVisitId' => null,
+])
 
 @php
     /** @var \Illuminate\Support\Collection<int, \App\Models\Visit> $visits */
@@ -215,5 +235,23 @@
                 </div>
             @endif
         @endif
+
+        {{-- 7. THE CONTROLS, BENEATH THE EVIDENCE (Plan 47-04, D-03). Rendered
+             for EVERY visit in `$returnedVisits` — including one whose
+             `source_missing` or `has_anything: false` sentence above is the
+             only other thing this card shows — because `visit-row`'s own
+             eight gates, not this file, decide whether anything in its action
+             area actually draws. A reconstructed visit renders this call and
+             draws nothing (`$hasContext`/`$canAct` are both false for it); the
+             cap of four and the `controls` AND are entirely `visit-row`'s own
+             contract, unedited here. --}}
+        <x-cockpit.visit-row
+            :visit="$visit"
+            :project="$project"
+            :module="$module"
+            :action="$action"
+            :action-visit-id="$actionVisitId"
+            controls="true"
+            tab="returned" />
     </div>
 @endforeach

@@ -584,6 +584,286 @@ class CockpitVisitActionsTest extends TestCase
     }
 
     /**
+     * Every `.cav-visit` row ON THE RETURNED TAB, as raw HTML (Plan 47-04,
+     * Task 2). The counterpart to `visitRows()` above, which pins `?tab=` to
+     * `overview` — this one pins it to `returned`, the ONLY tab that ever
+     * passes `controls="true"` into `visit-row.blade.php`. Counting controls
+     * inside the string returned here, rather than inside the whole page
+     * body, is what keeps the cap judged PER ROW: a page holding several
+     * visits with different counts cannot average out a real violation when
+     * each row is its own subtree.
+     *
+     * @return array<int, string>
+     */
+    private function returnedTabRows(Project $project, string $module, array $query = []): array
+    {
+        $dom = new \DOMDocument();
+        libxml_use_internal_errors(true);
+        $dom->loadHTML('<?xml encoding="utf-8" ?>'.$this->region($project, ['module' => $module, 'tab' => 'returned'] + $query));
+        libxml_clear_errors();
+
+        $rows = [];
+
+        foreach ((new \DOMXPath($dom))->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' cav-visit ')]") as $node) {
+            $rows[] = html_entity_decode($dom->saveHTML($node), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        }
+
+        return $rows;
+    }
+
+    /** The one row, among several, that carries this exact title text. */
+    private function rowNamed(array $rows, string $title): string
+    {
+        foreach ($rows as $row) {
+            if (str_contains($row, $title)) {
+                return $row;
+            }
+        }
+
+        $this->fail("No row among ".count($rows)." found containing \"{$title}\".");
+    }
+
+    // ── Task 2 (Plan 47-04): the controls, back on the Returned tab ───────
+
+    /**
+     * THE FOUR-CONTROL CAP, THROUGH HTTP, ON THE PATH THIS PLAN ACTUALLY
+     * WIRES (Plan 47-04, Task 2). `test_no_visit_row_in_any_state_renders_any_control()`
+     * above judges the OVERVIEW path, where `controls` is never passed `true`
+     * at all — proving the cap on a page that could never trip it. This
+     * sweeps the SAME states and types over the RETURNED tab instead, and
+     * every visit is given a resolvable source so the tab's own presence
+     * rule never silently excludes a row this sweep means to judge. Covers
+     * both `is_backfilled` states, per the plan's own instruction.
+     */
+    public function test_the_returned_tabs_four_control_cap_holds_through_http_per_visit(): void
+    {
+        $states = ['planned', 'sent', 'returned', 'sentBack', 'accepted', 'default'];
+        $seen   = 0;
+
+        foreach (Visit::TYPES as $type) {
+            foreach ($states as $state) {
+                foreach ([false, true] as $backfilled) {
+                    $project = $this->project();
+                    $factory = Visit::factory();
+
+                    $visit = $state === 'default'
+                        ? $factory->create(['project_id' => $project->id, 'type' => $type])
+                        : $factory->{$state}()->create(['project_id' => $project->id, 'type' => $type]);
+
+                    // A SOURCE EVERY TIME, so the Returned tab's presence rule
+                    // (evidence resolvable) never excludes this row — a row
+                    // this sweep cannot see proves nothing about its controls.
+                    if ($visit->source_type === null) {
+                        $worksheet = \App\Models\Worksheet::factory()->create(['project_id' => $project->id]);
+                        $visit->forceFill([
+                            'source_type' => Visit::SOURCE_WORKSHEET,
+                            'source_id'   => $worksheet->id,
+                        ])->save();
+                    }
+
+                    if ($backfilled) {
+                        $visit->forceFill(['is_backfilled' => true])->save();
+                    }
+
+                    foreach (array_keys(\App\Support\Cockpit\CockpitModulePresenter::moduleMap()) as $module) {
+                        foreach ($this->returnedTabRows($project, $module) as $row) {
+                            $seen++;
+                            $count = $this->countControls($row);
+
+                            $this->assertLessThanOrEqual(
+                                4,
+                                $count,
+                                "VL-11: a {$state} {$type} visit (backfilled=".($backfilled ? '1' : '0').") rendered {$count} controls on the Returned tab."
+                            );
+
+                            if ($backfilled) {
+                                $this->assertSame(
+                                    0,
+                                    $count,
+                                    "A backfilled {$state} {$type} visit must offer zero controls on the Returned tab, not merely stay under four."
+                                );
+                            }
+
+                            $this->assertStringNotContainsString('disabled', $row, 'Nothing here renders disabled — a disabled control is still an offer.');
+                        }
+                    }
+                }
+            }
+        }
+
+        $this->assertGreaterThan(20, $seen, 'The Returned-tab cap sweep must judge real rows, never pass vacuously.');
+    }
+
+    /**
+     * THE CAP IS JUDGED PER ROW, NOT PER PAGE — the non-vacuity trap named
+     * explicitly in this plan's own instructions. Two visits on ONE Returned
+     * tab: one RETURNED (the richest state — Accept, Send back, Add note and
+     * Raise a snag, all four) and one ACCEPTED (exactly one — Add note). A
+     * page-wide count of `<button` + `<a ` across both rows would read 5 and
+     * never trip a per-row ceiling of four; `returnedTabRows()` keeps each
+     * row its own subtree, so this asserts EACH one individually.
+     */
+    public function test_the_four_control_cap_is_judged_per_row_not_per_page(): void
+    {
+        $project = $this->project();
+
+        Visit::factory()->returned()->create([
+            'project_id' => $project->id,
+            'type'       => Visit::TYPE_INSTALL,
+            'title'      => 'Richest visit on the page',
+        ]);
+
+        Visit::factory()->accepted()->create([
+            'project_id' => $project->id,
+            'type'       => Visit::TYPE_INSTALL,
+            'title'      => 'Leanest visit on the page',
+        ]);
+
+        $rows = $this->returnedTabRows($project, 'worksheet');
+
+        $this->assertCount(2, $rows, 'Both visits carry a resolvable source (`returned()`/`accepted()` both create one) and both must render.');
+
+        $richestRow = $this->rowNamed($rows, 'Richest visit on the page');
+        $leanestRow = $this->rowNamed($rows, 'Leanest visit on the page');
+
+        $this->assertSame(4, $this->countControls($richestRow), 'A RETURNED visit should offer exactly Accept, Send back, Add note and Raise a snag.');
+        $this->assertStringContainsString('>Accept<', $richestRow);
+        $this->assertStringContainsString('>Send back<', $richestRow);
+        $this->assertStringContainsString('>Add note<', $richestRow);
+        $this->assertStringContainsString('>Raise a snag<', $richestRow);
+        $this->assertStringNotContainsString('disabled', $richestRow);
+
+        $this->assertSame(1, $this->countControls($leanestRow), 'An ACCEPTED visit should offer exactly Add note.');
+        $this->assertStringContainsString('>Add note<', $leanestRow);
+        $this->assertStringNotContainsString('>Accept<', $leanestRow);
+        $this->assertStringNotContainsString('disabled', $leanestRow);
+    }
+
+    /**
+     * NEVER ON OVERVIEW, PROVED AGAINST THE SAME VISIT THAT OFFERS FOUR ON
+     * RETURNED (Plan 47-04's own non-vacuity instruction: "checking only that
+     * Returned has them proves half the claim"). One visit, rendered on both
+     * tabs: Returned must draw all four controls and Overview must draw none
+     * of them, for the identical row.
+     */
+    public function test_the_same_visit_offers_four_controls_on_returned_and_zero_on_overview(): void
+    {
+        $project = $this->project();
+
+        Visit::factory()->returned()->create([
+            'project_id' => $project->id,
+            'type'       => Visit::TYPE_INSTALL,
+            'title'      => 'Same visit, two tabs',
+        ]);
+
+        $returnedRows = $this->returnedTabRows($project, 'worksheet');
+        $this->assertCount(1, $returnedRows);
+        $this->assertSame(4, $this->countControls($returnedRows[0]));
+
+        $overviewRows = $this->visitRows($project, 'worksheet', ['tab' => 'overview']);
+        $this->assertCount(1, $overviewRows);
+        $this->assertSame(0, $this->countControls($overviewRows[0]));
+
+        foreach (['Accept', 'Send back', 'Add note', 'Raise a snag'] as $control) {
+            $this->assertStringContainsString($control, $returnedRows[0], "Returned tab should offer {$control}.");
+            $this->assertStringNotContainsString($control, $overviewRows[0], "Overview must never offer {$control}.");
+        }
+    }
+
+    /**
+     * RV-06, RE-PROVED ON THE PAGE IT WAS WRITTEN FOR BUT NEVER GOT TO RUN ON
+     * (47-CONTEXT.md, D-04; this plan's own non-vacuity instruction). 24
+     * backfilled rows on live derive STATE_RETURNED — exactly the state that
+     * would otherwise offer Accept and Send back — and none of them is asking
+     * a PM for a reading. Built with a REAL signed worksheet behind it,
+     * judged through the Returned tab's real HTTP response — never the
+     * isolated component render
+     * `test_a_reconstructed_visit_offers_no_control_even_though_its_state_reads_returned()`
+     * already covers on Overview.
+     */
+    public function test_a_reconstructed_visit_offers_zero_controls_on_the_returned_tab(): void
+    {
+        $project   = $this->project();
+        $worksheet = \App\Models\Worksheet::factory()->create(['project_id' => $project->id]);
+
+        \App\Models\WorksheetSignoff::create([
+            'worksheet_id'         => $worksheet->id,
+            'client_name'          => 'A Client',
+            'signature_png_base64' => 'iVBORw0KGgo=',
+            'signed_with_comments' => false,
+            'signed_at'            => now()->subYear(),
+        ]);
+
+        $visit = Visit::factory()->backfilledFromWorksheet($worksheet)->create([
+            'project_id' => $project->id,
+            'status'     => Visit::STATUS_COMPLETED,
+            'title'      => 'A 2024 install, reconstructed',
+        ]);
+
+        $this->assertSame(Visit::STATE_RETURNED, $visit->state(), 'The fixture must read RETURNED, exactly as the 24 live rows do.');
+        $this->assertTrue($visit->isClosed());
+
+        $rows = $this->returnedTabRows($project, 'worksheet');
+
+        $this->assertCount(1, $rows, 'A reconstructed visit with a resolvable source still renders its row — the visit still happened.');
+        $this->assertSame(0, $this->countControls($rows[0]), 'A reconstructed visit must never ask a PM to ratify a guess, on the Returned tab any more than on Overview.');
+        $this->assertStringNotContainsString('Accept', $rows[0]);
+        $this->assertStringNotContainsString('Send back', $rows[0]);
+        $this->assertStringNotContainsString('Add note', $rows[0]);
+        $this->assertStringNotContainsString('Raise a snag', $rows[0]);
+        $this->assertStringContainsString('Reconstructed', $rows[0]);
+
+        // AND THE EVIDENCE STILL RENDERS. A reconstructed visit is excluded
+        // from the controls, never from the review — the row's title is part
+        // of visit-row's own markup, but the card around it is this file's
+        // own, so finding the title in the Returned tab's region proves the
+        // whole card rendered, not just an empty shell.
+        $region = $this->region($project, ['module' => 'worksheet', 'tab' => 'returned']);
+        $this->assertStringContainsString('A 2024 install, reconstructed', $region);
+    }
+
+    /**
+     * CROSS-PROJECT SCOPING, RE-PROVED THROUGH THE RETURNED TAB'S OWN URLS
+     * (Plan 47-04, Task 1's own instruction — "re-prove this through THIS
+     * tab's URLs, not only through the route directly"). `resolveActionVisitId()`
+     * performs no lookup by design — the real guard is
+     * `ProjectCockpitActionController::guard()` (T-46-06-01), unchanged by
+     * this plan. This proves that holds when the disclosure is reached
+     * exactly as a PM would reach it: a GET naming another project's visit
+     * id on THIS tab's own URL shape, followed by the POST the disclosed form
+     * would submit.
+     */
+    public function test_cross_project_visit_id_on_the_disclosure_url_is_refused_by_the_post(): void
+    {
+        $projectA = $this->project();
+        $projectB = $this->project();
+
+        Visit::factory()->returned()->create(['project_id' => $projectA->id, 'type' => Visit::TYPE_INSTALL]);
+        $foreignVisit = Visit::factory()->returned()->create(['project_id' => $projectB->id, 'type' => Visit::TYPE_INSTALL]);
+
+        // THE GET: project A's cockpit, on the Returned tab, disclosing
+        // `send-back` for project B's visit id. This must render 200 — never
+        // a 500 — because `resolveActionVisitId()` casts and never looks up.
+        $this->actingAs($this->user())
+            ->get(route('projects.cockpit', [
+                'project' => $projectA,
+                'module'  => 'worksheet',
+                'tab'     => 'returned',
+                'action'  => 'send-back',
+                'visit'   => $foreignVisit->id,
+            ]))
+            ->assertOk();
+
+        // THE POST, scoped to project A as the route always is, naming
+        // project B's visit: refused 404 by `guard()`'s ownership check,
+        // exactly as it always was — this plan adds a LINK to this act, not a
+        // second gate.
+        $this->sendBack($projectA, $foreignVisit)->assertNotFound();
+
+        $this->assertNull($foreignVisit->refresh()->sent_back_at);
+    }
+
+    /**
      * WAS `test_a_returned_visit_offers_exactly_the_four_pm_acts()`, asserting 4.
      *
      * RETIRED AND REPLACED, NOT REMOVED (46.2 D-02, Plan 46.2-03). Its history:
@@ -1041,6 +1321,22 @@ class CockpitVisitActionsTest extends TestCase
      * test_only_a_returned_visit_can_be_sent_back() and five more — all green,
      * all unedited by this plan.
      */
+    /**
+     * NARROWED TO OVERVIEW BY PLAN 47-04 (D-03), RENAMED IN SPIRIT BUT NOT IN
+     * NAME (every external reference to this method names it, not what it
+     * once asserted).
+     *
+     * `send-back`, `note` and `snag` are real `ACTIONS` members again — they
+     * disclose the row's own forms on the Returned tab, which is exactly
+     * `test_the_returned_tabs_disclosure_opens_its_own_form_and_no_others()`'s
+     * job below. What THIS test still proves, and the only thing it ever
+     * needs to: Overview offers nothing regardless of `?action=`, because
+     * `visit-row` is rendered there with `controls` at its own default of
+     * `false` — the AND that gates the whole action area — no matter what the
+     * query string says. `create-visit` is additionally proven to disclose
+     * NOWHERE on this page at all, on any tab: it is not among `ACTIONS` and
+     * 47-04's own scope fence keeps it that way.
+     */
     public function test_no_url_state_can_disclose_a_visit_form_any_more(): void
     {
         $project = $this->project();
@@ -1051,9 +1347,11 @@ class CockpitVisitActionsTest extends TestCase
         $this->assertStringNotContainsString('<textarea', $closed);
         $this->assertStringNotContainsString('action=send-back', $closed);
 
-        // EVERY retired action string, tried against the real URL. The row must
-        // come back byte-for-byte the same as the undisclosed one: nothing in
-        // `?action=` is a legal value any more, so nothing opens.
+        // `send-back`, `note` and `snag` are LEGAL actions again (Plan 47-04),
+        // but `visitRows()` defaults to `?tab=overview` when the query carries
+        // no tab of its own — so trying them here still proves Overview
+        // discloses nothing, regardless of which action is real. `create-visit`
+        // is additionally illegal everywhere: it is not in `ACTIONS` at all.
         foreach (['send-back', 'note', 'snag', 'create-visit'] as $action) {
             $rows = $this->visitRows($project, 'site_survey', ['action' => $action, 'visit' => $visit->id]);
 
@@ -1063,19 +1361,19 @@ class CockpitVisitActionsTest extends TestCase
             $this->assertSame(
                 0,
                 $this->countControls($rows[0]),
-                "?action={$action} disclosed a control. 46.2 D-02: none of these is a legal action."
+                "?action={$action}&tab=overview disclosed a control. Overview never offers controls, whatever the action."
             );
         }
 
-        // MOVED BY NAME, `[]` -> `['generate']` (Plan 46.2-05), which re-surfaced
-        // the DOCUMENT form on this mechanism. The four strings above are still
-        // illegal and that is now asserted directly instead of resting on the list
-        // being empty — a weaker claim that happened to hold for two commits.
-        $this->assertSame(['generate'], ProjectCockpitController::ACTIONS);
-
-        foreach (['send-back', 'note', 'snag', 'create-visit'] as $retired) {
-            $this->assertNotContains($retired, ProjectCockpitController::ACTIONS);
-        }
+        // GROWN BY NAME, `['generate']` -> four entries (Plan 47-04, D-03):
+        // `send-back`, `note` and `snag` re-join `ACTIONS`, each citing the
+        // control it ships on the Returned tab. `create-visit` is NOT among
+        // them and is the one string this test still asserts illegal
+        // everywhere — D-03 names four acts on an EXISTING visit, never
+        // creating one, and that stays Phase 46.5's job via
+        // `CockpitCombinedCreator`, not a disclosure on this page.
+        $this->assertSame(['generate', 'send-back', 'note', 'snag'], ProjectCockpitController::ACTIONS);
+        $this->assertNotContains('create-visit', ProjectCockpitController::ACTIONS);
     }
 
     public function test_a_hostile_visit_title_and_a_hostile_query_are_never_echoed_raw(): void

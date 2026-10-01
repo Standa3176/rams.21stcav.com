@@ -113,14 +113,20 @@ class ProjectCockpitController extends Controller
      * 45-11. `?action=generate` is a GET that writes nothing; the WRITE is
      * `projects.cockpit.documents.store` on its own controller.
      *
-     * The four removed strings are NOT deferred capabilities and they do NOT
-     * come back here. They exist and they work, at
-     * `projects.cockpit.visits.store` / `.send-back` / `.notes` / `.snags`. Only
-     * the URL state that DISCLOSED THEIR FORMS is gone, and it stays gone.
+     * THREE OF THE FOUR ARE BACK (Phase 47, Plan 47-04, D-03). `send-back`,
+     * `note` and `snag` once again disclose the row's own reason/body/snag
+     * forms, beneath the visit's evidence on the Returned tab — the only
+     * caller that ever passes `controls="true"` to `visit-row.blade.php`.
+     * `create-visit` is NOT among them and stays out: D-03 names four acts on
+     * an EXISTING visit, never creating a new one (47-04's own scope fence),
+     * and `CockpitCombinedCreator` (Phase 46.5) is the only way a visit now
+     * comes into being from the cockpit.
+     *
+     * `generate` is unaffected and stays first — this plan only appends.
      *
      * @var array<int, string>
      */
-    public const ACTIONS = ['generate'];
+    public const ACTIONS = ['generate', 'send-back', 'note', 'snag'];
 
     public function __construct(
         private ProjectHealthService $health,
@@ -239,6 +245,12 @@ class ProjectCockpitController extends Controller
         // come from `CockpitDocumentFormPresenter` and from nowhere else, so the
         // view decides no field of its own.
         $action       = $this->resolveAction($request);
+        // THE SEND-BACK/NOTE/SNAG DISCLOSURE'S VISIT ID (Plan 47-04, D-03).
+        // Resolved from `$action`, never independently of it — an action of
+        // `null` or `generate` names no visit, so this is `null` for every
+        // request that is not actively disclosing one of the three
+        // visit-scoped forms `visit-row.blade.php` already knows how to open.
+        $actionVisitId = $this->resolveActionVisitId($request, $action);
         $docFields    = $moduleKey === null ? [] : $this->docFormPresenter->fieldsFor($moduleKey);
         $docReadiness = $moduleKey === null ? [] : $this->docFormPresenter->readiness($project, $moduleKey);
         $docFormats   = $moduleKey === null ? [] : $this->documentFormats($moduleKey);
@@ -268,22 +280,25 @@ class ProjectCockpitController extends Controller
         // resolved before $tab rather than here, because resolveTab() now needs
         // $offersReturned to decide a stale `?tab=returned` bookmark.
         //
-        // THREE WIRINGS REMAIN REMOVED BY 46.2 D-02 (Plan 46.2-03), unsurfaced
-        // not deleted — and with them three private helpers:
+        // TWO WIRINGS REMAIN REMOVED BY 46.2 D-02 (Plan 46.2-03), unsurfaced
+        // not deleted — and with them two private helpers:
         //
-        //   $action            ← resolveAction()        the four visit disclosures
         //   $quickActionRooms  ← roomNames()            Create visit's room list
         //   $quickActionPeople ← activePeople()         Create visit's people list
-        //   $actionVisitId     ← resolveActionVisitId() the send-back row id
         //
-        // ($action is itself back for the DOCUMENT form's `?action=generate`,
-        // Plan 46.2-05 — see resolveAction()'s own docblock. The four visit
-        // disclosures are not among `ACTIONS` and do not come back here.)
+        // $action (resolveAction()) and $actionVisitId (resolveActionVisitId())
+        // ARE BOTH BACK. $action returned for the DOCUMENT form's
+        // `?action=generate` disclosure (Plan 46.2-05); `ACTIONS` grew three
+        // more entries and $actionVisitId was rebuilt alongside them (Plan
+        // 47-04, D-03) for the three visit-scoped disclosures
+        // `visit-row.blade.php` already knew how to open. `create-visit` is
+        // STILL not among `ACTIONS` and does not come back here — that act
+        // stays at its own route with no disclosure on this page.
         //
         // Nothing behind any of them was touched beyond this plan's own
-        // re-injection. `VisitEvidence`, `VisitPhotoZipBuilder` and
-        // `ProjectCockpitEvidenceController` are untouched; the five POST
-        // routes and the two evidence GETs remain registered and green.
+        // re-injection. `VisitEvidence`, `VisitPhotoZipBuilder`,
+        // `ProjectCockpitEvidenceController` and `ProjectCockpitActionController`
+        // are untouched; all seven routes remain registered and green.
 
         $masthead   = $this->headerPresenter->masthead($project);
         $kpis       = $this->headerPresenter->kpis($project, $health);
@@ -308,6 +323,7 @@ class ProjectCockpitController extends Controller
             'offersReturned',
             'activity',
             'action',
+            'actionVisitId',
             'docFields',
             'docReadiness',
             'docFormats',
@@ -321,27 +337,24 @@ class ProjectCockpitController extends Controller
     }
 
     /*
-     * FOUR PRIVATE HELPERS WERE HERE, AND REMAIN RETIRED BY NAME (46.2 D-02,
-     * Plan 46.2-03). Each fed a control the cockpit no longer surfaces. None
-     * of the CAPABILITY they fed was deleted:
+     * TWO PRIVATE HELPERS REMAIN RETIRED BY NAME (46.2 D-02, Plan 46.2-03).
+     * Each fed a control the cockpit does not surface. Neither CAPABILITY was
+     * deleted:
      *
-     *   resolveAction()         — resolved `?action=` against ACTIONS, which is
-     *                             now empty. Plan 46.2-05 brings this back for
-     *                             the document form's `?action=generate`.
-     *   resolveActionVisitId()  — cast `?visit=` for the send-back disclosure.
-     *                             The POST's own project-scoped ownership check
-     *                             (T-46-06-01) was always the real guard and is
-     *                             unchanged.
      *   roomNames()             — Create visit's "Rooms in scope" option list.
      *   activePeople()          — Create visit's engineer option list.
      *
-     * `evidenceFor()` IS NO LONGER ON THIS LIST (Plan 47-03, D-04) — it is
-     * re-injected below, with `CockpitEvidencePresenter` back in the
-     * constructor. The acts themselves live at projects.cockpit.visits.store /
-     * .accept / .send-back / .notes / .snags and .photos-zip / .photo. If you
-     * need one of the four REMAINING helpers back, the surface is what you are
-     * adding — write it in the commit that ships the control, do not
-     * resurrect the wiring first.
+     * `resolveAction()` IS NO LONGER ON THIS LIST (Plan 46.2-05, then grown by
+     * Plan 47-04) — it resolves `?action=` against ACTIONS, now four entries.
+     * `resolveActionVisitId()` IS NO LONGER ON THIS LIST EITHER (Plan 47-04) —
+     * rebuilt below, exactly as it was: a cast of `?visit=` with no lookup, on
+     * the same reasoning it was retired with — the POST's own project-scoped
+     * ownership check (T-46-06-01) is the real guard and is unchanged.
+     * `evidenceFor()` is likewise off this list (Plan 47-03, D-04). The acts
+     * themselves live at projects.cockpit.visits.store / .accept / .send-back /
+     * .notes / .snags and .photos-zip / .photo. If you need `roomNames()` or
+     * `activePeople()` back, the surface is what you are adding — write it in
+     * the commit that ships the control, do not resurrect the wiring first.
      */
 
     /**
@@ -413,8 +426,10 @@ class ProjectCockpitController extends Controller
      * nothing rather than being helpfully corrected.
      *
      * This is the resolver 46.2-03 retired with the visit disclosures and kept
-     * named in its place-holder comment. It is back for ONE action, `generate`,
-     * and the four visit strings do not come with it.
+     * named in its place-holder comment. It came back for ONE action,
+     * `generate` (Plan 46.2-05); `send-back`, `note` and `snag` followed (Plan
+     * 47-04, D-03). `create-visit` is still not among `ACTIONS` and still does
+     * not come back here.
      */
     private function resolveAction(Request $request): ?string
     {
@@ -425,6 +440,29 @@ class ProjectCockpitController extends Controller
         }
 
         return in_array($submitted, self::ACTIONS, true) ? $submitted : null;
+    }
+
+    /**
+     * The visit id a visit-scoped disclosure names (Plan 47-04, D-03).
+     *
+     * REBUILT EXACTLY AS IT WAS BEFORE 46.2-03 RETIRED IT. A plain `(int)` cast
+     * of `?visit=`, performed ONLY when `$action` already resolved to one of
+     * the three visit-scoped disclosures (`send-back`, `note`, `snag` — never
+     * `generate`, which names no visit). NO DATABASE LOOKUP HAPPENS HERE: this
+     * value only decides whether `visit-row.blade.php` renders a form OPEN —
+     * never which record a POST touches. The real guard is unchanged and lives
+     * in `ProjectCockpitActionController::guard()` (T-46-06-01), which 404s a
+     * visit id belonging to another project regardless of what this method
+     * returns. A missing or non-numeric `?visit=` casts to `0`, which matches
+     * no real visit id, so nothing discloses.
+     */
+    private function resolveActionVisitId(Request $request, ?string $action): ?int
+    {
+        if ($action === null || $action === 'generate') {
+            return null;
+        }
+
+        return (int) $request->query('visit');
     }
 
     /**

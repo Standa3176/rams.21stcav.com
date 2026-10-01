@@ -208,6 +208,11 @@
                                      THE PANEL UNCHANGED in 46.3-02: not one prop
                                      was added, removed or re-derived. --}}
                                 :action="$action"
+                                {{-- ADDED BY PLAN 47-04 (D-03): the visit-scoped
+                                     disclosure's row id, resolved in
+                                     ProjectCockpitController and carried
+                                     through to the Returned tab's controls. --}}
+                                :action-visit-id="$actionVisitId"
                                 :doc-fields="$docFields"
                                 :doc-readiness="$docReadiness"
                                 :doc-formats="$docFormats"
@@ -232,21 +237,19 @@
                                 {{-- TWO ATTRIBUTES ADDED BY PLAN 47-03 (D-04):
                                      the Returned tab's payload and its offer,
                                      resolved in ProjectCockpitController by
-                                     evidenceFor(). `evidence` is the ONE of
-                                     the five 46.2-03 removed that comes back
-                                     here — `action-visit-id`, `rooms` and
+                                     evidenceFor(). `action-visit-id` is ALSO
+                                     back now (Plan 47-04, D-03, added above),
+                                     for the three visit-scoped disclosures the
+                                     Returned tab's controls use; `rooms` and
                                      `people` fed the Create visit form and
-                                     remain unsurfaced; `action` is already
-                                     back above for the document form's
-                                     `?action=generate` (Plan 46.2-05) and is
-                                     not this plan's. --}}
+                                     remain unsurfaced. --}}
                                 :evidence="$panelEvidence"
                                 :offers-returned="$offersReturned" />
-                            {{-- THREE ATTRIBUTES REMAIN REMOVED BY 46.2 D-02 (Plan
-                                 46.2-03): `action-visit-id`, `rooms` and `people`.
-                                 They fed the Create visit form, which this page
-                                 does not surface. The capability is unsurfaced,
-                                 NOT deleted — see the routes named in
+                            {{-- TWO ATTRIBUTES REMAIN REMOVED BY 46.2 D-02 (Plan
+                                 46.2-03): `rooms` and `people`. They fed the
+                                 Create visit form, which this page does not
+                                 surface. The capability is unsurfaced, NOT
+                                 deleted — see the routes named in
                                  panel.blade.php's docblock. --}}
                         @endif
                     @endforeach
