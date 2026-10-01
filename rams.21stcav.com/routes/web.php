@@ -693,6 +693,14 @@ Route::middleware('auth')->group(function () {
     Route::get('site-surveys/{siteSurvey}/variations.csv', [SiteSurveyController::class, 'variationsCsv'])
         ->name('site-surveys.variations.csv');
 
+    // ── Completed-survey report: PDF + real .xlsx (46.6-CONTEXT.md D-05/D-07/D-08; plan 46.6-04) ──
+    // Same authorizeSurvey() guard as client-report/variations.csv above —
+    // office-facing downloads of survey data, not the public engineer link.
+    Route::get('site-surveys/{siteSurvey}/completed-report', [SiteSurveyController::class, 'completedReport'])
+        ->name('site-surveys.completed-report');
+    Route::get('site-surveys/{siteSurvey}/completed-report.xlsx', [SiteSurveyController::class, 'completedReportXlsx'])
+        ->name('site-surveys.completed-report.xlsx');
+
     // ── Completed-survey report sections (46.6-CONTEXT.md D-03/D-08; plan 46.6-02) ──
     // Office annotation of the five-section report, append-only — mirrors
     // VisitNote's doctrine. INSERT only; there is deliberately no

@@ -14,6 +14,7 @@ use App\Services\ProjectDeliverablesService;
 use App\Services\Survey\SiteSurveyTierOneReadinessService;
 use App\Services\SiteSurveyDocxService;
 use App\Services\SurveyPdfService;
+use App\Services\SurveyReportXlsxService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -28,6 +29,7 @@ class SiteSurveyController extends Controller
         private readonly SiteSurveyDocxService              $docxService,
         private readonly SiteSurveyTierOneReadinessService $tierOne,
         private readonly ProjectDeliverablesService        $deliverablesService,
+        private readonly SurveyReportXlsxService            $xlsxService,
     ) {}
 
     // ─── Listing / show ──────────────────────────────────────────────────────
@@ -648,6 +650,68 @@ class SiteSurveyController extends Controller
         $downloadName = 'client-survey-' . $siteSurvey->id . '-'
             . \Illuminate\Support\Str::slug($siteSurvey->project_name ?: ('survey-' . $siteSurvey->id))
             . '.pdf';
+
+        return response()->download($path, $downloadName);
+    }
+
+    /**
+     * GET /site-surveys/{siteSurvey}/completed-report
+     *
+     * Streams the five-section completed-survey report PDF (46.6-CONTEXT.md
+     * D-05/D-08) via SurveyPdfService::buildCompletedReport() — the SAME
+     * Browsershot/fromBlade pipeline clientReport()/downloadPdf() already
+     * use, no second renderer. Guarded by the same authorizeSurvey() as
+     * every other survey download route.
+     *
+     * PDF generation can throw (Browsershot/puppeteer missing, a template
+     * error) — this is a GET download, so a raw 500 is not acceptable.
+     * Mirrors RamsController::downloadPdf()'s existing catch pattern: a
+     * friendly redirect back with a flashed error rather than an unhandled
+     * exception page.
+     */
+    public function completedReport(SiteSurvey $siteSurvey): BinaryFileResponse|RedirectResponse
+    {
+        $this->authorizeSurvey($siteSurvey);
+
+        try {
+            $path = $this->pdfService->buildCompletedReport($siteSurvey);
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Completed report PDF generation failed: ' . $e->getMessage());
+        }
+
+        $downloadName = 'completed-survey-report-' . $siteSurvey->id . '-'
+            . \Illuminate\Support\Str::slug($siteSurvey->project_name ?: ('survey-' . $siteSurvey->id))
+            . '.pdf';
+
+        return response()->download($path, $downloadName);
+    }
+
+    /**
+     * GET /site-surveys/{siteSurvey}/completed-report.xlsx
+     *
+     * Streams the same five-section completed-survey report as a real
+     * .xlsx workbook via SurveyReportXlsxService (D-07 — a real .xlsx, not
+     * a CSV, following CableScheduleXlsxService's PhpSpreadsheet pattern;
+     * no new dependency). Guarded by the same authorizeSurvey() as every
+     * other survey download route, same filename-naming convention as
+     * variationsCsv() below.
+     *
+     * Workbook generation can throw — same friendly-redirect treatment as
+     * completedReport() above, rather than a raw 500.
+     */
+    public function completedReportXlsx(SiteSurvey $siteSurvey): BinaryFileResponse|RedirectResponse
+    {
+        $this->authorizeSurvey($siteSurvey);
+
+        try {
+            $path = $this->xlsxService->build($siteSurvey);
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Completed report workbook generation failed: ' . $e->getMessage());
+        }
+
+        $downloadName = 'completed-survey-report-' . $siteSurvey->id . '-'
+            . \Illuminate\Support\Str::slug($siteSurvey->project_name ?: ('survey-' . $siteSurvey->id))
+            . '.xlsx';
 
         return response()->download($path, $downloadName);
     }
