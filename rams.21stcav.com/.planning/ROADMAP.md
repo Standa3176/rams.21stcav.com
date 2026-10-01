@@ -955,11 +955,11 @@ Returned tab's evidence and photo ZIP, and the four visit-management controls be
 
 **Plans**: 5 plans, 4 waves
 
-- [ ] 47-01-PLAN.md — Engineer link visible, copyable, state at a glance; worksheet revoke wired in (wave 1)
-- [ ] 47-02-PLAN.md — F-46.7-04-01: stop rendering the completed_by audit stamp on the engineer link (wave 1, parallel)
-- [ ] 47-03-PLAN.md — Restore the Returned tab: evidence, calm order, the photo ZIP hand-off (wave 2)
-- [ ] 47-04-PLAN.md — Re-surface Accept / Send back / Add note / Raise a snag beneath the evidence (wave 3)
-- [ ] 47-05-PLAN.md — Full gate run, requirement ledger, and the blocking human checkpoint (wave 4)
+- [x] 47-01-PLAN.md — Engineer link visible, copyable, state at a glance; worksheet revoke wired in (wave 1)
+- [x] 47-02-PLAN.md — F-46.7-04-01: stop rendering the completed_by audit stamp on the engineer link (wave 1, parallel)
+- [x] 47-03-PLAN.md — Restore the Returned tab: evidence, calm order, the photo ZIP hand-off (wave 2)
+- [x] 47-04-PLAN.md — Re-surface Accept / Send back / Add note / Raise a snag beneath the evidence (wave 3)
+- [ ] 47-05-PLAN.md — Full gate run, requirement ledger, and the blocking human checkpoint (wave 4) — Tasks 1-2 DONE (the walk + the ledger); **Task 3, the blocking human checkpoint, is OUTSTANDING and not self-approved.**
 
 **UI hint**: yes (link card, Returned tab, visit-row controls — all inside the existing drawer)
 
