@@ -37,11 +37,14 @@
 
     THE COCKPIT CARRIES NO VISIT CONTROL (Phase 46.2, Plan 46.2-03, D-02).
 
-    There is no Create visit, no Accept, no Send back, no Add note, no Raise a
-    snag, no Download all photos and no `Returned` tab on this page. That is a
-    SURFACING change and nothing else: **the visit workflow was not deleted, it
-    was unsurfaced.** Every act above still exists, still validates, still logs
-    and still passes its own tests — at its own route:
+    There is no Create visit, no Accept, no Send back, no Add note and no
+    Raise a snag on this page. **THE RETURNED TAB AND ITS HAND-OFF LINK ARE
+    BACK (Phase 47, Plan 47-03, D-04)** — conditionally, and with no control
+    beneath the evidence yet (that is Plan 47-04's job, deliberately
+    sequenced after this one). That remains a SURFACING change and nothing
+    else: **the visit workflow was not deleted, it was unsurfaced.** Every act
+    below still exists, still validates, still logs and still passes its own
+    tests — at its own route:
 
       Create visit ......... projects.cockpit.visits.store
       Accept ............... projects.cockpit.visits.accept
@@ -51,13 +54,16 @@
       Download all photos .. projects.cockpit.visits.photos-zip
       One photo ............ projects.cockpit.visits.photo
 
-    If you arrived here looking for the review surface, it is not gone: read
-    `.planning/phases/46.2-doc-creation-cockpit/46.2-RETIREMENT-LEDGER.md` and
-    46.2 D-02. `App\Support\Cockpit\CockpitEvidencePresenter` and
-    `App\Support\Cockpit\VisitEvidence` now have NO caller from the cockpit's
-    side. That is deliberate and it is this repo's own precedent —
-    `SiteSurveyDocxService` sat written and tested with no caller until Plan
-    46.2-02 wired it up. DO NOT delete them to tidy the graph.
+    If you arrived here looking for the review surface, it is RE-WIRED, not
+    gone: read `.planning/phases/47-cockpit-links-and-returns/47-CONTEXT.md`
+    (D-04) and `.planning/phases/46.2-doc-creation-cockpit/
+    46.2-RETIREMENT-LEDGER.md` for the history. `App\Support\Cockpit\
+    CockpitEvidencePresenter` and `App\Support\Cockpit\VisitEvidence` are
+    re-injected by `ProjectCockpitController` (Plan 47-03) and are no longer
+    zero-caller. That sat dormant deliberately, on this repo's own
+    precedent — `SiteSurveyDocxService` sat written and tested with no caller
+    until Plan 46.2-02 wired it up — and this is the plan that ends it. DO NOT
+    delete any of them; they were never dead code.
 
     What the cockpit region DOES carry from 46.2 on is a DOCUMENT FORM (Plan
     46.2-05): the fields each of the four documents needs, POSTing to the
@@ -69,18 +75,25 @@
     banned. If a document field genuinely needs a `<select`, lift the entry
     BY NAME in the commit that ships the control. Never by deletion.
 
-    ── THREE TABS, AND THE LIST IS A LITERAL ────────────────────────────────
+    ── THREE TABS, UNCONDITIONALLY, AND A FOURTH THAT IS NOT ───────────────
 
-    `overview`, `files`, `notes`. The tab list is no longer derived from the
-    drawer's data: the presence rule that made a fourth tab conditional (Phase
-    46.1, Plan 46.1-03, D-01 — "the tab renders iff this drawer holds a visit
-    with a source") went with the Returned tab, and with it the `$offersReturned`
-    derivation and the one-place `?tab=` coercion it fed. `returned` is also
-    gone from `ProjectCockpitController::TABS`, so a stale `?tab=returned`
-    bookmark now falls back to Overview in the CONTROLLER — one fallback, not
-    two that could disagree about which tab the strip marks and which body
-    renders. The page is still 200 and the submitted string is still never
-    echoed, exactly the treatment `?module=` has had since 45-11.
+    `overview`, `files`, `notes` — always. `returned` IS BACK (Phase 47, Plan
+    47-03, D-04), and the presence rule that governs it is the ORIGINAL one
+    (Phase 46.1, Plan 46.1-03, D-01 — "the tab renders iff this drawer holds a
+    visit with a resolvable source"), rebuilt rather than guessed at a new
+    shape: `$offersReturned`, passed in as a prop, derived in the controller
+    from `evidenceFor()`'s own map rather than from a second call to the
+    presenter here.
+
+    THERE IS ONLY ONE `?tab=` COERCION, AND IT IS NOT HERE. A stale
+    `?tab=returned` bookmark on a module that does not offer the tab falls
+    back to Overview inside `ProjectCockpitController::resolveTab()`, which
+    now takes `$offersReturned` as a second argument for exactly this reason —
+    so the strip built below and the body `@elseif`s further down can never
+    disagree about which tab is open. This file adds NO second fallback: the
+    `$tabs` array below only ever contains a `returned` key when
+    `$offersReturned` is true, and `$tab` arriving here already resolved
+    against that same boolean.
 
     The Files and Notes tabs were filled by Plan 45-12 from records the app
     already holds. Nothing in them writes, and the only link copy they use is
@@ -146,6 +159,15 @@
     // module with no document yet; `link-card.blade.php` renders nothing
     // for either.
     'link'         => null,
+    // THE RETURNED TAB'S PAYLOAD AND ITS OFFER (Plan 47-03, D-04). Derived in
+    // ProjectCockpitController from CockpitEvidencePresenter via evidenceFor()
+    // — this file decides no evidence shape and no offer rule of its own,
+    // exactly as it decides no field and no step of its own. `evidence` is
+    // keyed by visit id and carries ONLY the visits that have one;
+    // `offersReturned` is `evidence !== []`, derived in the controller rather
+    // than recomputed here so the strip and the body cannot disagree.
+    'evidence'       => [],
+    'offersReturned' => false,
 ])
 
 @php
@@ -154,17 +176,21 @@
     /** @var \Illuminate\Support\Collection $visits */
     $visits = $module['section']['visits'] ?? collect();
 
-    // THREE TABS, A LITERAL (46.2 D-02). The `$offersReturned` derivation, the
-    // conditional fourth entry, the one-place `?tab=returned` coercion and the
-    // `$returnedVisits` filter were all removed with the Returned tab. The
-    // fallback for a stale `?tab=returned` bookmark now lives in
-    // ProjectCockpitController::resolveTab(), which no longer lists `returned`
-    // as a legal tab — so this file needs no coercion at all.
+    // THREE TABS, ALWAYS, AND A FOURTH ONLY WHEN `$offersReturned` SAYS SO
+    // (Plan 47-03, D-04). The controller's own `$offersReturned` is the ONLY
+    // thing this array consults — no re-derivation, no second call to the
+    // presenter. The fallback for a stale `?tab=returned` bookmark lives in
+    // ProjectCockpitController::resolveTab(), which now takes this same
+    // boolean, so this file adds no coercion of its own.
     $tabs = [
         'overview' => 'Overview',
         'files'    => 'Files',
         'notes'    => 'Notes',
     ];
+
+    if ($offersReturned) {
+        $tabs['returned'] = 'Returned';
+    }
 
     // The ring's geometry. r=26 on a 64x64 box; the dash array is the arc
     // length so the stroke draws exactly `percent` of the circumference.
@@ -284,12 +310,12 @@
 
     <p class="cav-panel__purpose">{{ $module['description'] }}</p>
 
-    {{-- Three anchors, always exactly three (46.2 D-02 — the conditional
-         fourth went with the Returned tab). Each
-         carries the CURRENT module forward, so a tab switch never closes the
-         panel. aria-current marks the active one;
-         there is no aria-expanded, because none of this is a disclosure
-         widget — the tab strip is navigation between three URLs. --}}
+    {{-- Three anchors, ALWAYS, plus a conditional fourth (Plan 47-03, D-04 —
+         the Returned tab's presence rule, rebuilt). Each carries the CURRENT
+         module forward, so a tab switch never closes the panel. aria-current
+         marks the active one; there is no aria-expanded, because none of
+         this is a disclosure widget — the tab strip is navigation between
+         URLs, three or four of them depending on $offersReturned. --}}
     <nav class="cav-panel__tabs" aria-label="{{ $module['title'] }} sections">
         @foreach ($tabs as $key => $label)
             <a class="cav-panel__tab{{ $tab === $key ? ' cav-panel__tab--on' : '' }}"
@@ -533,7 +559,7 @@
             @else
                 <x-cockpit.hint>{{ $module['title'] }} holds no documents.</x-cockpit.hint>
             @endif
-        @else
+        @elseif ($tab === 'notes')
             {{-- Notes the module itself recorded, plus the project's logged
                  notes. Never Project::notes, which is a project-level field
                  and would print the same paragraph under every module (all four
@@ -577,6 +603,22 @@
             @else
                 <x-cockpit.hint>{{ $module['title'] }} has no notes recorded.</x-cockpit.hint>
             @endif
+        @elseif ($tab === 'returned')
+            {{-- THE RETURNED TAB (Plan 47-03, D-04). Only reachable when
+                 `$offersReturned` is true — `resolveTab()` coerces every
+                 other case to Overview before this file ever sees `$tab`.
+                 `$visits` is the SAME collection the Visits card above
+                 renders; `returned-tab.blade.php` filters it to the ones
+                 carrying a non-null entry in `$evidence` and draws the
+                 calm reference order: state → hand-off link → rooms →
+                 gallery → sign-off. NO controls here — `controls="false"`
+                 is `visit-row`'s own default and Plan 47-04 is the one
+                 that flips it. --}}
+            <x-cockpit.returned-tab
+                :visits="$visits"
+                :evidence="$evidence"
+                :project="$project"
+                :module="$module" />
         @endif
     </div>
 </aside>
