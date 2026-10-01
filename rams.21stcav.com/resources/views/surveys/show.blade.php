@@ -188,6 +188,28 @@
             content: ''; position: absolute; left: 0; top: 0.1em; bottom: 0.1em;
             width: 3px; border-radius: 2px; background: #01889F;
         }
+
+        /* == TAB BAR / TAB PANELS (46.6-01 scaffold) ==========================
+           Shape ported BY NAME from the worksheet link's own tab mechanics
+           (resources/views/worksheets/public-show.blade.php's .ws-tab-bar /
+           .ws-tab-panel) — NEW class names here because this page shares no
+           stylesheet with the worksheet (both are independent standalone
+           documents; see 46.6-RESEARCH.md). Colour/active-state is handled by
+           Tailwind utility classes bound via Alpine `:class`, not by a hex
+           literal here — only layout/structure lives in this block, which is
+           the one part of the port that is plain CSS (no framework opinion).
+           The ACTIVE/INACTIVE toggle itself is Alpine's `:class` binding on
+           each element (see the tab bar + panels markup below), never the
+           worksheet's imperative `classList.toggle` JS — that would fight
+           Alpine's own re-renders on this Alpine-driven page (Pitfall 1). */
+        .sv-tab-panel { display: none; }
+        .sv-tab-panel.is-active { display: block; }
+        .sv-tab-bar {
+            position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+            display: flex; overflow-x: auto; scroll-snap-type: x mandatory;
+            -webkit-overflow-scrolling: touch;
+        }
+        .sv-tab-btn { flex: 0 0 auto; scroll-snap-align: start; min-height: 44px; }
     </style>
 </head>
 
@@ -260,8 +282,8 @@
             </p>
         @endif
 
-        {{-- Step progress — only visible during step wizard --}}
-        <div x-show="screen === 'step'" x-cloak class="mt-2.5">
+        {{-- Step progress — only visible during step wizard (a room tab) --}}
+        <div x-show="activeTab !== 'site'" x-cloak class="mt-2.5">
             <div class="flex justify-between items-center mb-1">
                 <span class="text-xs text-white/80 font-medium truncate pr-2"
                       x-text="currentRoom?.name || ''"></span>
@@ -296,7 +318,7 @@
      class="bg-red-50 border-b border-red-200 text-red-700 text-xs text-center
             py-1.5 sticky top-[72px] z-10"
      x-text="saveError"></div>
-<div x-show="screen === 'step' && validationError" x-cloak
+<div x-show="activeTab !== 'site' && validationError" x-cloak
      class="bg-orange-50 border-b border-orange-200 text-orange-700 text-xs text-center
             py-1.5 sticky top-[72px] z-10"
      x-text="validationError"></div>
@@ -307,9 +329,12 @@
 <main class="max-w-xl mx-auto px-4 py-4 pb-28">
 
     {{-- ──────────────────────────────────────────────────────
-         SCREEN: ROOM LIST
+         TAB PANEL: SITE / CONTRACT DETAILS (46.6-01 scaffold)
+         FIRST tab, per D-01. Replaces the former `screen: 'rooms'`
+         picker — its role (choosing which room to work on) is now
+         the sv-tab-bar below, not a screen transition.
     ─────────────────────────────────────────────────────── --}}
-    <div x-show="screen === 'rooms'">
+    <section class="sv-tab-panel is-active" :class="{ 'is-active': activeTab === 'site' }" data-tab="site">
 
         {{-- Summary card --}}
         <div class="bg-white rounded-2xl p-4 mb-4 shadow-sm">
@@ -496,170 +521,6 @@
             </span>
         </a>
 
-        {{-- Room cards --}}
-        <template x-for="(room, idx) in rooms" :key="room._ui.room_id">
-            <div class="bg-white rounded-2xl mb-3 shadow-sm overflow-hidden">
-                <div class="flex items-center p-4 gap-3">
-
-                    <div class="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center"
-                         :class="room._ui.is_completed
-                             ? 'bg-emerald-100 text-emerald-600'
-                             : 'bg-gray-100 text-gray-400'">
-                        <svg x-show="room._ui.is_completed" class="w-5 h-5"
-                             fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd"
-                                  d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414
-                                     0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                  clip-rule="evenodd"/>
-                        </svg>
-                        <svg x-show="!room._ui.is_completed" class="w-5 h-5"
-                             fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                            <circle cx="12" cy="12" r="9"/>
-                        </svg>
-                    </div>
-
-                    <button type="button"
-                            @click="expandedRoomIdx = (expandedRoomIdx === idx ? null : idx)"
-                            class="flex-1 min-w-0 text-left flex items-center gap-2 cursor-pointer"
-                            aria-label="Toggle room details">
-                        <div class="flex-1 min-w-0">
-                            <p class="font-semibold text-gray-900 leading-tight"
-                               x-text="room.name || 'Unnamed Room'"></p>
-                            <p class="text-xs text-gray-500 mt-0.5"
-                               x-text="[room.type, room._ui.work_type]
-                                   .filter(Boolean)
-                                   .map(s => s.replace(/_/g, ' '))
-                                   .join(' · ') || 'Tap to expand'"></p>
-                        </div>
-                        <svg class="w-4 h-4 text-gray-400 transition-transform flex-shrink-0"
-                             :class="expandedRoomIdx === idx ? 'rotate-180' : ''"
-                             fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
-                        </svg>
-                    </button>
-
-                    <button @click="selectRoom(idx)"
-                            class="flex-shrink-0 flex items-center gap-1 px-4 py-2.5 rounded-xl
-                                   text-sm font-bold min-h-[44px] transition-colors"
-                            :class="room._ui.is_completed
-                                ? 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                : 'bg-brand-teal text-white hover:bg-brand-dark'">
-                        <span x-text="(@json($readonly) || room._ui.is_completed) ? 'Review' : 'Start'"></span>
-                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24"
-                             stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
-                        </svg>
-                    </button>
-
-                </div>
-
-                {{-- Job context — per-room planned works, quote kit, and
-                     checklist guidance count. Hidden by default; chevron in
-                     the card header expands. Read-only, informational. --}}
-                <template x-if="expandedRoomIdx === idx && room._ctx && (room._ctx.av_requirements || room._ctx.av_equipment_list || room._ctx.question_count > 0 || (room._ctx.checklist_lines && room._ctx.checklist_lines.length > 0) || (room._ctx.planned_actions && room._ctx.planned_actions.length > 0))">
-                    <div class="px-3 pb-3 pt-2.5 border-t border-gray-100 bg-gray-50/60 text-xs space-y-2">
-                        {{-- INSTALL ACTIONS — collapsed by default --}}
-                        <template x-if="room._ctx.planned_actions && room._ctx.planned_actions.length > 0">
-                            <details class="group bg-white rounded-xl border-2 border-brand-teal/30 shadow-sm overflow-hidden hover:border-brand-teal transition-colors">
-                                <summary class="px-3.5 py-3 cursor-pointer select-none flex items-center justify-between list-none bg-brand-teal/5 hover:bg-brand-teal/10 transition-colors min-h-[44px]">
-                                    <span class="font-bold text-brand-teal flex items-center gap-2 text-sm">
-                                        <span class="text-base">📋</span>
-                                        <span>Install actions</span>
-                                        <span class="inline-flex items-center justify-center min-w-[22px] h-5 px-1.5 rounded-full bg-brand-teal text-white text-[11px] font-bold tabular-nums"
-                                              x-text="room._ctx.planned_actions.length"></span>
-                                    </span>
-                                    <span class="text-brand-teal text-base group-open:rotate-180 transition-transform">▾</span>
-                                </summary>
-                                <ul class="list-disc pl-7 pr-3 pb-3 pt-2.5 text-gray-700 space-y-0.5 leading-snug">
-                                    <template x-for="(b, bi) in room._ctx.planned_actions" :key="bi">
-                                        <li x-text="b.replace(/^[-•]\s*/, '')"></li>
-                                    </template>
-                                </ul>
-                            </details>
-                        </template>
-                        {{-- PLANNED AV WORKS prose (only when no bullet list) --}}
-                        <template x-if="room._ctx.av_requirements && (!room._ctx.planned_actions || room._ctx.planned_actions.length === 0)">
-                            <details class="group bg-white rounded-xl border-2 border-brand-teal/30 shadow-sm overflow-hidden hover:border-brand-teal transition-colors">
-                                <summary class="px-3.5 py-3 cursor-pointer select-none flex items-center justify-between list-none bg-brand-teal/5 hover:bg-brand-teal/10 transition-colors min-h-[44px]">
-                                    <span class="font-bold text-brand-teal flex items-center gap-2 text-sm">
-                                        <span class="text-base">📋</span>
-                                        <span>Planned AV works</span>
-                                    </span>
-                                    <span class="text-brand-teal text-base group-open:rotate-180 transition-transform">▾</span>
-                                </summary>
-                                <p class="px-3.5 pb-3 pt-2.5 text-gray-700 leading-snug" x-text="room._ctx.av_requirements"></p>
-                            </details>
-                        </template>
-                        {{-- QUOTE KIT — rendered as a parsed list --}}
-                        <template x-if="room._ctx.av_equipment_list">
-                            <details class="group bg-white rounded-xl border-2 border-brand-gold/40 shadow-sm overflow-hidden hover:border-brand-gold transition-colors">
-                                <summary class="px-3.5 py-3 cursor-pointer select-none flex items-center justify-between list-none bg-brand-gold/5 hover:bg-brand-gold/10 transition-colors min-h-[44px]">
-                                    <span class="font-bold text-brand-gold flex items-center gap-2 text-sm">
-                                        <span class="text-base">📦</span>
-                                        <span>Quote kit</span>
-                                        <span class="inline-flex items-center justify-center min-w-[22px] h-5 px-1.5 rounded-full bg-brand-gold text-white text-[11px] font-bold tabular-nums"
-                                              x-text="parseKitLines(room._ctx.av_equipment_list).length"></span>
-                                    </span>
-                                    <span class="text-brand-gold text-base group-open:rotate-180 transition-transform">▾</span>
-                                </summary>
-                                <ul class="px-3.5 pb-3 pt-2 divide-y divide-gray-100 text-gray-800">
-                                    <template x-for="(item, ki) in parseKitLines(room._ctx.av_equipment_list)" :key="ki">
-                                        <li class="flex items-start gap-2 leading-snug py-1.5">
-                                            <span class="inline-flex items-center justify-center min-w-[32px] h-6 px-2 rounded bg-brand-gold/15 text-brand-gold text-[11px] font-bold tabular-nums flex-shrink-0"
-                                                  x-text="item.qty ? item.qty + '×' : '·'"></span>
-                                            <span class="flex-1" x-text="item.name"></span>
-                                        </li>
-                                    </template>
-                                </ul>
-                            </details>
-                        </template>
-                        {{-- REFERENCE CHECKLIST --}}
-                        <template x-if="room._ctx.checklist_lines && room._ctx.checklist_lines.length > 0">
-                            <details class="group bg-white rounded-xl border border-amber-200 shadow-sm overflow-hidden hover:border-amber-400 transition-colors">
-                                <summary class="px-3.5 py-2.5 cursor-pointer select-none flex items-center justify-between list-none bg-amber-50/60 hover:bg-amber-50 transition-colors min-h-[44px]">
-                                    <span class="font-semibold text-amber-800 flex items-center gap-2 text-sm">
-                                        <span>🔖</span>
-                                        <span>Reference checklist</span>
-                                        <template x-if="room._ctx.solution_type_name">
-                                            <span class="text-amber-600/80 font-normal text-xs">— <span x-text="room._ctx.solution_type_name"></span></span>
-                                        </template>
-                                    </span>
-                                    <span class="text-amber-700 group-open:rotate-180 transition-transform">▾</span>
-                                </summary>
-                                <ul class="list-disc pl-7 pr-3 pb-3 pt-2 text-gray-700 space-y-0.5 leading-snug">
-                                    <template x-for="(line, li) in room._ctx.checklist_lines" :key="li">
-                                        <li x-text="line"></li>
-                                    </template>
-                                </ul>
-                            </details>
-                        </template>
-                        {{-- PRE-INSTALL CHECKLIST --}}
-                        <template x-if="room._ctx.question_count > 0">
-                            <details class="group bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden hover:border-gray-300 transition-colors">
-                                <summary class="px-3.5 py-2.5 cursor-pointer select-none flex items-center justify-between list-none bg-gray-50 hover:bg-gray-100 transition-colors min-h-[44px]">
-                                    <span class="font-semibold text-gray-700 flex items-center gap-2 text-sm">
-                                        <span>✅</span>
-                                        <span>Pre-install checklist</span>
-                                        <span class="inline-flex items-center justify-center min-w-[22px] h-5 px-1.5 rounded-full bg-gray-300 text-gray-800 text-[11px] font-bold tabular-nums"
-                                              x-text="room._ctx.question_count"></span>
-                                    </span>
-                                    <span class="text-gray-500 group-open:rotate-180 transition-transform">▾</span>
-                                </summary>
-                                <ul class="list-disc pl-7 pr-3 pb-3 pt-2 text-gray-700 space-y-0.5 leading-snug">
-                                    <template x-for="(q, qi) in room._ctx.questions" :key="qi">
-                                        <li>
-                                            <span x-text="q.question"></span>
-                                            <span x-show="q.answered" class="text-emerald-600">✓</span>
-                                        </li>
-                                    </template>
-                                </ul>
-                            </details>
-                        </template>
-                    </div>
-                </template>
-            </div>
-        </template>
-
         @if (!$readonly)
             <div x-show="!allComplete"
                  class="mt-2 text-center text-xs text-gray-400 py-2">
@@ -667,13 +528,184 @@
             </div>
         @endif
 
-    </div>{{-- /screen:rooms --}}
+    </section>{{-- /data-tab=site --}}
+
+    {{-- ──────────────────────────────────────────────────────
+         TAB PANELS: ONE PER ROOM (46.6-01 scaffold)
+         Each panel is this room's dedicated space — identity card
+         + job context (UNCHANGED content, formerly the room-card's
+         chevron-expand drawer on the retired picker screen; the
+         `expandedRoomIdx` guard is gone because this panel IS that
+         room's own space now, always visible when its tab is active).
+         The 8-step wizard itself is NOT duplicated per room — it
+         stays ONE shared block (below, after this loop) driven by
+         `currentRoomIdx`, exactly as it reads today. Flattening the
+         wizard into this panel is 46.6-03, deliberately out of scope
+         here (see this plan's objective).
+    ─────────────────────────────────────────────────────── --}}
+    @foreach ($rooms as $idx => $roomData)
+    <section class="sv-tab-panel" :class="{ 'is-active': activeTab === 'room-{{ $idx }}' }"
+              data-tab="room-{{ $idx }}" data-room-name="{{ e($roomData['name'] ?? '') }}">
+
+        <div class="bg-white rounded-2xl p-4 mb-3 shadow-sm">
+            <div class="flex items-center gap-3">
+                <div class="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center"
+                     :class="rooms[{{ $idx }}]._ui.is_completed
+                         ? 'bg-emerald-100 text-emerald-600'
+                         : 'bg-gray-100 text-gray-400'">
+                    <svg x-show="rooms[{{ $idx }}]._ui.is_completed" class="w-5 h-5"
+                         fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd"
+                              d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414
+                                 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                              clip-rule="evenodd"/>
+                    </svg>
+                    <svg x-show="!rooms[{{ $idx }}]._ui.is_completed" class="w-5 h-5"
+                         fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                        <circle cx="12" cy="12" r="9"/>
+                    </svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="font-semibold text-gray-900 leading-tight"
+                       x-text="rooms[{{ $idx }}].name || 'Unnamed Room'"></p>
+                    <p class="text-xs text-gray-500 mt-0.5"
+                       x-text="[rooms[{{ $idx }}].type, rooms[{{ $idx }}]._ui.work_type]
+                           .filter(Boolean)
+                           .map(s => s.replace(/_/g, ' '))
+                           .join(' · ') || 'Tap below to start'"></p>
+                </div>
+            </div>
+
+            {{-- Job context — per-room planned works, quote kit, and
+                 checklist guidance. UNCHANGED content/logic from the retired
+                 room-card drawer; always visible here (no chevron needed —
+                 this whole panel only renders when its own tab is active). --}}
+            <template x-if="rooms[{{ $idx }}]._ctx && (rooms[{{ $idx }}]._ctx.av_requirements || rooms[{{ $idx }}]._ctx.av_equipment_list || rooms[{{ $idx }}]._ctx.question_count > 0 || (rooms[{{ $idx }}]._ctx.checklist_lines && rooms[{{ $idx }}]._ctx.checklist_lines.length > 0) || (rooms[{{ $idx }}]._ctx.planned_actions && rooms[{{ $idx }}]._ctx.planned_actions.length > 0))">
+                <div class="mt-3 pt-3 border-t border-gray-100 text-xs space-y-2">
+                    {{-- INSTALL ACTIONS — collapsed by default --}}
+                    <template x-if="rooms[{{ $idx }}]._ctx.planned_actions && rooms[{{ $idx }}]._ctx.planned_actions.length > 0">
+                        <details class="group bg-white rounded-xl border-2 border-brand-teal/30 shadow-sm overflow-hidden hover:border-brand-teal transition-colors">
+                            <summary class="px-3.5 py-3 cursor-pointer select-none flex items-center justify-between list-none bg-brand-teal/5 hover:bg-brand-teal/10 transition-colors min-h-[44px]">
+                                <span class="font-bold text-brand-teal flex items-center gap-2 text-sm">
+                                    <span class="text-base">📋</span>
+                                    <span>Install actions</span>
+                                    <span class="inline-flex items-center justify-center min-w-[22px] h-5 px-1.5 rounded-full bg-brand-teal text-white text-[11px] font-bold tabular-nums"
+                                          x-text="rooms[{{ $idx }}]._ctx.planned_actions.length"></span>
+                                </span>
+                                <span class="text-brand-teal text-base group-open:rotate-180 transition-transform">▾</span>
+                            </summary>
+                            <ul class="list-disc pl-7 pr-3 pb-3 pt-2.5 text-gray-700 space-y-0.5 leading-snug">
+                                <template x-for="(b, bi) in rooms[{{ $idx }}]._ctx.planned_actions" :key="bi">
+                                    <li x-text="b.replace(/^[-•]\s*/, '')"></li>
+                                </template>
+                            </ul>
+                        </details>
+                    </template>
+                    {{-- PLANNED AV WORKS prose (only when no bullet list) --}}
+                    <template x-if="rooms[{{ $idx }}]._ctx.av_requirements && (!rooms[{{ $idx }}]._ctx.planned_actions || rooms[{{ $idx }}]._ctx.planned_actions.length === 0)">
+                        <details class="group bg-white rounded-xl border-2 border-brand-teal/30 shadow-sm overflow-hidden hover:border-brand-teal transition-colors">
+                            <summary class="px-3.5 py-3 cursor-pointer select-none flex items-center justify-between list-none bg-brand-teal/5 hover:bg-brand-teal/10 transition-colors min-h-[44px]">
+                                <span class="font-bold text-brand-teal flex items-center gap-2 text-sm">
+                                    <span class="text-base">📋</span>
+                                    <span>Planned AV works</span>
+                                </span>
+                                <span class="text-brand-teal text-base group-open:rotate-180 transition-transform">▾</span>
+                            </summary>
+                            <p class="px-3.5 pb-3 pt-2.5 text-gray-700 leading-snug" x-text="rooms[{{ $idx }}]._ctx.av_requirements"></p>
+                        </details>
+                    </template>
+                    {{-- QUOTE KIT — rendered as a parsed list --}}
+                    <template x-if="rooms[{{ $idx }}]._ctx.av_equipment_list">
+                        <details class="group bg-white rounded-xl border-2 border-brand-gold/40 shadow-sm overflow-hidden hover:border-brand-gold transition-colors">
+                            <summary class="px-3.5 py-3 cursor-pointer select-none flex items-center justify-between list-none bg-brand-gold/5 hover:bg-brand-gold/10 transition-colors min-h-[44px]">
+                                <span class="font-bold text-brand-gold flex items-center gap-2 text-sm">
+                                    <span class="text-base">📦</span>
+                                    <span>Quote kit</span>
+                                    <span class="inline-flex items-center justify-center min-w-[22px] h-5 px-1.5 rounded-full bg-brand-gold text-white text-[11px] font-bold tabular-nums"
+                                          x-text="parseKitLines(rooms[{{ $idx }}]._ctx.av_equipment_list).length"></span>
+                                </span>
+                                <span class="text-brand-gold text-base group-open:rotate-180 transition-transform">▾</span>
+                            </summary>
+                            <ul class="px-3.5 pb-3 pt-2 divide-y divide-gray-100 text-gray-800">
+                                <template x-for="(item, ki) in parseKitLines(rooms[{{ $idx }}]._ctx.av_equipment_list)" :key="ki">
+                                    <li class="flex items-start gap-2 leading-snug py-1.5">
+                                        <span class="inline-flex items-center justify-center min-w-[32px] h-6 px-2 rounded bg-brand-gold/15 text-brand-gold text-[11px] font-bold tabular-nums flex-shrink-0"
+                                              x-text="item.qty ? item.qty + '×' : '·'"></span>
+                                        <span class="flex-1" x-text="item.name"></span>
+                                    </li>
+                                </template>
+                            </ul>
+                        </details>
+                    </template>
+                    {{-- REFERENCE CHECKLIST --}}
+                    <template x-if="rooms[{{ $idx }}]._ctx.checklist_lines && rooms[{{ $idx }}]._ctx.checklist_lines.length > 0">
+                        <details class="group bg-white rounded-xl border border-amber-200 shadow-sm overflow-hidden hover:border-amber-400 transition-colors">
+                            <summary class="px-3.5 py-2.5 cursor-pointer select-none flex items-center justify-between list-none bg-amber-50/60 hover:bg-amber-50 transition-colors min-h-[44px]">
+                                <span class="font-semibold text-amber-800 flex items-center gap-2 text-sm">
+                                    <span>🔖</span>
+                                    <span>Reference checklist</span>
+                                    <template x-if="rooms[{{ $idx }}]._ctx.solution_type_name">
+                                        <span class="text-amber-600/80 font-normal text-xs">— <span x-text="rooms[{{ $idx }}]._ctx.solution_type_name"></span></span>
+                                    </template>
+                                </span>
+                                <span class="text-amber-700 group-open:rotate-180 transition-transform">▾</span>
+                            </summary>
+                            <ul class="list-disc pl-7 pr-3 pb-3 pt-2 text-gray-700 space-y-0.5 leading-snug">
+                                <template x-for="(line, li) in rooms[{{ $idx }}]._ctx.checklist_lines" :key="li">
+                                    <li x-text="line"></li>
+                                </template>
+                            </ul>
+                        </details>
+                    </template>
+                    {{-- PRE-INSTALL CHECKLIST --}}
+                    <template x-if="rooms[{{ $idx }}]._ctx.question_count > 0">
+                        <details class="group bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden hover:border-gray-300 transition-colors">
+                            <summary class="px-3.5 py-2.5 cursor-pointer select-none flex items-center justify-between list-none bg-gray-50 hover:bg-gray-100 transition-colors min-h-[44px]">
+                                <span class="font-semibold text-gray-700 flex items-center gap-2 text-sm">
+                                    <span>✅</span>
+                                    <span>Pre-install checklist</span>
+                                    <span class="inline-flex items-center justify-center min-w-[22px] h-5 px-1.5 rounded-full bg-gray-300 text-gray-800 text-[11px] font-bold tabular-nums"
+                                          x-text="rooms[{{ $idx }}]._ctx.question_count"></span>
+                                </span>
+                                <span class="text-gray-500 group-open:rotate-180 transition-transform">▾</span>
+                            </summary>
+                            <ul class="list-disc pl-7 pr-3 pb-3 pt-2 text-gray-700 space-y-0.5 leading-snug">
+                                <template x-for="(q, qi) in rooms[{{ $idx }}]._ctx.questions" :key="qi">
+                                    <li>
+                                        <span x-text="q.question"></span>
+                                        <span x-show="q.answered" class="text-emerald-600">✓</span>
+                                    </li>
+                                </template>
+                            </ul>
+                        </details>
+                    </template>
+                </div>
+            </template>
+        </div>
+
+        <button type="button" @click="selectRoom({{ $idx }})"
+                class="w-full flex items-center justify-center gap-1 px-4 py-3 rounded-2xl
+                       text-sm font-bold min-h-[48px] transition-colors mb-1"
+                :class="rooms[{{ $idx }}]._ui.is_completed
+                    ? 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    : 'bg-brand-teal text-white hover:bg-brand-dark'">
+            <span x-text="(@json($readonly) || rooms[{{ $idx }}]._ui.is_completed) ? 'Review this room' : 'Start this room'"></span>
+        </button>
+
+    </section>{{-- /data-tab=room-{{ $idx }} --}}
+    @endforeach
 
 
     {{-- ──────────────────────────────────────────────────────
-         SCREEN: STEP WIZARD
+         SHARED ROOM WIZARD (46.6-01 scaffold — UNCHANGED content)
+         Not duplicated per room tab panel above; stays ONE block
+         driven by `currentRoomIdx`, exactly as it read before this
+         plan. `selectRoom()` sets `activeTab`/`currentRoomIdx`
+         together, so this shows beneath whichever room tab panel is
+         active. Flattening these 8 steps is 46.6-03 — out of scope
+         here.
     ─────────────────────────────────────────────────────── --}}
-    <div x-show="screen === 'step'">
+    <div x-show="activeTab !== 'site' && currentRoomIdx !== null">
 
         {{-- Step heading row --}}
         <div class="flex items-center gap-3 mb-4">
@@ -740,7 +772,7 @@
                 <div class="min-w-0">
                     <p class="text-xs uppercase tracking-wide text-gray-500 font-semibold">📋 Description</p>
                     <p class="font-bold text-gray-900 truncate"
-                       x-text="screen === 'step' ? (currentRoom?.name || 'Room') : 'All rooms'"></p>
+                       x-text="activeTab !== 'site' ? (currentRoom?.name || 'Room') : 'All rooms'"></p>
                 </div>
                 <button type="button"
                         @click="descriptionDrawerOpen = false"
@@ -754,7 +786,7 @@
             </div>
             <div class="flex-1 overflow-y-auto px-4 py-4 space-y-4 text-sm">
                 {{-- WIZARD CONTEXT — current room only --}}
-                <template x-if="screen === 'step'">
+                <template x-if="activeTab !== 'site'">
                     <div class="space-y-4">
                         <template x-if="(currentRoom?._ctx?.planned_actions ?? []).length > 0">
                             <div>
@@ -793,7 +825,7 @@
                     </div>
                 </template>
                 {{-- ROOMS-LIST CONTEXT — every room rolled up --}}
-                <template x-if="screen === 'rooms'">
+                <template x-if="activeTab === 'site'">
                     <div class="space-y-4">
                         <template x-for="(room, idx) in rooms" :key="room._ui.room_id">
                             <div class="border border-gray-200 rounded-xl p-3">
@@ -840,7 +872,7 @@
                 <div class="min-w-0">
                     <p class="text-xs uppercase tracking-wide text-gray-500 font-semibold">📦 Kit</p>
                     <p class="font-bold text-gray-900 truncate"
-                       x-text="screen === 'step' ? (currentRoom?.name || 'Room') : 'All rooms'"></p>
+                       x-text="activeTab !== 'site' ? (currentRoom?.name || 'Room') : 'All rooms'"></p>
                 </div>
                 <button type="button"
                         @click="kitDrawerOpen = false"
@@ -854,7 +886,7 @@
             </div>
             <div class="flex-1 overflow-y-auto px-4 py-4 text-sm">
                 {{-- WIZARD CONTEXT — current room only --}}
-                <template x-if="screen === 'step'">
+                <template x-if="activeTab !== 'site'">
                     <div>
                         <template x-if="currentRoom?._ctx?.av_equipment_list">
                             <ul class="space-y-1.5 text-gray-800">
@@ -873,7 +905,7 @@
                     </div>
                 </template>
                 {{-- ROOMS-LIST CONTEXT — every room's kit, grouped --}}
-                <template x-if="screen === 'rooms'">
+                <template x-if="activeTab === 'site'">
                     <div class="space-y-3">
                         <template x-for="(room, idx) in rooms" :key="room._ui.room_id">
                             <div class="border border-gray-200 rounded-xl p-3">
@@ -1824,8 +1856,8 @@
 {{-- ═══════════════════════════════════════════════════════════
      STICKY BOTTOM NAV (Steps 1–7) — hidden in readonly mode
 ════════════════════════════════════════════════════════════ --}}
-<div x-show="screen === 'step' && currentStep < 8 && !readonly"
-     class="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur border-t border-gray-200
+<div x-show="activeTab !== 'site' && currentStep < 8 && !readonly"
+     class="fixed bottom-14 left-0 right-0 bg-white/95 backdrop-blur border-t border-gray-200
             px-4 py-3 pb-6 z-30">
     <div class="max-w-xl mx-auto flex gap-3">
         <button @click="prevStep()"
@@ -1848,8 +1880,8 @@
      READ-ONLY NAV (Steps 1–8) — visible only after submission so
      reviewers can step through without triggering save logic.
 ════════════════════════════════════════════════════════════ --}}
-<div x-show="screen === 'step' && readonly"
-     class="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur border-t border-gray-200
+<div x-show="activeTab !== 'site' && readonly"
+     class="fixed bottom-14 left-0 right-0 bg-white/95 backdrop-blur border-t border-gray-200
             px-4 py-3 pb-6 z-30">
     <div class="max-w-xl mx-auto flex gap-3">
         <button @click="prevStep()"
@@ -1864,13 +1896,53 @@
             Next →
         </button>
         <button x-show="currentStep === 8"
-                @click="screen = 'rooms'; window.scrollTo(0,0);"
+                @click="activeTab = 'site'; currentRoomIdx = null; window.scrollTo(0,0);"
                 class="flex-1 py-3.5 bg-gray-700 text-white rounded-2xl font-bold text-sm
                        min-h-[50px] hover:bg-gray-800 transition-colors">
-            Back to rooms
+            Back to site tab
         </button>
     </div>
 </div>
+
+{{-- ═══════════════════════════════════════════════════════════
+     BOTTOM TAB BAR (46.6-01 scaffold, D-01) — site tab FIRST, then
+     one tab per room. Always visible, every state (including the
+     locked/submitted read-only face) — this replaces the retired
+     `screen: 'rooms'` picker as the way to choose which room to
+     work on. `.sv-tab-bar`/`.sv-tab-panel`/`.sv-tab-btn` CSS shape
+     ported by name from the worksheet link (46.7); colour/active
+     state is Alpine `:class` binding against Tailwind utilities,
+     not a hex literal, to keep this page's one banned-palette guard
+     (SurveyLinkBrandingTest) honest. Tab persistence across a
+     reload (D-09, following the worksheet's hash+sessionStorage
+     pattern rather than SCC's reload-losing one) is Claude's
+     discretion per 46.6-CONTEXT.md and is NOT built in this plan —
+     every load starts on the Site tab, same as SCC does today;
+     persistence is left for a later plan if the user asks for it. --}}
+<nav class="sv-tab-bar bg-white border-t border-gray-200 px-2 py-1.5 gap-1"
+     role="tablist" aria-label="Survey sections" data-sv-tab-bar>
+    <button type="button"
+            class="sv-tab-btn rounded-xl px-3.5 font-bold text-sm bg-brand-teal text-white"
+            :class="activeTab === 'site' ? 'bg-brand-teal text-white' : 'bg-white text-gray-600'"
+            data-tab-target="site"
+            aria-selected="true"
+            :aria-selected="activeTab === 'site' ? 'true' : 'false'"
+            @click="activeTab = 'site'; currentRoomIdx = null; window.scrollTo(0,0);">
+        Site
+    </button>
+    @foreach ($rooms as $idx => $roomData)
+    <button type="button"
+            class="sv-tab-btn rounded-xl px-3.5 font-semibold text-sm bg-white text-gray-600"
+            :class="activeTab === 'room-{{ $idx }}' ? 'bg-brand-teal text-white' : 'bg-white text-gray-600'"
+            data-tab-target="room-{{ $idx }}"
+            aria-selected="false"
+            :aria-selected="activeTab === 'room-{{ $idx }}' ? 'true' : 'false'"
+            @click="selectRoom({{ $idx }})">
+        <span x-text="rooms[{{ $idx }}].name || 'Room {{ $idx + 1 }}'"></span>
+        <span x-show="rooms[{{ $idx }}]._ui.is_completed" aria-hidden="true">✓</span>
+    </button>
+    @endforeach
+</nav>
 
 {{-- ═══════════════════════════════════════════════════════════
      ALPINE.JS COMPONENT
@@ -1879,7 +1951,12 @@
 function surveyWizard() {
     return {
         // ── State ─────────────────────────────────────────────────────────────
-        screen:          'rooms',  // 'rooms' | 'step'
+        // activeTab (46.6-01) replaces the former `screen: 'rooms' | 'step'`
+        // picker/wizard screen-swap: 'site' | 'room-0' | 'room-1' | ... — one
+        // entry per sv-tab-bar button. `currentRoomIdx` is still read by the
+        // shared room wizard below (UNCHANGED this plan); `selectRoom()` keeps
+        // the two in sync.
+        activeTab:       'site',
         currentRoomIdx:  null,
         currentStep:     1,
         kitDrawerOpen:         false,
@@ -1957,7 +2034,7 @@ function surveyWizard() {
             if (this._autosaveTimer) clearTimeout(this._autosaveTimer);
             this._autosaveTimer = setTimeout(() => {
                 // Only fire when actively editing a room and not read-only.
-                if (this.screen === 'step' && this.currentRoom && !this.readonly) {
+                if (this.activeTab !== 'site' && this.currentRoom && !this.readonly) {
                     this.autosave();
                 }
             }, 600);
@@ -2026,7 +2103,7 @@ function surveyWizard() {
             this.currentRoomIdx  = idx;
             this.currentStep     = 1;
             this.validationError = null;
-            this.screen          = 'step';
+            this.activeTab       = 'room-' + idx;
             window.scrollTo(0, 0);
         },
 
@@ -2062,7 +2139,7 @@ function surveyWizard() {
                 window.scrollTo(0, 0);
             } else {
                 this.autosave().finally(() => {
-                    this.screen         = 'rooms';
+                    this.activeTab      = 'site';
                     this.currentRoomIdx = null;
                     window.scrollTo(0, 0);
                 });
@@ -2217,7 +2294,7 @@ function surveyWizard() {
                     this.rooms[this.currentRoomIdx]._ui.is_completed = true;
                 }
             } catch (_) {}
-            this.screen         = 'rooms';
+            this.activeTab      = 'site';
             this.currentRoomIdx = null;
             window.scrollTo(0, 0);
         },
