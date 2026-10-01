@@ -1270,8 +1270,12 @@
                     $roomIdSlug             = $tab['slug'];
 
                     // ── 260504-iy4 H1 — per-room completion status ──
+                    // F-46.7-04-01 / RV-03 — completed_by is NEVER read here. It is an audit
+                    // stamp (ip:{addr}|actor:{hash}), never a name, written by markRoomComplete()
+                    // for server-side correlation only — the same rule RV-03 already applies to
+                    // the three columns in VisitEvidence. This view renders only the completion
+                    // FACT and its date.
                     $roomCompletedAt = $worksheet->roomCompletedAt($room['name'] ?? '');
-                    $roomCompletedBy = $worksheet->roomCompletedBy($room['name'] ?? '');
                     $isRoomComplete  = $tab['isRoomComplete'];
                     try {
                         $roomCompletedDisplay = $isRoomComplete ? \Carbon\Carbon::parse($roomCompletedAt)->format('d M Y H:i') : '';
@@ -1325,7 +1329,7 @@
                             <span style="display:inline-flex;align-items:center;gap:.25rem;padding:1px 8px;border-radius:9999px;background:#DCFCE7;color:#166534;font-weight:700;font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;">✓ Reviewed</span>
                         @endif
                         @if($isRoomComplete)
-                            <span style="display:inline-flex;align-items:center;gap:.25rem;padding:1px 8px;border-radius:9999px;background:#DCFCE7;color:#166534;font-weight:700;font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;" title="Completed by {{ $roomCompletedBy }} at {{ $roomCompletedDisplay }}">✓ Complete</span>
+                            <span style="display:inline-flex;align-items:center;gap:.25rem;padding:1px 8px;border-radius:9999px;background:#DCFCE7;color:#166534;font-weight:700;font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;">✓ Complete</span>
                         @endif
                         <span class="photo-count-pill {{ $photoCount === 0 ? 'zero' : '' }}">
                             📷 {{ $photoCount }}
@@ -1652,7 +1656,7 @@
                     <div style="margin-bottom:1rem;padding-bottom:.85rem;border-bottom:1px dashed #E5E7EB;">
                         @if($isRoomComplete)
                             <div style="display:inline-block;padding:.45rem .9rem;border-radius:9999px;background:#DCFCE7;color:#166534;font-size:.85rem;font-weight:700;">
-                                ✓ Room Complete by {{ $roomCompletedBy }} at {{ $roomCompletedDisplay }}
+                                ✓ Room Complete at {{ $roomCompletedDisplay }}
                             </div>
                         @elseif($photoCount >= 1 || $hasEF)
                             @php
