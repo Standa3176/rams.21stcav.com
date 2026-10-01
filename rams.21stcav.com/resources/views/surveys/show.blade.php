@@ -282,20 +282,9 @@
             </p>
         @endif
 
-        {{-- Step progress — only visible during step wizard (a room tab) --}}
-        <div x-show="activeTab !== 'site'" x-cloak class="mt-2.5">
-            <div class="flex justify-between items-center mb-1">
-                <span class="text-xs text-white/80 font-medium truncate pr-2"
-                      x-text="currentRoom?.name || ''"></span>
-                <span class="text-xs text-white/80 flex-shrink-0"
-                      x-text="'Step ' + currentStep + ' of 8 — ' + stepTitle"></span>
-            </div>
-            {{-- Progress bar width via Tailwind CDN JIT arbitrary class — no style= attribute --}}
-            <div class="bg-white/20 rounded-full h-1.5 overflow-hidden">
-                <div class="bg-emerald-400 h-full rounded-full transition-all duration-300"
-                     :class="'w-[' + Math.round(currentStep / 8 * 100) + '%]'"></div>
-            </div>
-        </div>
+        {{-- 46.6-03 — the room's progress bar and "Step N of 8" marker were
+             removed with the step wizard; the room name now renders once,
+             in the flattened panel's own heading row below, not here. --}}
     </div>
     <div class="sv-hairline" aria-hidden="true"></div>
 </header>
@@ -707,19 +696,12 @@
     ─────────────────────────────────────────────────────── --}}
     <div x-show="activeTab !== 'site' && currentRoomIdx !== null">
 
-        {{-- Step heading row --}}
+        {{-- Room heading row — 46.6-03 flattened this room's 8 former wizard
+             steps into always-visible labelled sections below, so this row
+             carries only the room name now (no back-chevron, no step text;
+             use the Site tab in the sv-tab-bar to leave this room). --}}
         <div class="flex items-center gap-3 mb-4">
-            <button @click="prevStep()"
-                    class="w-10 h-10 bg-white rounded-full flex items-center justify-center
-                           shadow-sm hover:bg-gray-50 transition-colors flex-shrink-0 min-h-[44px]">
-                <svg class="w-5 h-5 text-gray-600" fill="none" viewBox="0 0 24 24"
-                     stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
-                </svg>
-            </button>
             <div class="min-w-0 flex-1">
-                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide"
-                   x-text="'Step ' + currentStep + ' — ' + stepTitle"></p>
                 <p class="font-bold text-gray-900 text-lg leading-tight truncate"
                    x-text="currentRoom?.name || 'Room'"></p>
             </div>
@@ -945,7 +927,10 @@
         <div :class="@json($readonly) ? 'pointer-events-none select-text' : ''">
 
         {{-- ── STEP 1: ROOM CONTEXT ────────────────────────────── --}}
-        <x-survey.step-container :step="1">
+        {{-- 46.6-03: flattened from a step-gated <x-survey.step-container> into
+             an always-rendered labelled section — no step-gating remains. --}}
+        <section id="sv-step-1" class="space-y-4" @focusout="autosave(1)">
+            <h2 class="text-xs font-bold uppercase tracking-wide text-gray-400 px-1">1. Room Context</h2>
 
             {{-- Reference checklist — collapsible. Pulled from the office
                  master checklist for this room's solution type. Engineers
@@ -1087,10 +1072,11 @@
                 </div>
             </template>
 
-        </x-survey.step-container>
+        </section>
 
-        {{-- ── STEP 2: QUICK CAPTURE ───────────────────────────── --}}
-        <x-survey.step-container :step="2">
+        {{-- 46.6-03: flattened — always-rendered labelled section. --}}
+        <section id="sv-step-2" class="space-y-4" @focusout="autosave(2)">
+            <h2 class="text-xs font-bold uppercase tracking-wide text-gray-400 px-1">2. Quick Capture</h2>
 
             {{-- Voice note (UI-only: _ui.voice_note — not persisted) --}}
             <div class="bg-white rounded-2xl p-4 shadow-sm">
@@ -1129,10 +1115,12 @@
                                        parent="rooms[currentRoomIdx]._ui" />
             </div>
 
-        </x-survey.step-container>
+        </section>
 
-        {{-- ── STEP 3: PHOTOS ──────────────────────────────────── --}}
-        <x-survey.step-container :step="3" label="Capture photos for each category">
+        {{-- 46.6-03: flattened — always-rendered labelled section. --}}
+        <section id="sv-step-3" class="space-y-4" @focusout="autosave(3)">
+            <h2 class="text-xs font-bold uppercase tracking-wide text-gray-400 px-1">3. Photos</h2>
+            <p class="text-xs text-gray-400 px-1">Capture photos for each category</p>
 
             <x-survey.photo-upload category="room_overview"        label="Room Overview"          icon="🏠" />
             <x-survey.photo-upload category="display_wall"         label="Display Wall"           icon="🖥️" />
@@ -1141,10 +1129,13 @@
             <x-survey.photo-upload category="cable_routes"         label="Cable Routes"           icon="🔌" />
             <x-survey.photo-upload category="power_network_points" label="Power & Network Points" icon="🔋" />
 
-        </x-survey.step-container>
+        </section>
 
-        {{-- ── STEP 4: INFRASTRUCTURE ──────────────────────────── --}}
-        <x-survey.step-container :step="4">
+        {{-- 46.6-03: flattened — always-rendered labelled section. The
+             work_type-conditional x-show just below is content-relevance
+             gating (D-06 keeps it), not step-gating — left exactly as is. --}}
+        <section id="sv-step-4" class="space-y-4" @focusout="autosave(4)">
+            <h2 class="text-xs font-bold uppercase tracking-wide text-gray-400 px-1">4. Infrastructure</h2>
 
             {{-- Full detail shown only for new_install (canonical fields) --}}
             <div x-show="rooms[currentRoomIdx]?._ui?.work_type === 'new_install'" class="space-y-4">
@@ -1609,10 +1600,12 @@
 
             </div>{{-- /Engineer Build-out Detail --}}
 
-        </x-survey.step-container>
+        </section>
 
-        {{-- ── STEP 5: EQUIPMENT ───────────────────────────────── --}}
-        <x-survey.step-container :step="5" label="Add each item of AV equipment">
+        {{-- 46.6-03: flattened — always-rendered labelled section. --}}
+        <section id="sv-step-5" class="space-y-4" @focusout="autosave(5)">
+            <h2 class="text-xs font-bold uppercase tracking-wide text-gray-400 px-1">5. Equipment</h2>
+            <p class="text-xs text-gray-400 px-1">Add each item of AV equipment</p>
             <x-survey.repeater-equipment />
 
             {{-- Additional items needed — extras the engineer needs the office
@@ -1659,10 +1652,11 @@
                     </div>
                 </template>
             </div>
-        </x-survey.step-container>
+        </section>
 
-        {{-- ── STEP 6: ACCESS & H&S ────────────────────────────── --}}
-        <x-survey.step-container :step="6">
+        {{-- 46.6-03: flattened — always-rendered labelled section. --}}
+        <section id="sv-step-6" class="space-y-4" @focusout="autosave(6)">
+            <h2 class="text-xs font-bold uppercase tracking-wide text-gray-400 px-1">6. Access &amp; H&amp;S</h2>
 
             <div class="bg-amber-50 border border-amber-200 rounded-2xl p-3
                         text-xs text-amber-800 font-medium">
@@ -1739,15 +1733,16 @@
                 />
             </div>
 
-        </x-survey.step-container>
+        </section>
 
-        {{-- ── STEP 7: CONSTRAINTS ─────────────────────────────── --}}
-        {{--
+        {{-- 46.6-03: flattened — always-rendered labelled section.
             Constraints are UI-only capture fields (not in the canonical room shape).
             They are stored in _ui.constraints and are not sent to the server.
             These fields are ephemeral: they reset on each visit to the survey.
         --}}
-        <x-survey.step-container :step="7" label="Note any factors that affect the install">
+        <section id="sv-step-7" class="space-y-4" @focusout="autosave(7)">
+            <h2 class="text-xs font-bold uppercase tracking-wide text-gray-400 px-1">7. Constraints</h2>
+            <p class="text-xs text-gray-400 px-1">Note any factors that affect the install</p>
 
             @foreach ([
                 'obstructions'          => ['Obstructions',         'Describe any physical obstructions…'],
@@ -1767,18 +1762,18 @@
 
             <div class="bg-gray-50 border border-gray-200 rounded-2xl p-3 text-xs text-gray-500">
                 These notes support your on-site assessment. They are not stored in the final
-                survey record — add anything important to Quick Notes in Step 2.
+                survey record — add anything important to Quick Notes in the Quick Capture section.
             </div>
 
-        </x-survey.step-container>
+        </section>
 
-        {{-- ── STEP 8: SIGN-OFF ─────────────────────────────────── --}}
-        {{--
+        {{-- 46.6-03: flattened — always-rendered labelled section.
             Sign-off fields are UI-only workflow capture fields (not in canonical room shape).
             engineer_name, client_signature, and is_confirmed live in _ui.signoff.
             The room is marked complete via the /rooms/{room}/complete endpoint.
         --}}
-        <x-survey.step-container :step="8">
+        <section id="sv-step-8" class="space-y-4" @focusout="autosave(8)">
+            <h2 class="text-xs font-bold uppercase tracking-wide text-gray-400 px-1">8. Sign-off</h2>
 
             <div class="bg-white rounded-2xl p-4 shadow-sm space-y-4">
                 <div>
@@ -1845,64 +1840,21 @@
                 Mark Room Complete ✓
             </button>
 
-        </x-survey.step-container>
+        </section>
 
         </div>{{-- /:class pointer-events when readonly --}}
 
-    </div>{{-- /screen:step --}}
+    </div>{{-- /room wizard, now flattened (46.6-03) --}}
 
 </main>
 
 {{-- ═══════════════════════════════════════════════════════════
-     STICKY BOTTOM NAV (Steps 1–7) — hidden in readonly mode
+     46.6-03 — the Steps 1–7 and read-only Steps 1–8 bottom nav bars
+     (Next/Back/"Back to site tab") were removed with the step wizard.
+     Every former step is now an always-visible labelled section above,
+     and the sv-tab-bar below is the only navigation — tap "Site" to
+     leave this room, exactly as moving between rooms already works.
 ════════════════════════════════════════════════════════════ --}}
-<div x-show="activeTab !== 'site' && currentStep < 8 && !readonly"
-     class="fixed bottom-14 left-0 right-0 bg-white/95 backdrop-blur border-t border-gray-200
-            px-4 py-3 pb-6 z-30">
-    <div class="max-w-xl mx-auto flex gap-3">
-        <button @click="prevStep()"
-                class="flex-none w-24 py-3.5 border-2 border-gray-300 rounded-2xl font-semibold
-                       text-gray-700 text-sm min-h-[50px] hover:bg-gray-50 transition-colors">
-            ← Back
-        </button>
-        <button @click="nextStep()"
-                :disabled="saving"
-                class="flex-1 py-3.5 bg-brand-teal text-white rounded-2xl font-bold text-sm
-                       min-h-[50px] hover:bg-brand-dark transition-colors"
-                :class="saving ? 'opacity-60 cursor-wait' : ''">
-            <span x-show="!saving">Next →</span>
-            <span x-show="saving">Saving…</span>
-        </button>
-    </div>
-</div>
-
-{{-- ═══════════════════════════════════════════════════════════
-     READ-ONLY NAV (Steps 1–8) — visible only after submission so
-     reviewers can step through without triggering save logic.
-════════════════════════════════════════════════════════════ --}}
-<div x-show="activeTab !== 'site' && readonly"
-     class="fixed bottom-14 left-0 right-0 bg-white/95 backdrop-blur border-t border-gray-200
-            px-4 py-3 pb-6 z-30">
-    <div class="max-w-xl mx-auto flex gap-3">
-        <button @click="prevStep()"
-                class="flex-none w-24 py-3.5 border-2 border-gray-300 rounded-2xl font-semibold
-                       text-gray-700 text-sm min-h-[50px] hover:bg-gray-50 transition-colors">
-            ← Back
-        </button>
-        <button x-show="currentStep < 8"
-                @click="currentStep = Math.min(currentStep + 1, 8); window.scrollTo(0,0);"
-                class="flex-1 py-3.5 bg-brand-teal text-white rounded-2xl font-bold text-sm
-                       min-h-[50px] hover:bg-brand-dark transition-colors">
-            Next →
-        </button>
-        <button x-show="currentStep === 8"
-                @click="activeTab = 'site'; currentRoomIdx = null; window.scrollTo(0,0);"
-                class="flex-1 py-3.5 bg-gray-700 text-white rounded-2xl font-bold text-sm
-                       min-h-[50px] hover:bg-gray-800 transition-colors">
-            Back to site tab
-        </button>
-    </div>
-</div>
 
 {{-- ═══════════════════════════════════════════════════════════
      BOTTOM TAB BAR (46.6-01 scaffold, D-01) — site tab FIRST, then
@@ -1954,11 +1906,12 @@ function surveyWizard() {
         // activeTab (46.6-01) replaces the former `screen: 'rooms' | 'step'`
         // picker/wizard screen-swap: 'site' | 'room-0' | 'room-1' | ... — one
         // entry per sv-tab-bar button. `currentRoomIdx` is still read by the
-        // shared room wizard below (UNCHANGED this plan); `selectRoom()` keeps
-        // the two in sync.
+        // shared room panel below (its 8 former wizard steps flattened into
+        // always-visible labelled sections by 46.6-03); `selectRoom()` keeps
+        // the two in sync. `currentStep` is retired — there is no step to
+        // track once every section renders at once.
         activeTab:       'site',
         currentRoomIdx:  null,
-        currentStep:     1,
         kitDrawerOpen:         false,
         descriptionDrawerOpen: false,
         saving:          false,
@@ -1991,26 +1944,38 @@ function surveyWizard() {
         expandedRoomIdx: null,
 
         // ── Init — set up debounced autosave on toggle / selection changes
-        //          so engineers don't lose Step 2 toggles or Step 1 work_type
-        //          when they reload mid-step without clicking Next.
+        //          so engineers don't lose a section's typed values while
+        //          another section's section is also being edited.
+        //          46.6-03: every former step is visible at once now, so each
+        //          watcher must name ITS OWN step explicitly rather than
+        //          relying on a single shared `currentStep` — and each step
+        //          gets its own debounce timer so an edit in one section can
+        //          no longer cancel a pending save for a different section.
         // ──────────────────────────────────────────────────────────────────────
-        _autosaveTimer: null,
+        _autosaveTimers: {},
 
         init() {
-            const watchedFields = [
-                'work_type', 'voice_note', 'quick_notes',
+            // Room Context (1): work_type only — name/type save via the
+            // section's own @focusout="autosave(1)".
+            const step1Fields = ['work_type'];
+            // Quick Capture (2): voice note, quick notes, toggles.
+            const step2Fields = [
+                'voice_note', 'quick_notes',
                 'power_available', 'network_available',
                 'access_issues', 'working_at_height', 'client_present',
             ];
             this.rooms.forEach((_, idx) => {
-                watchedFields.forEach(f => {
-                    this.$watch(`rooms.${idx}._ui.${f}`, () => this.debouncedAutosave());
+                step1Fields.forEach(f => {
+                    this.$watch(`rooms.${idx}._ui.${f}`, () => this.debouncedAutosave(1));
+                });
+                step2Fields.forEach(f => {
+                    this.$watch(`rooms.${idx}._ui.${f}`, () => this.debouncedAutosave(2));
                 });
             });
 
             // Site-level engineer feedback (quick task 260503-u2x) — debounced
             // autosave via stepSave step=0. Independent timer so typing in
-            // Site Logistics never collides with per-room Step 4 saves.
+            // Site Logistics never collides with per-room section saves.
             const siteFields = [
                 'comms_room_access_status', 'comms_room_access_notes',
                 'parking_restraints', 'distance_from_base_miles', 'distance_from_base_notes',
@@ -2022,20 +1987,20 @@ function surveyWizard() {
 
             // Per-room engineer feedback — deep watch so changes anywhere in the
             // nested object (toggling a multi-select chip, editing a cable_route
-            // row, etc.) trigger the existing debounced autosave. The Step 4
-            // payload includes engineer_feedback alongside infrastructure, so
-            // both ride the same stepSave call.
+            // row, etc.) trigger the existing debounced autosave. The Infrastructure
+            // section (4) payload includes engineer_feedback alongside
+            // infrastructure, so both ride the same stepSave call.
             this.rooms.forEach((_, idx) => {
-                this.$watch(`rooms.${idx}.engineer_feedback`, () => this.debouncedAutosave(), { deep: true });
+                this.$watch(`rooms.${idx}.engineer_feedback`, () => this.debouncedAutosave(4), { deep: true });
             });
         },
 
-        debouncedAutosave() {
-            if (this._autosaveTimer) clearTimeout(this._autosaveTimer);
-            this._autosaveTimer = setTimeout(() => {
+        debouncedAutosave(step) {
+            if (this._autosaveTimers[step]) clearTimeout(this._autosaveTimers[step]);
+            this._autosaveTimers[step] = setTimeout(() => {
                 // Only fire when actively editing a room and not read-only.
                 if (this.activeTab !== 'site' && this.currentRoom && !this.readonly) {
-                    this.autosave();
+                    this.autosave(step);
                 }
             }, 600);
         },
@@ -2091,59 +2056,20 @@ function surveyWizard() {
             return this.rooms.length > 0 && this.rooms.every(r => r._ui.is_completed);
         },
 
-        get stepTitle() {
-            return [
-                '', 'Room Context', 'Quick Capture', 'Photos',
-                'Infrastructure', 'Equipment', 'Access & H&S', 'Constraints', 'Sign-off',
-            ][this.currentStep] ?? '';
-        },
+        // 46.6-03: `stepTitle` (the header "Step N — title" strip) and
+        // `validateCurrentStep()`/`nextStep()`/`prevStep()` (the Next/Back
+        // step-advance navigation) were retired with the step wizard — every
+        // former step is now an always-visible labelled <section> and the
+        // sv-tab-bar is the only navigation. `currentStep` itself is gone;
+        // `autosave(step)`/`buildStepPayload(step)` below take an explicit
+        // step argument instead of reading it from a shared property.
 
         // ── Navigation ────────────────────────────────────────────────────────
         selectRoom(idx) {
             this.currentRoomIdx  = idx;
-            this.currentStep     = 1;
             this.validationError = null;
             this.activeTab       = 'room-' + idx;
             window.scrollTo(0, 0);
-        },
-
-        validateCurrentStep() {
-            const r = this.rooms[this.currentRoomIdx];
-            if (this.currentStep === 1) {
-                if (!r.name?.trim()) {
-                    this.validationError = 'Room name is required before proceeding.';
-                    return false;
-                }
-                if (!r.type) {
-                    this.validationError = 'Please select a room type before proceeding.';
-                    return false;
-                }
-            }
-            this.validationError = null;
-            return true;
-        },
-
-        async nextStep() {
-            if (!this.validateCurrentStep()) return;
-            await this.autosave();
-            if (this.currentStep < 8) {
-                this.currentStep++;
-                window.scrollTo(0, 0);
-            }
-        },
-
-        prevStep() {
-            this.validationError = null;
-            if (this.currentStep > 1) {
-                this.currentStep--;
-                window.scrollTo(0, 0);
-            } else {
-                this.autosave().finally(() => {
-                    this.activeTab      = 'site';
-                    this.currentRoomIdx = null;
-                    window.scrollTo(0, 0);
-                });
-            }
         },
 
         // ── Sign-off confirm — sets timestamp on check ────────────────────────
@@ -2154,7 +2080,14 @@ function surveyWizard() {
         },
 
         // ── Auto-save ─────────────────────────────────────────────────────────
-        async autosave() {
+        // 46.6-03: `autosave` and `buildStepPayload` now take an explicit
+        // `step` argument (1–8) instead of reading a shared `currentStep` —
+        // every former step is visible at once, so each labelled <section>
+        // and each field watcher names which step's canonical slice it is
+        // saving via the SAME per-step stepSave endpoint/payload shape as
+        // before. Finer-grained on-input scoping per section is deferred to
+        // 46.6-05; this is still "once per section on blur/explicit-save".
+        async autosave(step) {
             if (!this.currentRoom || this.readonly) return;
             this.saving    = true;
             this.saveError = null;
@@ -2166,7 +2099,7 @@ function surveyWizard() {
                         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
                         'Accept':       'application/json',
                     },
-                    body: JSON.stringify(this.buildStepPayload()),
+                    body: JSON.stringify(this.buildStepPayload(step)),
                 });
                 if (!resp.ok) {
                     const body = await resp.json().catch(() => ({}));
@@ -2189,10 +2122,9 @@ function surveyWizard() {
          * Step 2 mapping: quick_notes → notes (server maps this to canonical notes).
          * Step 6 mapping: working_at_height sent as normalization context (not persisted).
          */
-        buildStepPayload() {
-            const r    = this.currentRoom;
-            const step = this.currentStep;
-            let data   = {};
+        buildStepPayload(step) {
+            const r  = this.currentRoom;
+            let data = {};
 
             switch (step) {
                 case 1:
@@ -2261,6 +2193,18 @@ function surveyWizard() {
         async markRoomComplete() {
             const r = this.currentRoom;
 
+            // 46.6-03: Room name/type were previously required before the
+            // step wizard would let an engineer advance past Step 1 at all,
+            // so a room could never reach sign-off without them. Flattening
+            // removed that advance-gate (every section is visible at once),
+            // so the same requirement is re-asserted here instead — nothing
+            // captured today is lost, including this requirement.
+            if (!r.name?.trim() || !r.type) {
+                this.validationError = 'Room name and room type are required before completing this room.';
+                return;
+            }
+            this.validationError = null;
+
             // Photo gate — soft-block if no photos uploaded.
             // Engineers consistently skip photos when rushing; that costs
             // the office downstream because they have no visual record of
@@ -2276,7 +2220,13 @@ function surveyWizard() {
                 if (!proceed) return;
             }
 
-            await this.autosave();
+            // Save every section before completing — with no Next/Back nav
+            // left, this is the single explicit-save point that guarantees
+            // nothing typed in any section is still in-flight when the room
+            // is marked complete.
+            for (let s = 1; s <= 8; s++) {
+                await this.autosave(s);
+            }
             try {
                 const resp = await fetch(
                     '/survey/' + this.token + '/rooms/' + r._ui.room_id + '/complete',
