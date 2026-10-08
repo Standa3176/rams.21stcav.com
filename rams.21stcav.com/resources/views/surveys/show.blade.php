@@ -363,7 +363,7 @@
             @if($survey->site_address)
                 <p class="text-base font-semibold text-gray-900 leading-snug">{{ $survey->site_address }}</p>
             @else
-                <p class="text-sm text-gray-400 italic">Site address not provided</p>
+                <p class="text-sm text-gray-600 italic">Site address not provided</p>
             @endif
 
             <div class="mt-3 pt-3 border-t border-gray-100">
@@ -375,7 +375,7 @@
                         @if($siteContactPhone !== '')<a href="tel:{{ $telHref }}" class="text-brand-teal font-semibold underline">{{ $siteContactPhone }}</a>@endif
                     </p>
                 @else
-                    <p class="text-sm text-gray-400 italic">Site contact not provided</p>
+                    <p class="text-sm text-gray-600 italic">Site contact not provided</p>
                 @endif
             </div>
         </div>
