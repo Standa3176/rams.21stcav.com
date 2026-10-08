@@ -125,6 +125,32 @@ class SiteSurvey extends Model
     }
 
     /**
+     * Has this survey been replaced by a newer one?
+     *
+     * `SurveyService::supersedeSurvey()` (app/Core/Modules/Survey/SurveyService.php)
+     * is the only writer, and it matches rows by `status IN ('draft', 'completed')`
+     * — NOT by `submitted_at` — so a never-submitted draft survey can be
+     * superseded. `isLockedForEngineer()` checks this ahead of `isSubmitted()`
+     * for exactly that reason.
+     */
+    public function isSuperseded(): bool
+    {
+        return $this->superseded_at !== null;
+    }
+
+    /**
+     * The 403 copy for a locked engineer link. Single source of truth so the
+     * "replaced" and "already submitted" states are never confused in a
+     * response body across the eight write endpoints that use it.
+     */
+    public function engineerLockMessage(): string
+    {
+        return $this->isSuperseded()
+            ? 'This survey has been replaced by a newer survey. Please contact the office.'
+            : 'This survey has already been submitted.';
+    }
+
+    /**
      * Is the engineer's form closed to further editing?
      *
      * ── D-02, QUOTED VERBATIM ───────────────────────────────────────────────
@@ -158,6 +184,16 @@ class SiteSurvey extends Model
      */
     public function isLockedForEngineer(): bool
     {
+        // Superseded is checked FIRST and unconditionally — deliberately ahead
+        // of the isSubmitted() check below, and ahead of VisitReworkState's
+        // reopened comparison. A superseded survey need not be submitted to
+        // be locked (see isSuperseded()'s docblock), and this ordering is what
+        // makes superseding immune to the office "Send back" reopen path:
+        // isReopened() is never consulted once isSuperseded() is true.
+        if ($this->isSuperseded()) {
+            return true;
+        }
+
         if (! $this->isSubmitted()) {
             return false;
         }

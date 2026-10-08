@@ -93,6 +93,7 @@ class SurveyController extends Controller
             'token'                => $token,
             'rooms'                => $rooms,
             'readonly'             => $survey->isLockedForEngineer(),
+            'superseded'           => $survey->isSuperseded(),
             'engineerFeedbackSite' => $engineerFeedbackSite,
             // Plan 46-05 — the office send-back banner. This is the ENGINEER's
             // own link, so the reason IS passed: they are the person being
@@ -116,7 +117,7 @@ class SurveyController extends Controller
         $survey = $this->resolveSurvey($token);
 
         if ($survey->isLockedForEngineer()) {
-            return response()->json(['error' => 'Survey already submitted.'], 403);
+            return response()->json(['error' => $survey->engineerLockMessage()], 403);
         }
 
         $validated = $request->validate([

@@ -459,7 +459,11 @@
         @if ($readonly)
             <div class="bg-amber-50 border border-amber-200 rounded-2xl p-3 mb-4
                         text-amber-800 text-sm font-medium text-center">
-                This survey has been submitted and is read-only.
+                @if ($superseded)
+                    This survey has been replaced by a newer survey. Please contact the office — anything you capture here is saved but will not be used.
+                @else
+                    This survey has been submitted and is read-only.
+                @endif
             </div>
         @endif
 
