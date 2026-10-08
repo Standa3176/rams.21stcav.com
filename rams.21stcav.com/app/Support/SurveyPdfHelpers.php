@@ -223,4 +223,54 @@ class SurveyPdfHelpers
 
         return $html;
     }
+
+    /**
+     * Convert a PM-authored prose overview into a clean bullet list for the
+     * engineer-facing survey page. Applies the same first-line-dedup logic
+     * the RAMS PDF uses so the room name isn't echoed back as the first
+     * bullet, then splits on line breaks first (PMs usually write
+     * line-per-point) and falls back to sentence splitting for unstructured
+     * paragraphs.
+     *
+     * Moved here from PublicSurveyController (which stays as a thin
+     * delegator — that method's own GET route is unreachable, but it is not
+     * deleted) so SurveyController::buildAlpineRooms() can reuse the exact
+     * same logic to derive bullets when no office-authored works_summary
+     * exists for a room (261008-gxt Task 2).
+     *
+     * @return array<int, string>  trimmed, non-empty bullet lines (max 12)
+     */
+    public static function textToBullets(string $roomName, string $text): array
+    {
+        // Strip markdown bold markers — source often has **headers**
+        $text = (string) preg_replace('/\*\*([^*]+)\*\*/', '$1', $text);
+        $text = ltrim(trim($text), ': ');
+
+        // Drop a leading line that just echoes the room name (same logic as
+        // the RAMS PDF renderer uses to avoid duplicate headings).
+        $lines = preg_split('/\r?\n/', trim($text)) ?: [];
+        if (count($lines) >= 2) {
+            $canonFirst = strtolower((string) preg_replace('/[^a-z0-9]+/i', '', (string) $lines[0]));
+            $canonName  = strtolower((string) preg_replace('/[^a-z0-9]+/i', '', $roomName));
+            if ($canonFirst !== '' && $canonFirst === $canonName) {
+                array_shift($lines);
+            }
+        }
+
+        // If the text is only one line, treat each sentence as a bullet.
+        if (count($lines) < 2) {
+            $lines = preg_split('/(?<=[.!?])\s+(?=[A-Z])/', (string) ($lines[0] ?? '')) ?: [];
+        }
+
+        $bullets = [];
+        foreach ($lines as $line) {
+            $line = trim((string) $line);
+            // Strip any leading bullet marker the PM may have typed in
+            $line = (string) preg_replace('/^[\-\*•·\d]+[\.\)]?\s*/u', '', $line);
+            if ($line === '' || strlen($line) < 3) continue;
+            $bullets[] = $line;
+            if (count($bullets) >= 12) break;
+        }
+        return $bullets;
+    }
 }

@@ -478,6 +478,31 @@ class SurveyController extends Controller
                 $plannedWorks = $projectScope;
             }
 
+            // Install-action bullets (261008-gxt Task 2): office-authored
+            // works_summary wins byte-for-byte when present (unchanged
+            // behaviour — same newline split as before). When no
+            // works_summary exists for this room but planned-works prose
+            // does, derive bullets from that prose via the shared helper so
+            // the engineer still sees a bullet list instead of falling all
+            // the way through to the single-paragraph fallback panel.
+            $officeBulletsText = trim((string) ($packageRoomBullets[strtolower((string) $dbRoom->room_name)] ?? ''));
+            if ($officeBulletsText !== '') {
+                $plannedActions = array_values(array_filter(
+                    array_map('trim', preg_split('/\r?\n/', $officeBulletsText)),
+                    fn ($l) => $l !== ''
+                ));
+                $plannedActionsSource = 'office';
+            } elseif (trim($plannedWorks) !== '') {
+                $plannedActions = \App\Support\SurveyPdfHelpers::textToBullets(
+                    (string) ($dbRoom->room_name ?? ''),
+                    $plannedWorks
+                );
+                $plannedActionsSource = $plannedActions !== [] ? 'derived' : '';
+            } else {
+                $plannedActions = [];
+                $plannedActionsSource = '';
+            }
+
             $alpineRooms[] = array_merge($canonical, [
                 'photos' => $photos ?: $canonical['photos'],
 
@@ -485,16 +510,13 @@ class SurveyController extends Controller
                 // Never written back to survey_data; informational only.
                 '_ctx' => [
                     'av_requirements'         => $plannedWorks,
-                    // Per-room install-action bullets generated on the office
-                    // review screen (Room/Space Overviews → AV Works Summary).
-                    // One bullet per line, "- " prefix optional. Engineers see
-                    // these in the Kit Info drawer as a checklist for THIS room.
-                    // Phase 22.1 D-04: derived from the per-room summary fields
-                    // (the project-wide payload key was removed by Plan 22.1-04).
-                    'planned_actions'         => array_values(array_filter(
-                        array_map('trim', preg_split('/\r?\n/', (string) ($packageRoomBullets[strtolower((string) $dbRoom->room_name)] ?? ''))),
-                        fn ($l) => $l !== ''
-                    )),
+                    // Per-room install-action bullets. Office-authored
+                    // works_summary wins byte-for-byte when present; when
+                    // absent, derived from the planned-works prose fallback
+                    // (261008-gxt Task 2) so a room with no office bullets
+                    // still renders a bullet list, not a paragraph.
+                    'planned_actions'         => $plannedActions,
+                    'planned_actions_source'  => $plannedActionsSource,
                     'av_equipment_list'  => (string) ($dbRoom->av_equipment_list ?? ''),
                     'question_count'     => $questions->count(),
                     'questions'          => $questions->map(fn ($q) => [

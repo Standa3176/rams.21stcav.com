@@ -581,7 +581,7 @@
                             <summary class="px-3.5 py-3 cursor-pointer select-none flex items-center justify-between list-none bg-brand-teal/5 hover:bg-brand-teal/10 transition-colors min-h-[44px]">
                                 <span class="font-bold text-brand-teal flex items-center gap-2 text-sm">
                                     <span class="text-base">📋</span>
-                                    <span>Install actions</span>
+                                    <span x-text="rooms[{{ $idx }}]._ctx.planned_actions_source === 'derived' ? 'Install actions (from scope notes)' : 'Install actions'"></span>
                                     <span class="inline-flex items-center justify-center min-w-[22px] h-5 px-1.5 rounded-full bg-brand-teal text-white text-[11px] font-bold tabular-nums"
                                           x-text="rooms[{{ $idx }}]._ctx.planned_actions.length"></span>
                                 </span>
