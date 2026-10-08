@@ -274,6 +274,10 @@
 
             <p class="cav-note">
                 <a class="cav-link" href="{{ route('projects.show', $project) }}">Open full project</a>
+                @if ($project->latestPackage)
+                    &middot;
+                    <a class="cav-link" href="{{ route('project-packages.review.show', $project->latestPackage) }}#s-room-overviews">Edit AV Works Summary</a>
+                @endif
             </p>
         </div>
     </div>
