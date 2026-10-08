@@ -243,7 +243,7 @@
             21st Century AV · Site Survey
         </p>
         <h1 class="text-lg font-bold leading-tight">{{ $survey->project_name }}</h1>
-        <p class="text-xs text-white/80 mt-0.5 truncate">{{ $survey->site_address }}</p>
+        <p class="text-sm font-semibold text-white/80 mt-0.5">{{ $survey->site_address }}</p>
 
         {{-- ── 260602-mlt — Site contact line ──────────────────────────────
              Mirror of the worksheet header line. Reads the same flat package
@@ -274,7 +274,7 @@
             }
         @endphp
         @if($siteContactName !== '' || $siteContactPhone !== '')
-            <p class="text-xs text-white/80 mt-0.5 truncate">
+            <p class="text-xs text-white/80 mt-0.5">
                 Site contact:
                 @if($siteContactName !== ''){{ ' ' . $siteContactName }}@endif
                 @if($siteContactName !== '' && $siteContactPhone !== '') · @endif
@@ -347,6 +347,37 @@
                      :class="'w-[' + Math.round(rooms.length ? completedCount / rooms.length * 100 : 0) + '%]'"></div>
             </div>
 
+        </div>
+
+        {{-- ── Site Address + Site Contact card (quick task 261008-mb9) ──
+             Reuses $siteContactName / $siteContactPhone / $telHref, already
+             computed once in the masthead's own @php block above — no
+             second implementation. Blank-field case renders a plainly
+             labelled placeholder, never a dangling heading or empty
+             tel: href — the office must see the gap, not a silent blank. --}}
+        <div class="bg-white rounded-2xl p-4 mb-4 shadow-sm">
+            <div class="flex items-center gap-2 mb-3">
+                <span class="text-base">📍</span>
+                <h2 class="sv-spine text-sm font-bold text-gray-900">Site Address</h2>
+            </div>
+            @if($survey->site_address)
+                <p class="text-base font-semibold text-gray-900 leading-snug">{{ $survey->site_address }}</p>
+            @else
+                <p class="text-sm text-gray-400 italic">Site address not provided</p>
+            @endif
+
+            <div class="mt-3 pt-3 border-t border-gray-100">
+                @if($siteContactName !== '' || $siteContactPhone !== '')
+                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Site Contact</p>
+                    <p class="text-sm text-gray-900">
+                        @if($siteContactName !== ''){{ $siteContactName }}@endif
+                        @if($siteContactName !== '' && $siteContactPhone !== '') · @endif
+                        @if($siteContactPhone !== '')<a href="tel:{{ $telHref }}" class="text-brand-teal font-semibold underline">{{ $siteContactPhone }}</a>@endif
+                    </p>
+                @else
+                    <p class="text-sm text-gray-400 italic">Site contact not provided</p>
+                @endif
+            </div>
         </div>
 
         {{-- ── OFFICE SEND-BACK BANNER (Phase 46, Plan 46-05) ────────────
