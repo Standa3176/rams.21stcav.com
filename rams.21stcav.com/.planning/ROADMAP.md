@@ -313,7 +313,7 @@ Each of these is **recorded in the admin Hidden Functions register**, not forgot
 - [ ] **Phase 46.5: Guided Creation Wizard** — the long panel form becomes stepped (dates/contact/engineer → notes → confirm spaces), and one creation produces the document, the visit and the engineer link together. RAMS joins it as doc-only, standalone or attached to an install, driven by the deliverable tick that already exists. Adds the company name to the header and a third photo stage (start/during/end).
 - [ ] **Phase 46.6: Survey Engineer Link — SCC Layout, Review, and Report Output** — the survey engineer link gets the SCC-shaped tabbed layout (site/contract details first, rooms along the bottom, each room flattened to one scrolling tab) that Phase 46.7 gave the worksheet link but deferred for the survey; plus a Review report tab where the office actions what the engineer sent back (re-surfacing the evidence review and per-space photo ZIP that Phase 46.2 unsurfaced), and a NEW completed site-survey report PDF + XLSX: rooms summary, points raised, items agreed with client, client's list of items required, additional comments. ⚠️ Renamed 2026-10-01 — the roadmap's old name covered only half the phase; the tabbed-layout half was reported twice against the live link and is folded in here rather than re-split.
 - [ ] **Phase 46.7: Engineer Link — Tabbed Layout + Autosave** — rooms become tabs with a sticky bar showing which are done, a site header carries client/ref/address, and autosave replaces the POST-and-reload cycle. ⚠️ Corrects a gap: 46.4 was asked to follow SCC's PMV design and delivered the capture fields but not the layout.
-- [ ] **Phase 46.8: Survey Capture Refinements From Site Use** — nine changes asked for on 2026-10-09 after using the deployed link on site. SITE INFO: remove the comms room question, distance from base and the route/travel note; add a free-text “Other notes”; show whether RAMS are required (wire the existing deliverable tick). ROOM PAGE: remove voice note; “Access issues” reveals a box for WHAT the issues are; “Working at height” reveals the working-height selection (currently lower down) plus site requirements; “Cable route” gains a photo and a notes field. ⚠️ OVERRIDES 46.5 D-03 — comms room is removed from the RAMS data feed too, a cost stated to the user before they chose it.
+- [ ] **Phase 46.8: Survey Capture Refinements From Site Use** — nine changes asked for on 2026-10-09 after using the deployed link on site. SITE INFO: remove the comms room question, distance from base and the route/travel note; add a free-text “Other notes”; show whether RAMS are required (wire the existing deliverable tick). ROOM PAGE: remove voice note; “Access issues” reveals a box for WHAT the issues are; “Working at height” reveals the working-height selection (currently lower down) plus site requirements; “Cable route” gains a photo and a notes field. Plus: “Delivery Routes” is RENAMED to “Site delivery info” and re-purposed to capture the process for getting hardware onto site (added 2026-10-09; reverses the 2026-09-27 removal rationale, deliberately). ⚠️ OVERRIDES 46.5 D-03 — comms room is removed from the RAMS data feed too, a cost stated to the user before they chose it.
 
   **Plans:** 4 plans in 4 waves (sequential — all four touch the one standalone page file, so no two can share a wave)
   - [ ] 46.7-01-PLAN.md — the offline ruling for autosave + the localStorage draft store + a blocking decision checkpoint (lands BEFORE autosave ships)
@@ -980,6 +980,7 @@ for what they do not — nine changes requested on 2026-10-09 after using the de
 7. **Access issues** — when selected, reveal a notes box capturing WHAT the issues are.
 8. **Working at height** — when selected, reveal the working-height selection (currently lower down the page) together with site requirements.
 9. **Cable route** — add a photo and a notes field for notes on the route.
+10. **“Delivery Routes” becomes “Site delivery info”** — relabelled and re-purposed to capture the process for delivering hardware to site. ⚠️ UI relabel only; the `delivery_routes` binding and stored key stay, so no migration and no stranded data. ⚠️ Reverses the 2026-09-27 rationale (*“this is a survey not install with kit deleivery”*) on purpose — do not correct it back.
 
 ⚠️ **OVERRIDES PHASE 46.5 D-03.** Comms room is removed **everywhere, including the RAMS data feed**
 — `RamsDataBuilderService`, `ProjectContextBuilder` and `DocxBuilderService` all read `comms_room`
@@ -999,6 +1000,7 @@ decision the user has not made.
 - Whether RAMS are required is visible on site info without the engineer leaving the page.
 - Access issues and Working at height each reveal their follow-up only when selected, and the revealed content persists.
 - Cable route carries a photo and a note.
+- Site delivery info reads as a delivery process, stores to the unchanged key, and no existing value is lost.
 
 **Inserted 2026-10-09.**
 
