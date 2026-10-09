@@ -262,3 +262,35 @@ questions (quoted above) against a real project's cockpit and either type
 ---
 *Phase: 47-cockpit-links-and-returns*
 *Completed (Tasks 1-2 only): 2026-10-01*
+
+---
+
+## ⚠ TASK 3 — HUMAN CHECKPOINT: PARTIALLY ANSWERED 2026-10-09. RV-08 STILL OPEN.
+
+This summary previously recorded Tasks 1-2 done and **Task 3 outstanding**. The checkpoint
+was put to the user; they answered **one of its two headline questions**. Not self-approved,
+and **not recorded as fully passed**.
+
+**The answer, verbatim:**
+
+> "47-05 . pm can copy link"
+
+**That closes the phase's stated acceptance test.** `47-CONTEXT.md` put it plainly: *"The
+acceptance test is a link reaching an engineer. If a PM cannot copy a link from the cockpit
+and send it, the cockpit is not yet the place work happens — it is a nicer-looking detour."*
+A PM can now copy the link. The cockpit had been issuing links and hiding them since Phase
+46; it no longer does.
+
+**⚠ RV-08 IS STILL UNANSWERED.** The second headline question — *"Open a visit's Returned
+tab. Is it calm?"* — was not addressed. The user did not mention the Returned tab.
+
+RV-08 has been open since **Phase 46.1**. It became unanswerable when 46.2 D-02 unsurfaced
+the very tab it referred to, and 47-03 rebuilt that tab specifically so it could finally be
+asked. **It is one question about one screen, and it is the last thing standing between this
+phase and a genuine close.** Do not mark it answered on the strength of the link reply.
+
+Also unanswered: the link's state sentence, pressing revoke for real, whether a survey being
+unrevokable is acceptable, landing back on Returned after accepting, a reconstructed visit
+offering nothing, and two projects open side by side.
+
+**Phase 47 is CODE-COMPLETE and DEPLOYED, with RV-08 outstanding.**
