@@ -313,6 +313,7 @@ Each of these is **recorded in the admin Hidden Functions register**, not forgot
 - [ ] **Phase 46.5: Guided Creation Wizard** — the long panel form becomes stepped (dates/contact/engineer → notes → confirm spaces), and one creation produces the document, the visit and the engineer link together. RAMS joins it as doc-only, standalone or attached to an install, driven by the deliverable tick that already exists. Adds the company name to the header and a third photo stage (start/during/end).
 - [ ] **Phase 46.6: Survey Engineer Link — SCC Layout, Review, and Report Output** — the survey engineer link gets the SCC-shaped tabbed layout (site/contract details first, rooms along the bottom, each room flattened to one scrolling tab) that Phase 46.7 gave the worksheet link but deferred for the survey; plus a Review report tab where the office actions what the engineer sent back (re-surfacing the evidence review and per-space photo ZIP that Phase 46.2 unsurfaced), and a NEW completed site-survey report PDF + XLSX: rooms summary, points raised, items agreed with client, client's list of items required, additional comments. ⚠️ Renamed 2026-10-01 — the roadmap's old name covered only half the phase; the tabbed-layout half was reported twice against the live link and is folded in here rather than re-split.
 - [ ] **Phase 46.7: Engineer Link — Tabbed Layout + Autosave** — rooms become tabs with a sticky bar showing which are done, a site header carries client/ref/address, and autosave replaces the POST-and-reload cycle. ⚠️ Corrects a gap: 46.4 was asked to follow SCC's PMV design and delivered the capture fields but not the layout.
+- [ ] **Phase 46.8: Survey Capture Refinements From Site Use** — nine changes asked for on 2026-10-09 after using the deployed link on site. SITE INFO: remove the comms room question, distance from base and the route/travel note; add a free-text “Other notes”; show whether RAMS are required (wire the existing deliverable tick). ROOM PAGE: remove voice note; “Access issues” reveals a box for WHAT the issues are; “Working at height” reveals the working-height selection (currently lower down) plus site requirements; “Cable route” gains a photo and a notes field. ⚠️ OVERRIDES 46.5 D-03 — comms room is removed from the RAMS data feed too, a cost stated to the user before they chose it.
 
   **Plans:** 4 plans in 4 waves (sequential — all four touch the one standalone page file, so no two can share a wave)
   - [ ] 46.7-01-PLAN.md — the offline ruling for autosave + the localStorage draft store + a blocking decision checkpoint (lands BEFORE autosave ships)
@@ -959,6 +960,47 @@ schema/UI and the report/XLSX output touch a disjoint file set and run alongside
       self-approved. **OUTSTANDING — this phase is NOT complete until the user answers it.**
 
 ---
+
+### Phase 46.8: Survey Capture Refinements From Site Use
+
+**Goal:** The survey engineer link captures what an engineer actually needs on site and stops asking
+for what they do not — nine changes requested on 2026-10-09 after using the deployed link.
+
+**Depends on:** 46.6 (the tabbed, flattened survey link this edits).
+
+**Site info — engineer link AND the office create form:**
+1. Remove the comms room question.
+2. Remove distance from base.
+3. Remove the route / travel note.
+4. Add a free-text **Other notes** field for anything else.
+5. Show whether **RAMS are required** — wire the existing `ProjectDeliverable` KEY_RAMS tick; do not rebuild it.
+
+**Room page (one scrolling tab per room since 46.6):**
+6. Remove voice note capture.
+7. **Access issues** — when selected, reveal a notes box capturing WHAT the issues are.
+8. **Working at height** — when selected, reveal the working-height selection (currently lower down the page) together with site requirements.
+9. **Cable route** — add a photo and a notes field for notes on the route.
+
+⚠️ **OVERRIDES PHASE 46.5 D-03.** Comms room is removed **everywhere, including the RAMS data feed**
+— `RamsDataBuilderService`, `ProjectContextBuilder` and `DocxBuilderService` all read `comms_room`
+today. 46.5 D-03 recorded keeping it as a safety matter: an installing engineer inherits the
+surveyor comms-room access notes through the survey-to-install carry-forward, and it renders in the
+site-survey Word document (quick task `260926-s7k`). **That cost was put to the user on 2026-10-09
+and they chose full removal.** Recorded so it reads as a decision, not an oversight.
+
+⚠️ **Remove the capture and the consumption — DO NOT DROP THE COLUMN.** Existing `comms_room` data
+on past surveys stays on disk (SCOPE.md D-05, nothing is deleted). A destructive purge is a separate
+decision the user has not made.
+
+**Success criteria:**
+- The three removed questions appear nowhere on the engineer link or the office create form.
+- RAMS and the survey Word document generate correctly with no comms-room input, and no past survey loses stored data.
+- Other notes persists and renders back.
+- Whether RAMS are required is visible on site info without the engineer leaving the page.
+- Access issues and Working at height each reveal their follow-up only when selected, and the revealed content persists.
+- Cable route carries a photo and a note.
+
+**Inserted 2026-10-09.**
 
 ### Phase 47: Cockpit — Links, Visits and Returns
 
