@@ -642,6 +642,21 @@
     $badgeText  = $isComplete ? '✓ Complete' : ($hasData ? 'In Progress' : 'Not Started');
     $roomKit    = $kitByArea[$room->room_name] ?? [];
 
+    // Quick task 261010-cdf Part 3: above-2m / missing working-height flags,
+    // reading the SAME $wizardRisks[0]['working_height'] the existing Risks
+    // detail table below already reads (lines ~1066-1091 — left untouched).
+    $workingHeightRaw      = strtolower(trim((string) ($wizardRisks[0]['working_height'] ?? '')));
+    $workingHeightAboveTwo = in_array($workingHeightRaw, ['2_to_4m', 'over_4m', 'over_2m'], true);
+    // Gated per the 2026-10-10 plan-check decision: the "not recorded" flag
+    // must not fire on a genuinely unstarted room (authorizeSurvey() has no
+    // status gate, so an un-surveyed room is reachable here). Gate chosen:
+    // $hasData — the SAME room-level "has other captured data" signal this
+    // header already computes above for its own badge/border — rather than
+    // survey-wide status, so a half-done multi-room survey still flags only
+    // the specific room where the surveyor was plainly present and skipped
+    // this field, not every room on an unsubmitted survey.
+    $workingHeightMissing  = $workingHeightRaw === '' && $hasData;
+
     $spaceLabels = [
         'general' => 'General AV',
         'pa_system' => 'PA System',
@@ -688,6 +703,19 @@
                     T1 · {{ $t1Room['percent'] }}% · {{ count($t1Room['missing']) }} missing
                 </span>
             @endif
+        @endif
+        {{--
+            Quick task 261010-cdf Part 3: above-2m / missing working-height
+            flags. Colour reuses the existing warning token
+            background:#FEF3C7;color:#92400E; already used verbatim in this
+            same file at line 313 (.status-pill--inprogress) and line 831
+            (the "Additional needed" power badge) — measured contrast ratio
+            6.37:1, comfortably past WCAG AA's 4.5:1 for normal text.
+        --}}
+        @if($workingHeightAboveTwo)
+            <span style="background:#FEF3C7;color:#92400E;padding:.1rem .4rem;border-radius:3px;font-size:.72rem;margin-left:.4rem;font-weight:600;">Working height above 2m</span>
+        @elseif($workingHeightMissing)
+            <span style="background:#FEF3C7;color:#92400E;padding:.1rem .4rem;border-radius:3px;font-size:.72rem;margin-left:.4rem;font-weight:600;">Working height not recorded</span>
         @endif
     </div>
 
