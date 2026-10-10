@@ -62,7 +62,7 @@ class SurveyController extends Controller
         // 260602-mlt — project.latestPackage powers the header "Site contact"
         // line (sourced from extracted_data['ship_contact'/'ship_phone']) so
         // the @php block in show.blade.php doesn't trigger an N+1.
-        $survey->load(['rooms.photos', 'rooms.questions', 'project.referenceFiles', 'project.latestPackage']);
+        $survey->load(['rooms.photos', 'rooms.questions', 'project.referenceFiles', 'project.latestPackage', 'project.deliverables']);
 
         $payload = $survey->survey_data;
 
@@ -79,13 +79,10 @@ class SurveyController extends Controller
         // each stepSave step=0 mid-session). Coalesce to canonical JSON for
         // in-flight wizard sessions before submit, then to defaults.
         $engineerFeedbackSite = [
-            'comms_room_access_status' => $survey->comms_room_access_status ?? ($payload['engineer_feedback_site']['comms_room_access_status'] ?? ''),
-            'comms_room_access_notes'  => $survey->comms_room_access_notes  ?? ($payload['engineer_feedback_site']['comms_room_access_notes']  ?? ''),
             'parking_restraints'       => $survey->parking_restraints       ?? ($payload['engineer_feedback_site']['parking_restraints']       ?? ''),
-            'distance_from_base_miles' => $survey->distance_from_base_miles ?? ($payload['engineer_feedback_site']['distance_from_base_miles'] ?? null),
-            'distance_from_base_notes' => $survey->distance_from_base_notes ?? ($payload['engineer_feedback_site']['distance_from_base_notes'] ?? ''),
             'site_access_notes'        => $survey->site_access_notes        ?? ($payload['engineer_feedback_site']['site_access_notes']        ?? ''),
             'delivery_routes'          => $survey->delivery_routes          ?? ($payload['engineer_feedback_site']['delivery_routes']          ?? ''),
+            'general_notes'            => $survey->general_notes            ?? ($payload['engineer_feedback_site']['general_notes']            ?? ''),
         ];
 
         return view('surveys.show', [
@@ -95,6 +92,10 @@ class SurveyController extends Controller
             'readonly'             => $survey->isLockedForEngineer(),
             'superseded'           => $survey->isSuperseded(),
             'engineerFeedbackSite' => $engineerFeedbackSite,
+            // 46.8-03 D-01 — read-only RAMS-required state for the engineer link,
+            // sourced from the office's own ProjectDeliverable tick. Requires
+            // project.deliverables to be eager-loaded above or this is always null.
+            'ramsRequired'         => $survey->project?->deliverableState(\App\Models\ProjectDeliverable::KEY_RAMS),
             // Plan 46-05 — the office send-back banner. This is the ENGINEER's
             // own link, so the reason IS passed: they are the person being
             // asked, and asking without saying what for is how a second
@@ -197,13 +198,10 @@ class SurveyController extends Controller
             // Captured once per visit on the rooms-list screen via stepSave step=0,
             // mirrored to SiteSurvey DB columns by writeEngineerFeedbackSiteToColumns.
             'engineer_feedback_site' => [
-                'comms_room_access_status' => '',
-                'comms_room_access_notes'  => '',
                 'parking_restraints'       => '',
-                'distance_from_base_miles' => null,
-                'distance_from_base_notes' => '',
                 'site_access_notes'        => '',
                 'delivery_routes'          => '',
+                'general_notes'            => '',
             ],
         ];
     }
@@ -627,10 +625,6 @@ class SurveyController extends Controller
             $site = $data['engineer_feedback_site'] ?? null;
             if ($site !== null && ! is_array($site)) {
                 return 'engineer_feedback_site payload is invalid.';
-            }
-            $crs = $site['comms_room_access_status'] ?? '';
-            if ($crs !== '' && $crs !== null && ! in_array($crs, ['yes','no','outsourced','unknown'], true)) {
-                return 'Invalid comms_room_access_status value.';
             }
             return null;
         }
@@ -1114,15 +1108,11 @@ class SurveyController extends Controller
     private function normalizeEngineerFeedbackSite(mixed $site): array
     {
         $site = is_array($site) ? $site : [];
-        $crs  = $site['comms_room_access_status'] ?? '';
         return [
-            'comms_room_access_status' => in_array($crs, ['yes','no','outsourced','unknown'], true) ? $crs : '',
-            'comms_room_access_notes'  => mb_substr((string) ($site['comms_room_access_notes']  ?? ''), 0, 2000),
             'parking_restraints'       => mb_substr((string) ($site['parking_restraints']       ?? ''), 0, 2000),
-            'distance_from_base_miles' => $this->numericOrNull($site['distance_from_base_miles'] ?? null),
-            'distance_from_base_notes' => mb_substr((string) ($site['distance_from_base_notes'] ?? ''), 0, 2000),
             'site_access_notes'        => mb_substr((string) ($site['site_access_notes']        ?? ''), 0, 3000),
             'delivery_routes'          => mb_substr((string) ($site['delivery_routes']          ?? ''), 0, 3000),
+            'general_notes'            => mb_substr((string) ($site['general_notes']            ?? ''), 0, 3000),
         ];
     }
 
@@ -1234,13 +1224,10 @@ class SurveyController extends Controller
     private function writeEngineerFeedbackSiteToColumns(SiteSurvey $survey, array $site): void
     {
         $survey->update([
-            'comms_room_access_status' => $site['comms_room_access_status'] ?: null,
-            'comms_room_access_notes'  => $site['comms_room_access_notes']  ?: null,
             'parking_restraints'       => $site['parking_restraints']       ?: null,
-            'distance_from_base_miles' => $site['distance_from_base_miles'],
-            'distance_from_base_notes' => $site['distance_from_base_notes'] ?: null,
             'site_access_notes'        => $site['site_access_notes']        ?: null,
             'delivery_routes'          => $site['delivery_routes']          ?: null,
+            'general_notes'            => $site['general_notes']           ?: null,
         ]);
     }
 

@@ -442,12 +442,12 @@ final class CockpitDocumentFormPresenter
                             //
                             // The OPTION VALUE IS THEREFORE THE SENTENCE, and
                             // all four readers keep rendering exactly what they
-                            // rendered before — a short human string. This is
-                            // the opposite ruling to `comms_room_access_status`
-                            // above, and deliberately so: that column has a
-                            // validator (`in:yes,no,outsourced,unknown`) and
-                            // label maps in two generators, so its stored
-                            // vocabulary wins. This one has neither.
+                            // rendered before — a short human string. (A prior
+                            // revision of this comment contrasted this ruling
+                            // with `comms_room_access_status`'s closed
+                            // vocabulary; that field-map group was removed
+                            // entirely under 46.8 D-02/D-08 — comms room is
+                            // gone from every surface, not just this form.)
                             //
                             // RADIOS, NOT A DROPDOWN — `<select` is still
                             // FORBIDDEN_MARKUP entry 1 and was not needed, so
@@ -528,65 +528,6 @@ final class CockpitDocumentFormPresenter
                             'consumer' => ['file' => 'resources/views/pdf/site-survey/_header-meta.blade.php', 'symbol' => '$survey?->distance_from_base_notes'],
                             'prefill'  => null,
                             'rules'    => ['nullable', 'string', 'max:500'],
-                        ],
-                    ],
-                ],
-                [
-                    'legend' => 'Comms room',
-                    // D-03 / GCW-04 - COMMS ROOM IS ON NO STEP, AND THAT IS
-                    // ABOUT THIS FORM ONLY. The user said "dont need comms
-                    // room" while looking at the OFFICE CREATION FORM. Comms
-                    // room is STILL captured on site through the engineer link,
-                    // STILL renders in the site-survey Word document, and STILL
-                    // rides the survey-to-install carry-forward, where AN
-                    // INSTALLING ENGINEER READS THE SURVEYOR'S COMMS-ROOM
-                    // ACCESS NOTES. Removing it from any of those is a SAFETY
-                    // REGRESSION, not the rest of a job half done.
-                    // `SiteSurveyDocxService`, `pdf/site-survey/_header-meta.blade.php`,
-                    // `PublicSurveyController` and
-                    // `SurveyCarryForwardOnEngineerLinkTest` are UNTOUCHED by
-                    // Phase 46.5 and must stay that way. The group keeps its
-                    // fields and still renders wherever the whole map renders;
-                    // it is only the WIZARD that does not ask.
-                    'step'   => null,
-                    'fields' => [
-                        [
-                            // OPTIONS ARE THE STORED VOCABULARY, not the
-                            // labels the field-form Blade compares against.
-                            // `SiteSurveyController.php:681` validates
-                            // `in:yes,no,outsourced,unknown`, and
-                            // `DocxBuilderService.php:695` /
-                            // `pdf/rams-v2.blade.php:866` map those four to
-                            // labels. `_header-meta.blade.php:66-69` compares
-                            // against 'permission' / 'outsourced' / 'free'
-                            // instead, so its "Permission required" and "Free"
-                            // boxes can never tick — logged as D-46.2-04-02 and
-                            // NOT fixed here. Offering the Blade's vocabulary
-                            // in this map would store a value the validator
-                            // rejects, so the stored set wins.
-                            'key'      => 'comms_room_access_status',
-                            'label'    => 'Comms room access',
-                            'type'     => self::TYPE_RADIO,
-                            'options'  => [
-                                'yes'        => 'Permission required',
-                                'no'         => 'Free access',
-                                'outsourced' => 'Outsourced facilities team',
-                                'unknown'    => 'Status unknown',
-                            ],
-                            'target'   => 'survey.comms_room_access_status',
-                            'consumer' => ['file' => 'resources/views/pdf/site-survey/_header-meta.blade.php', 'symbol' => '$survey?->comms_room_access_status'],
-                            'prefill'  => null,
-                            'rules'    => ['nullable', 'string', 'in:yes,no,outsourced,unknown'],
-                        ],
-                        [
-                            'key'      => 'comms_room_access_notes',
-                            'label'    => 'Comms room notes',
-                            'type'     => self::TYPE_TEXTAREA,
-                            'options'  => null,
-                            'target'   => 'survey.comms_room_access_notes',
-                            'consumer' => ['file' => 'resources/views/pdf/site-survey/_header-meta.blade.php', 'symbol' => '$survey?->comms_room_access_notes'],
-                            'prefill'  => null,
-                            'rules'    => ['nullable', 'string', 'max:2000'],
                         ],
                     ],
                 ],

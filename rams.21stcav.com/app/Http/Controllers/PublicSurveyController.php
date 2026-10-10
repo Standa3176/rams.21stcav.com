@@ -686,7 +686,7 @@ class PublicSurveyController extends Controller
     private function extractSiteEngineerFeedback(array $data): array
     {
         $update = [];
-        foreach (['comms_room_access_status', 'comms_room_access_notes', 'parking_restraints',
+        foreach (['parking_restraints',
                   'distance_from_base_miles', 'distance_from_base_notes', 'site_access_notes',
                   'delivery_routes'] as $field) {
             if (array_key_exists($field, $data)) {
@@ -731,8 +731,6 @@ class PublicSurveyController extends Controller
             // 260503-rgg). Defensive: the wizard normally writes these via
             // stepSave step=0 → DB columns, but a flat-form save endpoint
             // POST should also accept them so external tools can hit /save.
-            'comms_room_access_status'              => ['nullable', 'string', 'in:yes,no,outsourced,unknown'],
-            'comms_room_access_notes'               => ['nullable', 'string', 'max:2000'],
             'parking_restraints'                    => ['nullable', 'string', 'max:2000'],
             'distance_from_base_miles'              => ['nullable', 'numeric', 'min:0', 'max:9999'],
             'distance_from_base_notes'              => ['nullable', 'string', 'max:2000'],
