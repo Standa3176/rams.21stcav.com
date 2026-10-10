@@ -15,8 +15,14 @@ use Illuminate\Support\Facades\Log;
  * GenerateRoomWorksSummariesJob — Phase 46.9.
  *
  * Turns the imported QuoteWerks room scope (sales prose) into engineer-facing
- * install-action bullets, per room, in the background at import time, so the
- * bullets already exist before anyone creates a site survey or a worksheet.
+ * install-action bullets, per room, at import time, so the bullets already
+ * exist before anyone creates a site survey or a worksheet.
+ *
+ * ⚠ RUN MODE: INLINE, not queued (D-12, user decision 2026-10-10). Both
+ * production callers use ::dispatchSync(), so handle() executes in the import
+ * request. The class deliberately still implements ShouldQueue and still
+ * carries $tries/$timeout — see the notes on those properties — so putting it
+ * back on a queue is a one-word change. DO NOT strip ShouldQueue.
  *
  * Modelled line-for-line in shape on GenerateSurveyQuestionsJob. It reuses the
  * EXISTING RoomOverviewSummaryService::summarize() and the EXISTING
@@ -51,15 +57,37 @@ use Illuminate\Support\Facades\Log;
  * creation must never fail because of this feature (D-04). DO NOT let a
  * reviewer "fix" it by rethrowing.
  *
- * Queue: default
- * Retries: 2 (decorative — see above)
- * Timeout: 240s
+ * Queue: none in practice — dispatchSync() runs this in-process (D-12/D-13)
+ * Retries: 0 effective ($tries = 2 is inert under sync, and was decorative anyway)
+ * Timeout: 180s effective, enforced by ClaudeProvider's HTTP timeout, not $timeout
  */
 final class GenerateRoomWorksSummariesJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    /**
+     * ⚠ INERT under the current call sites (D-13). Both production callers —
+     * QuoteImportService::importFromData() and ::completePendingReimport() — use
+     * GenerateRoomWorksSummariesJob::dispatchSync(), which runs handle() in this
+     * process. $tries is a queue-worker concept and a worker never sees this
+     * job, so it retries nothing. It was already decorative even on a queue,
+     * because the whole-body \Throwable catch in handle() means the queue always
+     * sees success. The property is KEPT, not deleted: the class must stay
+     * dispatchable to a queue so reversing the inline decision costs one word.
+     */
     public int $tries   = 2;
+
+    /**
+     * ⚠ ALSO INERT under dispatchSync() (D-13). A queue-worker timeout is
+     * enforced by the worker process, and there is no worker here.
+     *
+     * THE REAL BOUND ON AN INLINE RUN IS THE PROVIDER'S HTTP TIMEOUT:
+     * ClaudeProvider::DEFAULT_TIMEOUT = 180 (:20), applied at :177 via
+     * ->timeout($options['timeout'] ?? self::DEFAULT_TIMEOUT), with no
+     * provider-level retry. AIManager::MAX_ATTEMPTS = 2, so the arithmetic
+     * worst case for the import request is 2 x 180s. Kept at 240 so the value
+     * is still sane if this is ever put back on a queue.
+     */
     public int $timeout = 240;
 
     public function __construct(

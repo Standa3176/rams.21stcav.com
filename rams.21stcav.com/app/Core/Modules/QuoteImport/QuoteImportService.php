@@ -300,7 +300,7 @@ class QuoteImportService
     ): ProjectPackage {
         $extracted = $this->extract($pending->quote_path, $provider);
 
-        return DB::transaction(function () use ($pending, $user, $extracted, $previousRevision) {
+        $package = DB::transaction(function () use ($pending, $user, $extracted, $previousRevision) {
             $pending->update([
                 'extracted_data'    => $extracted,
                 'equipment_list'    => $extracted['equipment_list'] ?? [],
@@ -327,6 +327,34 @@ class QuoteImportService
 
             return $pending->fresh();
         });
+
+        // ── Phase 46.9 (AIB-01, D-15): engineer-friendly room bullets ─────────
+        //
+        // Identical to the call at the end of importFromData() — same inline
+        // dispatchSync(), same placement after the transaction has returned,
+        // same try/catch. This is the re-import path the user asked to "wire it
+        // too" on 2026-10-10, and it is the one genuinely live import path that
+        // Plan 46.9-02 left uncovered (reached from ReimportQuoteJob:86).
+        //
+        // Read the long note at the end of importFromData() for the full
+        // reasoning. In short: inline because the user chose it with the 180s
+        // worst case stated; OUTSIDE the closure because an inline AI call
+        // inside DB::transaction() would hold a database transaction open
+        // across an HTTP request of up to 180 seconds; and a queued
+        // afterCommit() dispatch was rejected because its real push happens in
+        // an untried foreach after the commit, which half-reports the import.
+        // DO NOT move this line inside the closure above.
+        try {
+            GenerateRoomWorksSummariesJob::dispatchSync($package->id);
+        } catch (\Throwable $e) {
+            Log::warning('QuoteImportService: could not run GenerateRoomWorksSummariesJob inline', [
+                'package_id' => $package->id,
+                'error'      => $e->getMessage(),
+                'path'       => 'completePendingReimport',
+            ]);
+        }
+
+        return $package;
     }
 
     // ── Array-based import (test / SQL-import helper) ─────────────────────────
@@ -392,57 +420,56 @@ class QuoteImportService
 
         // ── Phase 46.9 (AIB-01, AIB-04): engineer-friendly room bullets ───────
         //
-        // WHY THE DISPATCH IS HERE, AFTER THE CLOSURE RETURNS, AND WHY IT IS
-        // NOT afterCommit(). Verified against the installed Laravel 12.54.1:
+        // WHY INLINE (D-12, user decision 2026-10-10). This ran as a queued
+        // dispatch when Plan 46.9-02 shipped it (D-02). The user was asked again
+        // once the cost model had been corrected — one AI call per PACKAGE, not
+        // one per room — and chose to "move it inline at import" with the trade
+        // stated to them: the import request now BLOCKS on the AI round trip,
+        // and whoever clicked import feels a slow or hanging provider. The
+        // exposure is bounded, not open-ended: ClaudeProvider::DEFAULT_TIMEOUT
+        // (:20, applied at :177) is 180s and there is no provider-level retry,
+        // so the worst case is a 180s wait per attempt, after which
+        // AIGenerationException puts the rooms on the prose fallback and the
+        // import still succeeds (D-04).
         //
-        //   afterCommit() does not push the job. It makes Queue::enqueueUsing()
-        //   REGISTER A CALLBACK; the real push happens later inside
-        //   DatabaseTransactionRecord::executeCallbacks() (:83-88), which is a
-        //   bare `foreach ($this->callbacks as $callback) { $callback(); }` with
-        //   NO try/catch of its own. And that runs outside every try/catch in
-        //   the transaction method: ManagesTransactions wraps the PDO commit at
-        //   :51-64, but the $this->transactionsManager?->commit(...) call at
-        //   :66-70 — the call that executes those callbacks — sits OUTSIDE it.
+        // WHY IT IS STILL OUTSIDE THE TRANSACTION (D-14). This is now the
+        // stronger of the two reasons: an inline AI call placed INSIDE
+        // DB::transaction() would hold a database transaction open across an
+        // outbound HTTP request of up to 180 seconds, pinning a connection and
+        // its locks for the whole call. DO NOT move this line inside the closure
+        // above. (The original reason also still holds: by the time this line
+        // runs, the project_packages row is committed and readable.)
         //
-        //   Consequence: with afterCommit(), a queue-driver failure throws out
-        //   of transactionsManager->commit(), out of DB::transaction(), and out
-        //   of importFromData() — AFTER the project_packages row has already
-        //   been committed. A try/catch around the dispatch call would be
-        //   wrapping only the CALLBACK REGISTRATION, which cannot fail for this
-        //   reason. The result is a HALF-REPORTED IMPORT: the package exists,
-        //   the request fails. That is strictly worse than AIB-04 and D-04
-        //   promise. DO NOT "simplify" this back to afterCommit().
+        // WHY NOT A QUEUED afterCommit() DISPATCH. Recorded so nobody
+        // reintroduces it: afterCommit() only REGISTERS a callback, and the real
+        // push happens later inside DatabaseTransactionRecord::executeCallbacks()
+        // — a bare untried foreach reached from a commit path that sits outside
+        // DB::transaction()'s own try/catch — so a queue-driver failure would
+        // escape importFromData() AFTER the package row had committed: a
+        // half-reported import (T-46.9-17).
         //
-        //   Dispatching after the closure returns puts the REAL PUSH inside the
-        //   catch below, so AIB-04 is actually deliverable. D-10's intent —
-        //   never let a worker see the package before the commit — is kept, and
-        //   is now held BY CONSTRUCTION rather than by a method call: the
-        //   transaction has already committed by the time this line is reached.
+        // WHY dispatchSync() AND NOT A DIRECT SERVICE CALL (D-12). The job class
+        // owns four guarantees that must not be duplicated: the D-03
+        // office-edit filter, the fresh-read re-check before writing, the
+        // dash-prefix normalisation (C-04), and a whole-body \Throwable envelope
+        // that cannot fail its caller. dispatchSync() runs handle() in-process
+        // through the bus, so all four still apply. The class stays dispatchable
+        // to a queue so reversing this decision costs one word.
         //
-        // WHY NOT RELY ON THE DRIVER ACCIDENT: config/queue.php:44 sets
-        // 'after_commit' => false. SurveyService:234-236 dispatches from inside
-        // its own open transaction and carries a comment relying on the
-        // `database` driver inserting the jobs row in the same transaction. That
-        // works today on one connection and breaks on redis/sqs, or if
-        // DB_QUEUE_CONNECTION (config/queue.php:40) ever points at a second
-        // connection. Copy SurveyService's TRY/CATCH, not its placement. The
-        // global flag is deliberately NOT flipped — ten existing job classes
-        // depend on today's semantics.
+        // WHY THE TRY/CATCH IS KEPT: AIB-04. Nothing about this feature may ever
+        // fail an import — belt and braces over the job's own envelope.
         //
-        // WHY THE TRY/CATCH: AIB-04. A queue outage must not fail an import.
-        //
-        // WHICH PATHS THIS COVERS: the QuoteWerks SQL path only
+        // WHICH PATHS THIS COVERS: the QuoteWerks SQL path
         // (QuoteWerksImportController::lookup():125 →
         // QuoteWerksImportService::importFromParsedShape():61 →
-        // importFromData():346). The PDF-async path is already covered by
-        // ExtractQuoteJob::generateContentPack():217-270. import():57 and
-        // reimport():202 have NO production caller at all.
-        // completePendingReimport():294 is the one genuinely uncovered live path
-        // and is checkpoint item 3 in Plan 46.9-04 — deliberately not wired here.
+        // importFromData()). The PDF-async path is already covered by
+        // ExtractQuoteJob::generateContentPack():217-270. import() and
+        // reimport() have NO production caller at all.
+        // completePendingReimport() is wired identically below (D-15).
         try {
-            GenerateRoomWorksSummariesJob::dispatch($package->id);
+            GenerateRoomWorksSummariesJob::dispatchSync($package->id);
         } catch (\Throwable $e) {
-            Log::warning('QuoteImportService: could not dispatch GenerateRoomWorksSummariesJob', [
+            Log::warning('QuoteImportService: could not run GenerateRoomWorksSummariesJob inline', [
                 'package_id' => $package->id,
                 'error'      => $e->getMessage(),
             ]);
