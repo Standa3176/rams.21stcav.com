@@ -335,13 +335,15 @@ class CockpitWizardEndToEndTest extends TestCase
     // WALK B — THE COMMS-ROOM SAFETY FENCE (GCW-04)
     // =========================================================================
 
-    public function test_walk_b_comms_room_is_removed_from_the_office_form_only(): void
+    public function test_walk_b_comms_room_is_removed_everywhere(): void
     {
         $project = $this->project();
         $this->engineer();
 
         // The wizard's step 1/2 do not ask for it (already proven structurally
-        // in Walk A). Here: the three DOWNSTREAM consumers still carry it.
+        // in Walk A). Here: the downstream consumers no longer carry it either —
+        // 46.8 D-02 overrode 46.5 D-03's decision to keep comms room flowing to
+        // the install engineer through these exact surfaces.
         $survey = app(\App\Core\Modules\Survey\SurveyService::class)
             ->createFromProject($project, $this->user());
         $survey->update([
@@ -349,32 +351,44 @@ class CockpitWizardEndToEndTest extends TestCase
             'comms_room_access_notes'  => 'SENTINEL-COMMS-ROOM-NOTES',
         ]);
 
-        // 1. The engineer link's on-site form STILL asks for comms-room access.
+        // 1. The engineer link's on-site form no longer asks for comms-room access.
         $engineerLink = $this->actingAs($this->user())->get($survey->publicUrl());
         $engineerLink->assertOk();
-        $engineerLink->assertSee('comms_room_access_status', false);
-        $engineerLink->assertSee('comms_room_access_notes', false);
+        $engineerLink->assertDontSee('comms_room_access_status', false);
+        $engineerLink->assertDontSee('comms_room_access_notes', false);
 
-        // 2. The site-survey Word document STILL renders it — the generator's
-        //    OWN contract, per `CockpitDocumentFormPresenter`'s `consumer` map.
+        // 2. The site-survey Word document no longer renders it — the generator's
+        //    field-key is gone from both the docx builder and the PDF header partial.
+        //    Checked as an actual property READ (`->comms_room_access_status`), not
+        //    as a bare substring: `SiteSurveyDocxService.php` deliberately documents
+        //    the removal in a comment that itself names the column (46.8 D-02), and a
+        //    bare substring check would be fooled by its own documentation.
         $source = file_get_contents(app_path('Services/SiteSurveyDocxService.php'));
-        $this->assertStringContainsString('comms_room_access_status', $source);
-        $this->assertStringContainsString('comms_room_access_notes', (string) file_get_contents(
+        $this->assertStringNotContainsString('->comms_room_access_status', $source);
+        $this->assertStringNotContainsString('->comms_room_access_notes', $source);
+        $headerMetaSource = (string) file_get_contents(
             resource_path('views/pdf/site-survey/_header-meta.blade.php'),
-        ));
-
-        // 3. The survey->install carry-forward STILL carries it. Named test,
-        //    run as part of this suite invocation (same gate run) rather than
-        //    duplicated here — asserted present so a rename/removal is a red
-        //    collection error, not a silently skipped file.
-        $this->assertFileExists(
-            base_path('tests/Feature/Worksheets/SurveyCarryForwardOnEngineerLinkTest.php'),
-            'SurveyCarryForwardOnEngineerLinkTest is missing — the comms-room carry-forward guard is gone.',
         );
+        $this->assertStringNotContainsString('comms_room_access_status', $headerMetaSource);
+        $this->assertStringNotContainsString('comms_room_access_notes', $headerMetaSource);
 
-        $carryForwardSource = file_get_contents(base_path('tests/Feature/Worksheets/SurveyCarryForwardOnEngineerLinkTest.php'));
-        $this->assertStringContainsString('SENTINEL-COMMS-ROOM-NOTES', $carryForwardSource);
-        $this->assertStringContainsString('comms_room_access_notes', $carryForwardSource);
+        // 3. The survey->install carry-forward no longer carries it. A direct
+        //    call to the real derivation, rather than sniffing another test
+        //    file's source text — decoupled from how/whether a sibling test
+        //    file happens to assert the same thing.
+        $carryForwardRows = \App\Support\Visits\SurveyCarryForward::forSurvey($survey);
+        $carryForwardKeys = array_column($carryForwardRows, 'key');
+        $this->assertNotContains(
+            'comms_room_access_status',
+            $carryForwardKeys,
+            'SurveyCarryForward::forSurvey() must not carry comms_room_access_status (46.8 D-02).',
+        );
+        $this->assertNotContains(
+            'comms_room_access_notes',
+            $carryForwardKeys,
+            'SurveyCarryForward::forSurvey() must not carry comms_room_access_notes (46.8 D-02).',
+        );
+        $this->assertStringNotContainsString('SENTINEL-COMMS-ROOM-NOTES', json_encode($carryForwardRows));
     }
 
     // =========================================================================

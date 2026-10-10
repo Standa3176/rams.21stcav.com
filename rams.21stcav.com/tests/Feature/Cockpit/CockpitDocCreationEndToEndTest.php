@@ -606,15 +606,12 @@ class CockpitDocCreationEndToEndTest extends TestCase
             'site_contact_phone'       => '07700 900444',
             'general_notes'            => 'Lift access booked.',
             'site_access_notes'        => 'Report to the east gate.',
-            'comms_room_access_status' => 'outsourced',
-            'comms_room_access_notes'  => 'Facilities need 48 hours.',
         ], $pm)->assertRedirect();
 
         $survey = SiteSurvey::where('project_id', $project->id)->whereNull('superseded_at')->sole();
 
         $this->assertSame('Kit Farrow', $survey->surveyor_name);
         $this->assertSame('Report to the east gate.', $survey->site_access_notes);
-        $this->assertSame('outsourced', $survey->comms_room_access_status);
         // The one date reached the column the Word document reads.
         $this->assertSame('2026-10-01', $survey->survey_date?->format('Y-m-d'));
 

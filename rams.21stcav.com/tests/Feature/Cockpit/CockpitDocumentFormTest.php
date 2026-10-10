@@ -927,8 +927,6 @@ class CockpitDocumentFormTest extends TestCase
             'delivery_routes'          => 'Goods lift only.',
             'distance_from_base_miles' => '42',
             'distance_from_base_notes' => 'M1 then A64.',
-            'comms_room_access_status' => 'outsourced',
-            'comms_room_access_notes'  => 'Facilities need 48 hours.',
             'office_review_notes'      => 'Client copy only.',
         ])->assertRedirect();
 
@@ -945,7 +943,6 @@ class CockpitDocumentFormTest extends TestCase
         // date.
         $this->assertSame('2026-10-01', $survey->survey_date?->format('Y-m-d'));
         $this->assertSame('No parking', $survey->parking_restraints);
-        $this->assertSame('outsourced', $survey->comms_room_access_status);
         $this->assertSame('42', (string) $survey->distance_from_base_miles);
         $this->assertSame('Client copy only.', $survey->office_review_notes);
     }

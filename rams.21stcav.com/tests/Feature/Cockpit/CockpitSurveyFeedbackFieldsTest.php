@@ -20,20 +20,35 @@ use Tests\TestCase;
  * `Distance from base` (plus its travel notes) to go, saying: "Remove Delivery
  * routes as this is a survey not install with kit delievery".
  *
- * THAT REASON IS EXACTLY WHY THE CAPTURE STAYS. Delivery routes and distance
- * from base are what the SURVEYOR finds out on site so the INSTALLING engineer
- * has them later. `SurveyCarryForward` is the mechanism that hands them over,
- * and the survey PDF, the Word document and the engineer link all render them.
- * An office PM at creation time does not know any of it.
+ * THAT REASON IS EXACTLY WHY THE CAPTURE STAYS — on the OFFICE FORM side, this
+ * class's ruling is unchanged: the change is ONE INTEGER PER GROUP on the map
+ * — `step => null`, the established mechanism, the same one Comms room used to
+ * use — and NOT a deletion.
  *
- * So the change is ONE INTEGER PER GROUP on the map — `step => null`, the
- * established mechanism, the same one Comms room uses — and NOT a deletion. The
- * five files that read these columns are untouched by design:
+ * ── 46.8 D-01 NARROWED THE ENGINEER-LINK HALF, FOR TWO OF THE THREE ─────────
+ *
+ * `distance_from_base_miles`/`_notes` were SUBSEQUENTLY removed from the live
+ * engineer-link wizard's OWN capture surface (`SurveyController::show()`'s
+ * `$engineerFeedbackSite` seed/normalize/write, rendered by
+ * `resources/views/surveys/show.blade.php`) by 46.8 D-01 — capture-surface-only,
+ * per that decision's own explicit scoping. `delivery_routes` is NOT affected;
+ * it stays on the engineer link (D-07 only relabelled its on-screen text).
+ * Both distance fields are STILL asked by the OTHER public-facing capture path
+ * (`PublicSurveyController::save()`, route `survey.save`) and are STILL carried
+ * to the installing engineer by `SurveyCarryForward` — D-01 is a capture-surface
+ * change on one specific page, not a removal of the columns or their downstream
+ * reads. See `.planning/phases/46.8-survey-capture-refinements/
+ * 46.8-CONTEXT.md` D-01.
+ *
+ * The five files that read these columns are untouched by design, with ONE
+ * documented exception (`SurveyController.php` no longer reads the two
+ * distance fields — see `test_the_five_downstream_readers_still_read_these_
+ * columns()`):
  *
  *   app/Services/SiteSurveyDocxService.php
  *   resources/views/pdf/site-survey/*
  *   app/Http/Controllers/PublicSurveyController.php
- *   app/Http/Controllers/SurveyController.php
+ *   app/Http/Controllers/SurveyController.php (delivery_routes only, as of 46.8 D-01)
  *   app/Support/Visits/SurveyCarryForward.php
  *
  * ── WHY THIS FILE EXISTS RATHER THAN A LINE IN AN EXISTING TEST ─────────────
@@ -51,9 +66,28 @@ class CockpitSurveyFeedbackFieldsTest extends TestCase
 {
     use RefreshDatabase;
 
-    /** The three the office form stopped asking, and the group they moved to. */
+    /** The three the office CREATION FORM stopped asking, and the group they moved to. */
     private const MOVED_KEYS = [
         'delivery_routes',
+        'distance_from_base_miles',
+        'distance_from_base_notes',
+    ];
+
+    /**
+     * Of MOVED_KEYS, the one still captured by the live engineer-link wizard
+     * (`SurveyController`/`surveys/show.blade.php`) after 46.8 D-01.
+     */
+    private const ENGINEER_LINK_KEYS = [
+        'delivery_routes',
+    ];
+
+    /**
+     * Of MOVED_KEYS, the two 46.8 D-01 removed from the engineer-link's OWN
+     * capture surface specifically — still asked by `PublicSurveyController`'s
+     * `survey.save` route and still carried downstream, just not asked on
+     * THIS page any more.
+     */
+    private const ENGINEER_LINK_REMOVED_KEYS = [
         'distance_from_base_miles',
         'distance_from_base_notes',
     ];
@@ -174,11 +208,16 @@ class CockpitSurveyFeedbackFieldsTest extends TestCase
     // ── 2. THE SURVEYOR IS STILL ASKED — RENDERED, NOT INFERRED ────────────
 
     /**
-     * THE HALF THAT MAKES THE REMOVAL SAFE. The live surveyor page is FETCHED
-     * and its markup is searched for all three controls. If a later change
-     * "finishes the job" by taking them out of the field capture, this is red.
+     * THE HALF THAT MAKES THE REMOVAL SAFE — NARROWED BY 46.8 D-01. The live
+     * surveyor page is FETCHED and its markup is searched. `delivery_routes`
+     * must still be on it (D-07 only relabelled the on-screen text). The two
+     * distance-from-base fields must NOT be on it any more — D-01 removed them
+     * from this page's own capture surface specifically — and that absence is
+     * asserted explicitly here (not merely by the field's absence from
+     * `MOVED_KEYS`'s old combined loop) so a later change cannot silently
+     * re-add them without this test noticing.
      */
-    public function test_the_surveyor_is_still_asked_for_all_three_on_the_public_survey_page(): void
+    public function test_the_surveyor_is_still_asked_for_delivery_routes_but_not_distance_from_base(): void
     {
         $project = $this->project();
         $user    = User::find($project->user_id);
@@ -188,7 +227,7 @@ class CockpitSurveyFeedbackFieldsTest extends TestCase
             ->assertOk()
             ->getContent();
 
-        foreach (self::MOVED_KEYS as $key) {
+        foreach (self::ENGINEER_LINK_KEYS as $key) {
             $this->assertStringContainsString(
                 'engineerFeedbackSite.'.$key,
                 $html,
@@ -198,9 +237,18 @@ class CockpitSurveyFeedbackFieldsTest extends TestCase
             );
         }
 
+        foreach (self::ENGINEER_LINK_REMOVED_KEYS as $key) {
+            $this->assertStringNotContainsString(
+                'engineerFeedbackSite.'.$key,
+                $html,
+                "[{$key}] is still on the engineer link's own capture surface. 46.8 D-01 removed it from "
+                .'THIS page specifically (it remains on `survey.save` and in the carry-forward).',
+            );
+        }
+
         // NON-VACUITY: the same page must NOT be the office form. If this
         // assertion ever fails, the fetch above found the wrong page and the
-        // three assertions above proved nothing.
+        // assertions above proved nothing.
         $this->assertStringNotContainsString('cav-qa__form', $html, 'That is the cockpit form, not the surveyor page.');
     }
 
@@ -275,6 +323,16 @@ class CockpitSurveyFeedbackFieldsTest extends TestCase
      * ASSERTED AS SOURCE, because "untouched" is a claim about a diff and a diff
      * is not something a later reader can see. Each file must still contain a
      * read of the columns; deleting the read is the regression.
+     *
+     * `app/Http/Controllers/SurveyController.php` is the ONE exception as of
+     * 46.8 D-01: `distance_from_base_miles` left the engineer-link CAPTURE
+     * surface specifically (seed/normalize/write in this one controller), while
+     * every downstream READER below (the carry-forward, the PDF header, the
+     * office's own `PublicSurveyController`) keeps reading the column —
+     * 46.8-03-SUMMARY confirms this controller's three functions no longer
+     * reference either `distance_from_base_miles` or `distance_from_base_notes`
+     * by name. `delivery_routes` is unaffected everywhere (D-07 relabelled the
+     * on-screen text only; the binding and stored key are unchanged).
      */
     public function test_the_five_downstream_readers_still_read_these_columns(): void
     {
@@ -286,7 +344,10 @@ class CockpitSurveyFeedbackFieldsTest extends TestCase
                 '$survey?->distance_from_base_notes',
             ],
             'app/Http/Controllers/PublicSurveyController.php'       => ['delivery_routes', 'distance_from_base_miles'],
-            'app/Http/Controllers/SurveyController.php'             => ['delivery_routes', 'distance_from_base_miles'],
+            // distance_from_base_miles deliberately absent here — 46.8 D-01
+            // removed it from THIS controller's engineer-link capture surface
+            // only (see class docblock above).
+            'app/Http/Controllers/SurveyController.php'             => ['delivery_routes'],
             'app/Support/Visits/SurveyCarryForward.php'             => ['delivery_routes', 'distance_from_base_miles'],
         ];
 
@@ -309,6 +370,6 @@ class CockpitSurveyFeedbackFieldsTest extends TestCase
             }
         }
 
-        $this->assertSame(10, $checked, 'This proof checked '.$checked.' reads across 5 files.');
+        $this->assertSame(9, $checked, 'This proof checked '.$checked.' reads across 5 files.');
     }
 }

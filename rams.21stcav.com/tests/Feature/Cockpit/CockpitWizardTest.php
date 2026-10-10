@@ -769,20 +769,32 @@ class CockpitWizardTest extends TestCase
     }
 
     /**
-     * COMMS ROOM IS ON NO STEP, AND THEREFORE ON NO SCREEN OF THIS FORM.
+     * COMMS ROOM IS ON NO STEP, AND IS GONE FROM THE MAP ENTIRELY.
      *
-     * 46.5 D-03, asserted where a PM would see it. The group is NOT deleted
-     * from the map, NOT dropped from the Word document, NOT removed from the
-     * on-site capture and NOT taken out of the survey->install carry-forward —
-     * an installing engineer reads the surveyor's comms-room access notes, and
-     * removing it from those is a safety regression. It simply is not asked for
-     * on the office creation form any more.
+     * 46.5 D-03 kept the "Comms room" group on the map (step => null) precisely
+     * because the installing engineer inherited the surveyor's comms-room notes
+     * through the survey->install carry-forward — removing it from the map
+     * would have been a safety regression under THAT decision. 46.8 D-02 was
+     * shown that exact cost and overrode it: comms room is removed everywhere,
+     * including the carry-forward (see `SurveyCarryForward`'s own docblock), so
+     * the map entry it was being kept for no longer has a reason to exist. It
+     * is now asked for on no step AND absent from the map, not merely dormant.
      */
-    public function test_comms_room_is_asked_for_on_no_step_of_the_office_form(): void
+    public function test_comms_room_is_not_asked_anywhere_on_the_office_form(): void
     {
         $project = $this->project();
         $module  = ProjectDeliverable::KEY_SITE_SURVEY;
         $states  = 0;
+
+        // Gone from the map entirely — proven once, before stepping, so the
+        // per-step loop below is proving absence-per-step on top of that, not
+        // merely absence while the group still lingers un-stepped somewhere.
+        $fullMap = CockpitDocumentFormPresenter::documentFieldMap();
+        $this->assertStringNotContainsString(
+            'Comms room',
+            json_encode($fullMap),
+            'The Comms room group is still present in documentFieldMap() output (46.8 D-02 removes it entirely).',
+        );
 
         foreach ($this->wizard()->stepsFor($module) as $step) {
             $form   = $this->docForm($project, $module, ['action' => 'generate', 'step' => $step]);
@@ -801,16 +813,15 @@ class CockpitWizardTest extends TestCase
 
         $this->assertSame(3, $states, 'All three steps were checked for comms room.');
 
-        // AND IT IS STILL IN THE MAP, on no step. Absent from the form is not
-        // absent from the product.
+        // AND IT IS GONE FROM THE MAP, on no step. 46.8 D-02 removed the group
+        // entirely rather than leaving it dormant at step => null.
         $legends = [];
 
-        foreach (CockpitDocumentFormPresenter::documentFieldMap()[$module]['groups'] as $group) {
+        foreach ($fullMap[$module]['groups'] as $group) {
             $legends[$group['legend']] = $group['step'] ?? null;
         }
 
-        $this->assertArrayHasKey('Comms room', $legends, 'The Comms room group was DELETED. It should be step => null.');
-        $this->assertNull($legends['Comms room'], 'Comms room belongs to no step.');
+        $this->assertArrayNotHasKey('Comms room', $legends, 'The Comms room group is still on the map (46.8 D-02 removes it entirely).');
     }
 
     /**

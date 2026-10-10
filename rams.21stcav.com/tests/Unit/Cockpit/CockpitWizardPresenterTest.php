@@ -34,15 +34,25 @@ class CockpitWizardPresenterTest extends TestCase
     private const COMMS_ROOM_LEGEND = 'Comms room';
 
     /**
-     * EVERY GROUP THE WIZARD DELIBERATELY DOES NOT ASK, BY NAME. Two, not one,
-     * since 2026-09-27: the user asked for `Delivery routes`, `Distance from
-     * base` and the travel notes to leave the OFFICE CREATION FORM, and they
-     * left it the same way Comms room did — `step => null` — because
-     * `SurveyCarryForward` carries them to the INSTALLING engineer and the
-     * survey PDF, the Word document and the engineer link all render them. The
-     * surveyor is still asked; the office PM is not.
+     * EVERY GROUP THE WIZARD DELIBERATELY DOES NOT ASK, BY NAME.
      *
-     * NAMED RATHER THAN DERIVED FROM `step === null`, on purpose. A third group
+     * `Comms room` is NOT in this list any more. 46.5 D-03 originally kept it
+     * on the map at `step => null` because `SurveyCarryForward` carried it to
+     * the installing engineer and the survey PDF/Word document/engineer link
+     * all rendered it — "the office form does not ask, but the product still
+     * knows." 46.8 D-02 overrode that: comms room is removed everywhere,
+     * including the carry-forward (see `SurveyCarryForward`'s own docblock),
+     * so the group left the map entirely rather than staying at `step => null`
+     * with nothing left reading it. See `test_the_comms_room_group_is_gone_
+     * from_the_map_entirely()` below.
+     *
+     * `For the install that follows` remains: the user asked for `Delivery
+     * routes`, `Distance from base` and the travel notes to leave the OFFICE
+     * CREATION FORM on 2026-09-27, and `SurveyCarryForward` still carries them
+     * to the installing engineer — the surveyor is still asked; the office PM
+     * is not.
+     *
+     * NAMED RATHER THAN DERIVED FROM `step === null`, on purpose. A group
      * quietly acquiring `step => null` — which is how a field silently stops
      * being asked — must land as a RED TEST here, and it does:
      * `test_exactly_these_groups_are_on_no_step()` asserts set equality.
@@ -50,7 +60,6 @@ class CockpitWizardPresenterTest extends TestCase
      * @var list<string>
      */
     private const STEPLESS_LEGENDS = [
-        'Comms room',
         'For the install that follows',
     ];
 
@@ -176,30 +185,31 @@ class CockpitWizardPresenterTest extends TestCase
         );
     }
 
-    // ── D-03 / GCW-04: Comms room is on NO step, for ANY step number ─────
+    // ── 46.8 D-02: Comms room is gone from the map entirely ──────────────
 
-    public function test_the_comms_room_group_is_returned_by_no_step_at_all(): void
+    public function test_the_comms_room_group_is_gone_from_the_map_entirely(): void
     {
         $presenter = $this->presenter();
 
-        // Non-vacuity first: the group really is on the map, so its absence
-        // from every step cannot pass because it was never there.
+        // The premise that made the OLD test non-vacuous — "the group really
+        // is on the map" — is now FALSE, and must assert as false: 46.8 D-02
+        // removed the group from documentFieldMap() entirely, overriding 46.5
+        // D-03's `step => null` treatment.
         $legends = array_map(
             static fn (array $group): string => $group['legend'],
             $this->mapGroups(self::SITE_SURVEY),
         );
 
-        $this->assertContains(
+        $this->assertNotContains(
             self::COMMS_ROOM_LEGEND,
             $legends,
-            'Comms room left the MAP. D-03 takes it off the office form only — it is still captured on '
-            .'site, still in the Word document, and still on the survey to install carry-forward.',
+            'Comms room is still on the map. 46.8 D-02 removes the group entirely, not just off the office form.',
         );
 
         $probed = 0;
 
-        // Probed far past the real step count on purpose: a hand-typed step
-        // number must not be a way back to a group the decision removed.
+        // Belt-and-braces: no step returns a group by this legend either, now
+        // that the group cannot be found on the map at all.
         foreach (range(0, 9) as $step) {
             foreach ($presenter->groupsForStep(self::SITE_SURVEY, $step) as $group) {
                 $this->assertNotSame(
@@ -216,17 +226,20 @@ class CockpitWizardPresenterTest extends TestCase
     }
 
     /**
-     * EXACTLY TWO GROUPS ARE ON NO STEP, AND THEY ARE THESE TWO.
+     * EXACTLY ONE GROUP IS ON NO STEP, AND IT IS THIS ONE.
      *
      * `step => null` is the mechanism for "the office form does not ask this",
      * and it is also the mechanism by which a field SILENTLY STOPS BEING ASKED.
-     * Set equality is therefore the assertion: a third group acquiring
-     * `step => null` is red here, and so is one of these two acquiring a step.
+     * Set equality is therefore the assertion: a second group acquiring
+     * `step => null` is red here, and so is this one acquiring a step.
      *
-     * The second entry arrived on 2026-09-27 (the user's items 6 and 7), and it
-     * arrived the same way the first did — off this form only. See
-     * `CockpitSurveyFeedbackFieldsTest`, which proves the surveyor is still
-     * asked and the carry-forward still carries.
+     * `Comms room` used to be a second entry here, but 46.8 D-02 removed that
+     * group from the map entirely (see `STEPLESS_LEGENDS`'s own docblock) — it
+     * no longer has a `step` key to be null, so it is no longer counted here.
+     *
+     * This entry arrived on 2026-09-27 (the user's items 6 and 7), off the
+     * office form only. See `CockpitSurveyFeedbackFieldsTest`, which proves the
+     * surveyor is still asked and the carry-forward still carries.
      */
     public function test_exactly_these_groups_are_on_no_step(): void
     {
