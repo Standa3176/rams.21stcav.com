@@ -534,10 +534,12 @@ class RamsDataBuilderService
         // Strict-typed scalars so the Blade template can rely on string types
         // for every field. distance_from_base_miles is left as null/scalar so
         // numeric comparisons in the view don't get tripped up by ''.
+        // comms_room_access_status/_notes are deliberately excluded below —
+        // 46.8 D-02 removed comms room from the RAMS data feed. Even if a
+        // stale caller still supplies these keys in $sl, they must never be
+        // re-introduced into the normalised output.
         $sl = is_array($data['site_logistics'] ?? null) ? $data['site_logistics'] : [];
         $data['site_logistics'] = [
-            'comms_room_access_status' => (string) ($sl['comms_room_access_status'] ?? ''),
-            'comms_room_access_notes'  => (string) ($sl['comms_room_access_notes']  ?? ''),
             'parking_restraints'       => (string) ($sl['parking_restraints']       ?? ''),
             'distance_from_base_miles' => $sl['distance_from_base_miles'] ?? null,
             'distance_from_base_notes' => (string) ($sl['distance_from_base_notes'] ?? ''),

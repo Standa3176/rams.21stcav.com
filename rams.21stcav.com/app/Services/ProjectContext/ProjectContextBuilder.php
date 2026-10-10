@@ -86,9 +86,10 @@ class ProjectContextBuilder
 
         // Attach site-level engineer feedback (NOT in survey_data JSON — these
         // live on the SiteSurvey model columns added in quick task 260503-rgg).
+        // comms_room_access_status/_notes are deliberately NOT attached here —
+        // 46.8 D-02 removed comms room from the RAMS data feed; the columns
+        // remain on SiteSurvey and are never read by this builder (D-03).
         $context['site_logistics'] = [
-            'comms_room_access_status' => (string) ($survey->comms_room_access_status ?? ''),
-            'comms_room_access_notes'  => (string) ($survey->comms_room_access_notes  ?? ''),
             'parking_restraints'       => (string) ($survey->parking_restraints       ?? ''),
             'distance_from_base_miles' => $survey->distance_from_base_miles, // may be null
             'distance_from_base_notes' => (string) ($survey->distance_from_base_notes ?? ''),
