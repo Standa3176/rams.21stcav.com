@@ -97,3 +97,39 @@ Nothing from the plan's three tasks was left undone. All `must_haves.truths`, `a
 - `6f290670` — feat(rams): flag above-2m and missing working height on survey review
 
 No push, no deploy — local commits only, as instructed.
+
+---
+
+## ⚠ THE OPEN QUESTION IS NOW ANSWERED — 2026-10-10. DO NOT RE-RAISE IT.
+
+**Question:** should `over_4m` make MEWP **mandatory** rather than "if required"?
+
+**The user's answer, verbatim:** *"if required"*
+
+**So: NO CODE CHANGE.** `RiskTemplateResolverService` keeps
+`$allAccessEquip[] = 'MEWP (if required)';` exactly as it stands, and `2_to_4m` and `over_4m`
+continue to produce identical access-equipment output. This was deliberately deferred during
+execution as safety **content** rather than a defect, put to the user, and answered. It is settled —
+a later agent should not re-open it as an apparent inconsistency.
+
+## ⚠ ALSO SETTLED: NO DOCUMENTS NEEDED REISSUING, AND MY FRAMING WAS WRONG
+
+I told the user that *"every RAMS generated from those four surveys carries no working-at-height
+hazard"*. **That was an overstatement and it was corrected.** I reasoned from the broken code path
+to the documents without inspecting the documents.
+
+Measured on live, 2026-10-10: six rooms across surveys 15/17/22/23 (projects 63/64/65/66) carried
+`2_to_4m`; none carried `over_4m`. The seven live RAMS on those projects — 55, 57, 61, 87, 89, 91,
+62, oldest 13 April — **all contain a working-at-height hazard and a hard hat.**
+
+**Why:** the SECOND, independent `engineer_feedback`-driven working-at-height branch
+(`RiskTemplateResolverService` ~`:470-513`) was never affected by the bug and was covering them.
+
+⚠ **The bug was still real and the fix still matters.** The room-risk path genuinely produced
+nothing for `2_to_4m`/`over_4m`; it merely happened not to bite on these seven because the other
+path fired. That is luck, not design — a survey where the engineer-feedback route does not populate
+would have produced an exposed document.
+
+⚠ **Evidence limit, stated honestly:** the check was a string match across each stored document. It
+rules out a document missing the hazard entirely; it does not prove any individual room's wording is
+ideal, nor which branch produced it.
