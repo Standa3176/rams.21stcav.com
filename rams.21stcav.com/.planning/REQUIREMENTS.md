@@ -810,7 +810,7 @@ after).
   `works_summary` is persisted** — only the `_summary_fallback` marker — and that the imported prose
   survives for the derived-bullet fallback.
   ⚠️ **CORRECTION to the wording minted at planning time.** This row originally said the dispatch is
-  a queued `->afterCommit()` dispatch, per D-10. **There is no queued dispatch at all any more**
+  a queued `afterCommit()` dispatch, per D-10. **There is no queued dispatch at all any more**
   (D-12, inline), and a queued `afterCommit()` one must never be reintroduced:
   `afterCommit()` only *registers* a callback; the real push then happens inside
   `DatabaseTransactionRecord::executeCallbacks()` — a bare untried `foreach` — reached from
