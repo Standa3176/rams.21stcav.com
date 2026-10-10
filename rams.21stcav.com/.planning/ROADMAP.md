@@ -1076,6 +1076,14 @@ into scheduling or project management.
 
 **UI hint**: minimal — the bullets render through surfaces that already exist.
 
+**Plans:** 4 plans in 4 waves (planned 2026-10-10)
+
+Plans:
+- [ ] 46.9-01-PLAN.md — Mint Group AIB; build `GenerateRoomWorksSummariesJob` with the D-03 filter, RED-first
+- [ ] 46.9-02-PLAN.md — Dispatch `->afterCommit()` from `importFromData()` in a try/catch; prove dispatch and handle the sync-queue hazard
+- [ ] 46.9-03-PLAN.md — Render all five non-vacuity states on the engineer link; assert the C-04 worksheet dash invariant; re-measure every suite
+- [ ] 46.9-04-PLAN.md — BLOCKING human checkpoint: the wrong D-02 cost figure, D-11, the two reimport paths, and two deferred surfaces
+
 **Inserted 2026-10-10.**
 
 ### Phase 47: Cockpit — Links, Visits and Returns
