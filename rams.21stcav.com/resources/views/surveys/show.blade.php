@@ -418,48 +418,22 @@
                 Capture once per visit — feeds RAMS, install programme, and access planning.
             </p>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-                <div>
-                    <label class="block text-xs font-semibold text-gray-700 mb-1">Comms Room Access</label>
-                    <select x-model="engineerFeedbackSite.comms_room_access_status"
-                            :disabled="readonly"
-                            class="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-base
-                                   focus:outline-none focus:ring-2 focus:ring-brand-teal min-h-[44px]">
-                        <option value="">— Select —</option>
-                        <option value="yes">Yes — engineer needs permission</option>
-                        <option value="no">No — open access</option>
-                        <option value="outsourced">Outsourced (third-party)</option>
-                        <option value="unknown">Unknown</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-gray-700 mb-1">Distance from Base (miles)</label>
-                    <input type="number" min="0" max="9999" step="0.1"
-                           x-model.number="engineerFeedbackSite.distance_from_base_miles"
-                           :disabled="readonly"
-                           placeholder="e.g. 47.5"
-                           class="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-base
-                                  focus:outline-none focus:ring-2 focus:ring-brand-teal min-h-[44px]">
-                </div>
+            {{-- 46.8-03 D-01 — read-only RAMS-required state, sourced from the
+                 office's own ProjectDeliverable tick (Project::deliverableState()).
+                 No <select>, no click handler — the decision belongs to the office. --}}
+            @php
+                $ramsRequiredLabels = [
+                    \App\Models\ProjectDeliverable::STATE_REQUIRED     => 'RAMS required',
+                    \App\Models\ProjectDeliverable::STATE_NOT_REQUIRED => 'RAMS not required',
+                    \App\Models\ProjectDeliverable::STATE_NOT_YET_DECIDED => 'RAMS: not yet decided',
+                ];
+                $ramsRequiredLabel = $ramsRequiredLabels[$ramsRequired] ?? 'RAMS: not yet decided';
+            @endphp
+            <div class="bg-amber-50 border border-amber-200 rounded-2xl p-3 text-xs text-amber-800 font-semibold mb-3">
+                {{ $ramsRequiredLabel }}
             </div>
 
             <div class="space-y-3">
-                <div>
-                    <label class="block text-xs font-semibold text-gray-700 mb-1">Comms Room Access — Notes</label>
-                    <textarea x-model="engineerFeedbackSite.comms_room_access_notes"
-                              :disabled="readonly" rows="2" maxlength="2000"
-                              placeholder="e.g. Permit required 48h notice; key from FM desk Mon-Fri 9-5"
-                              class="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm
-                                     focus:outline-none focus:ring-2 focus:ring-brand-teal"></textarea>
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-gray-700 mb-1">Route / Travel Notes</label>
-                    <textarea x-model="engineerFeedbackSite.distance_from_base_notes"
-                              :disabled="readonly" rows="2" maxlength="2000"
-                              placeholder="e.g. M25 J7 then 12mi A23; allow 2h in rush hour"
-                              class="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm
-                                     focus:outline-none focus:ring-2 focus:ring-brand-teal"></textarea>
-                </div>
                 <div>
                     <label class="block text-xs font-semibold text-gray-700 mb-1">Parking Restraints</label>
                     <textarea x-model="engineerFeedbackSite.parking_restraints"
@@ -477,7 +451,18 @@
                                      focus:outline-none focus:ring-2 focus:ring-brand-teal"></textarea>
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-gray-700 mb-1">Delivery Routes</label>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Other notes</label>
+                    <textarea x-model="engineerFeedbackSite.general_notes"
+                              :disabled="readonly" rows="2" maxlength="3000"
+                              placeholder="e.g. Anything else the office should know"
+                              class="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm
+                                     focus:outline-none focus:ring-2 focus:ring-brand-teal"></textarea>
+                </div>
+                <div>
+                    {{-- D-07 — relabelled from "Delivery Routes" to "Site delivery info";
+                         re-purposed to capture the PROCESS for getting hardware onto site.
+                         Binding and stored key (delivery_routes) are UNCHANGED. --}}
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Site delivery info</label>
                     <textarea x-model="engineerFeedbackSite.delivery_routes"
                               :disabled="readonly" rows="3" maxlength="3000"
                               placeholder="e.g. Deliveries to bay 4, 7am-11am; contact Site Manager 0207… 1h before arrival"
@@ -2044,9 +2029,8 @@ function surveyWizard() {
             // autosave via stepSave step=0. Independent timer so typing in
             // Site Logistics never collides with per-room section saves.
             const siteFields = [
-                'comms_room_access_status', 'comms_room_access_notes',
-                'parking_restraints', 'distance_from_base_miles', 'distance_from_base_notes',
-                'site_access_notes', 'delivery_routes',
+                'parking_restraints',
+                'site_access_notes', 'delivery_routes', 'general_notes',
             ];
             siteFields.forEach(f => {
                 this.$watch(`engineerFeedbackSite.${f}`, () => this.debouncedAutosaveSite());
