@@ -679,10 +679,21 @@ Each is **recorded in the admin Hidden Functions register**, not forgotten:
 
 ### Group AIB — AI engineer-friendly scope bullets (Phase 46.9)
 
-**Minted PROPOSED at planning time, 2026-10-10, from D-01..D-11 in
-`46.9-CONTEXT.md`; evidence is filled in by Plan 46.9-03, not here.** Five requirements, not
-eleven — three decisions deliberately mint nothing, and that is recorded here so a future agent does
-not re-derive them as gaps:
+**Minted PROPOSED at planning time, 2026-10-10; evidence filled in 2026-10-10 at Plan 46.9-03
+after Waves 1 and 2 shipped and every gate below was re-measured for real in the foreground.**
+Five requirements, not eleven — three decisions deliberately mint nothing, and that is recorded
+here so a future agent does not re-derive them as gaps. Four of the five (AIB-01, AIB-02, AIB-04,
+AIB-05) are **DELIVERED**; **AIB-03** is **DELIVERED BUT UNSETTLED** — it genuinely ships and is
+proven on rendered output, but D-11 (memo-less rooms generate nothing) is explicitly the user's
+call to overturn. **None of the five is confirmed settled until the phase's blocking checkpoint
+(Plan 46.9-04) is answered — do not treat this section as closed.**
+
+Re-measured this session, not inherited: `tests/Feature/Surveys` **88 passed / 717 assertions**,
+`tests/Feature/Worksheets` **273 passed / 2367 assertions**, `tests/Feature/Cockpit` **462 passed /
+9167 assertions**, D-06 `-Baseline` **159 passed / 0 failed / 2 skipped**, `-Hashes` all three
+MATCH `4abd2b24`. No pinned count moved (`SurveyLinkBrandingTest` 8/159,
+`SurveyRoomCaptureRefinementsTest` 9/38, `WorksheetShowViewParityTest` 5/17 — identical before and
+after).
 
 - **D-01 and D-07 mint no requirement.** The bullet shape is already shipped behaviour.
   `app/Core/AI/Prompts/RoomOverviewSummaryPrompt.php:52-62` already carries `BULLET RULES:`, already
@@ -700,22 +711,115 @@ not re-derive them as gaps:
 - **AIB-01** — A queued job fills an **empty** per-room `works_summary` from the room's imported
   `overview` at import time, reusing the existing `RoomOverviewSummaryService::summarize()` and the
   existing `RoomOverviewSummaryPrompt`. The imported original is kept untouched (D-02, D-05, D-07).
-  **Status: PROPOSED.**
+  **DELIVERED** — `App\Jobs\GenerateRoomWorksSummariesJob`, dispatched from
+  `QuoteImportService::importFromData()`. Proven at three levels:
+  `GenerateRoomWorksSummariesJobTest::test_a_room_with_no_works_summary_key_and_prose_gets_ai_bullets`
+  (stored state), `GenerateRoomWorksSummariesDispatchTest::test_an_import_dispatches_exactly_one_job_carrying_the_new_package_id`
+  (the wiring, exactly one job, not "at least one"), and — the only one that proves an engineer sees
+  anything — `SurveyPlannedActionsBulletsTest::test_state_1_ai_bullets_reach_the_rendered_engineer_link`,
+  which runs the job and asserts the bullet text in `_ctx['planned_actions']` **and** in the raw
+  response body of the real `route('survey.show')`. The same test asserts D-05 by re-reading the
+  stored `overview` byte-identical. ⚠️ **Finding, asserted rather than glossed**: the rendered
+  `planned_actions_source` comes back **`'office'`, not `'ai'`** —
+  `SurveyController:491` labels ANY non-empty `works_summary` 'office' regardless of author, so
+  **the engineer link cannot distinguish AI bullets from office bullets.** Out of scope by the phase
+  fence (threat `T-46.9-12`, disposition ACCEPT/SURFACED); it is checkpoint material for the user,
+  and it is now pinned by an assertion so changing it is a visible decision. ⚠️ **Not every import
+  path dispatches**: `completePendingReimport():294` (live, reached from `ReimportQuoteJob:86`) does
+  not — about three lines, deliberately left as the user's call (C-06).
 - **AIB-02** — The job **never overwrites an office-authored `works_summary`**, and specifically
   cannot be wiped by either of `RoomOverviewSummaryService`'s two wipe paths: the unfiltered
   `array_map` at `:72-84` whose `else` (`:78-82`) assigns an unconditionally-empty
   `fallbackSummary()` (`:117-121`) **even when the AI call succeeds**, and the empty-overview
   short-circuit at `:47-55`. The row filter is the **job's** responsibility, not the service's
-  (D-03). **Status: PROPOSED.**
+  (D-03). **DELIVERED** — and the premise is proven, not assumed. Both wipes are **reproduced by
+  direct service call** so the filter is demonstrably load-bearing rather than decorative:
+  `GenerateRoomWorksSummariesJobTest::test_the_service_wipes_an_office_summary_on_the_ai_success_path_lines_72_to_84`
+  (with a **working** provider — the wipe fires even when the AI succeeds) and
+  `::test_the_service_wipes_an_office_summary_via_the_no_overview_short_circuit_lines_47_to_55`
+  (a lone memo-less row, provider `expects($this->never())`). The protection is then asserted on
+  **rendered** output by
+  `SurveyPlannedActionsBulletsTest::test_state_2_office_authored_bullets_are_byte_identical_on_the_rendered_link`,
+  whose three-room fixture (office / prose / empty-overview) is built to reproduce the dangerous
+  state rather than a safe one, and which asserts the sibling really was generated — otherwise the
+  test would prove only that a job which did nothing changed nothing. The job re-checks on a
+  **fresh** read of `extracted_data` before writing, so an office save concurrent with the job also
+  wins. **Status: DELIVERED.**
 - **AIB-03** — A room whose imported `overview` is **empty** gets **nothing generated**, still
   renders derived bullets on the engineer link, and the job **never adds a room row** that the
-  office's curated view does not have (D-11, D-09). **Status: PROPOSED.**
+  office's curated view does not have (D-11, D-09). **DELIVERED BUT UNSETTLED** — it ships and is
+  proven, but D-11 is the user's call to overturn at the Plan 46.9-04 checkpoint, so the behaviour
+  is correct-as-decided rather than settled. Evidence:
+  `SurveyPlannedActionsBulletsTest::test_state_3_a_memo_less_room_generates_nothing_and_still_renders_derived_bullets`
+  — runs the job with a provider bound `expects($this->never())` on both `execute()` and
+  `completeJson()` (so "nothing generated" is proven by the AI never being **asked**, not merely by
+  an unchanged row), then asserts on the rendered link that
+  `_ctx['planned_actions_source'] === 'derived'` and `_ctx['planned_actions']` is non-empty.
+  ⚠️ **Deliberately NOT asserted via the string `Install actions (from scope notes)`.**
+  `surveys/show.blade.php:600` is an `x-text` **ternary** that ships **both** branches as literal
+  text on every render, for every room, in every state, so that assertion cannot fail. The
+  pre-existing `SurveyPlannedActionsBulletsTest::test_the_rendered_page_carries_the_derived_qualifier_markup`
+  was a **fake green** for exactly that reason and has been **strengthened** to assert the
+  state-dependent `_ctx` values plus the ternary's real behaviour. D-09 (never add a row) is proven
+  by `GenerateRoomWorksSummariesJobTest::test_a_room_with_an_empty_overview_generates_nothing_and_the_ai_is_never_asked`
+  and by the job's `array_key_exists($index, $freshRooms)` guard.
 - **AIB-04** — AI unavailability, a 429, a timeout or a hard failure **never** breaks an import or a
-  document creation: the job swallows every `\Throwable` after logging, and the dispatch is
-  `->afterCommit()` inside its own try/catch (D-04, D-06, D-10). **Status: PROPOSED.**
+  document creation: the job swallows every `\Throwable` after logging, and the dispatch sits in its
+  own try/catch (D-04, D-06, D-10). **DELIVERED** —
+  `SurveyPlannedActionsBulletsTest::test_state_4_with_the_ai_unavailable_the_link_still_renders_bullets`
+  binds a provider that throws on both call shapes, runs the job (which must not raise), and asserts
+  on the **rendered** engineer link that bullets are still shown via the derived path, that
+  `_summary_fallback` was persisted, and that **no empty `works_summary` was persisted as content**.
+  The import side is
+  `GenerateRoomWorksSummariesDispatchTest::test_a_real_push_failure_does_not_fail_the_import`, which
+  was shown to go **RED** when the dispatch is moved back inside the transaction — and whose first
+  assertion is that the probe was reached at `push()` time, so it cannot be made green at a mere
+  registration step.
+  ⚠️ **CORRECTION to the wording minted at planning time.** This row originally said the dispatch is
+  `->afterCommit()`, per D-10. **It is not, deliberately, and must not be "fixed" to be.**
+  `afterCommit()` only *registers* a callback; the real push then happens inside
+  `DatabaseTransactionRecord::executeCallbacks()` — a bare untried `foreach` — reached from
+  `ManagesTransactions`' `$this->transactionsManager?->commit(...)`, which sits **outside** that
+  method's own try/catch. A queue failure would therefore escape `importFromData()` **after** the
+  `project_packages` row had committed, producing a half-reported import, and the try/catch would be
+  wrapping only the registration. D-10's **intent** (a worker must never read an uncommitted row) is
+  instead held **by construction**: the dispatch is placed after `DB::transaction()` has already
+  returned. There is **zero** `->afterCommit()` call site in `app/`, and
+  `config/queue.php`'s global `after_commit` flag was **not** flipped. Proven by
+  `::test_the_push_happens_only_once_the_package_row_is_committed`, which observes
+  `DB::transactionLevel()` at real `push()` time through a probe queue driver (`Queue::fake()`
+  cannot see push-time state, and passes identically in both placements — which is why it is not the
+  seam used).
 - **AIB-05** — Every generated bullet line is **dash-prefixed**, so a line that renders on the
-  survey cannot silently vanish from the worksheet, whose builder discards non-dashed lines
-  (`WorksheetGeneratorService:111,174`) (C-04). **Status: PROPOSED.**
+  survey cannot silently vanish from the worksheet (C-04). **DELIVERED** — the job's `dashPrefix()`
+  normalises **every** non-empty line to `"- "` rather than discarding non-dashed AI output (which
+  would throw usable content away and leave the room with nothing); it is visually free because
+  `WorksheetGeneratorService:578` strips the dash again. Proven by
+  `GenerateRoomWorksSummariesJobTest::test_non_dashed_ai_lines_are_normalised_so_the_worksheet_cannot_discard_them`,
+  and the **invariant it protects** is asserted on rendered output in both directions by the new
+  `WorksheetWorksSummaryDashInvariantTest`:
+  `::test_a_dashed_block_renders_on_the_worksheet_and_a_non_dashed_block_is_discarded` (the
+  server-rendered `<li>` count derived from the fixture, after asserting the Outstanding Items block
+  — the only other user of that `<li>` style — is absent) and
+  `::test_the_same_non_dashed_block_still_renders_on_the_survey_engineer_link`, which is what makes
+  it a cross-surface **asymmetry** rather than a mere absence. Both were shown to go **RED** when
+  the block gate at `:111` is removed.
+  ⚠️ **CORRECTION to C-04 and to the wording minted above.** `:111`/`:174` do **not** discard "any
+  line not dash-prefixed". They gate the whole **BLOCK**
+  (`str_starts_with($bull, '- ') || str_contains($bull, "\n- ")`); once a block passes, `:573-579`
+  keeps **every** non-empty line and merely strips a leading `-`/`•`. The real failure mode is
+  coarser and worse than described: **a block with no dashed line anywhere is dropped IN FULL.**
+  `WorksheetWorksSummaryDashInvariantTest::test_a_mixed_block_with_one_dashed_line_is_admitted_in_full`
+  is the discriminating test — it passes under the block reading and fails under the per-line one.
+  The behaviour built satisfies both readings, so no code changed; the citation is corrected so it
+  is not inherited again.
+  ⚠️ **Unrelated pre-existing defect found while writing that test, NOT fixed (no production change
+  is in this phase's scope):** if the install-step AI call fails or returns nothing,
+  `WorksheetGeneratorService:543` assigns the **array** from `buildPhasedPlan():772` to
+  `install_steps`, and `worksheets/show.blade.php:587` does `{{ $room['install_steps'] }}` with no
+  array handling — so the worksheet page returns **HTTP 500** (`htmlspecialchars(): Argument #1
+  ($string) must be of type string, array given`) whenever the AI is unavailable. Reproduced
+  exactly. Needs its own quick task.
 
 ### Group LNK -- Cockpit links, visits and returns (Phase 47)
 
