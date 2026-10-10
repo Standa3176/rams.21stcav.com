@@ -180,3 +180,39 @@ D-06 baseline gate is `>= 159 passed AND 0 failed` — never equality against 16
 <output>
 Create `.planning/quick/261010-foa-add-the-missing-room-name-inclusion-guar/261010-foa-SUMMARY.md` when done, quoting the RED failure output (before the controller edit) and the GREEN pass output (after), plus the foreground Worksheets-suite and baseline counts actually measured.
 </output>
+
+---
+
+## ⚠ CORRECTION ADDED 2026-10-10 — THE OFFLINE-DRAIN RATIONALE CITES THE WRONG FILE
+
+The objective's accept-the-risk reasoning for the renamed-room case rests on
+`resources/views/partials/_engineer-offline-capture.blade.php:278-283` and describes 413/415/422 as
+**terminal — row deleted, photo discarded**. **That file does not govern this endpoint, and the
+behaviour described is not what happens.** I verified the wrong file and said so to the user; this
+note corrects both.
+
+**The shared partial is included ONLY by `resources/views/surveys/show.blade.php`** — the SURVEY
+engineer link. The **worksheet** page, which actually fires `POST /worksheet/{token}/photos`, defines
+its **own** `OfflineQueue.drain` at `resources/views/worksheets/public-show.blade.php:3434`, and on a
+non-2xx it does the opposite of discarding (`:3531-3542`):
+
+- `row.attemptCount++`, `row.lastError = body.message || resp.statusText`, then **`_updateRow(row)`**
+  — **the row is KEPT, never deleted.**
+- After three attempts a **generic** toast fires: *"N upload(s) failed after retries — tap the
+  pending chip to review"*. The **real** message reaches the engineer only in the pending panel.
+- That file's own comment shows this is deliberate: *"shows the engineer WHY — 'Unprocessable
+  Content' tells them nothing, and the panel renders lastError verbatim."*
+
+**So the true trade-off is better in one way and worse in another:**
+- ✅ **No photo loss.** A refused photo stays in the local queue and can be retaken or removed.
+- ✅ The server's message (**"Unknown room name."**) IS surfaced — in the panel, not the toast.
+- ⚠ **It retries indefinitely** and re-fires the generic toast on every drain (app load, `online`
+  event, manual retry) until someone acts.
+
+**This introduces NO new mechanism.** `addAdditionalKit` already returns the same refusal through the
+same drain, so a renamed-room kit row behaves identically today. `uploadPhoto` is being brought into
+parity, not given novel behaviour.
+
+**Instruction to the executor: cite `worksheets/public-show.blade.php:3434-3542` — NOT the surveys
+partial — and describe the behaviour as retain-and-retry-with-a-buried-message, not discard.** Do not
+repeat the wrong citation in the SUMMARY. **Do not change the drain** — that is out of scope here.
