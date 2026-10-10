@@ -332,7 +332,12 @@ class RiskTemplateResolverService
      *       "name":       string,
      *       "activities": string[],   // controlled vocabulary
      *       "risks": [{
-     *         "working_height":      string,   // "over_2m" | "under_2m" | "ground_level" | ""
+     *         "working_height":      string,   // "under_2m" | "2_to_4m" | "over_4m" (current
+     *                                           // engineer-wizard vocabulary, enforced
+     *                                           // server-side in SurveyController) or the
+     *                                           // legacy "over_2m" (no longer written, kept
+     *                                           // for backward compatibility with historical
+     *                                           // data) | ""
      *         "out_of_hours":        bool,
      *         "permits_required":    bool,
      *         "manual_handling_risk": bool,
@@ -353,7 +358,10 @@ class RiskTemplateResolverService
      * }
      *
      * Hazard rules (per room):
-     *   working_height = "over_2m"   → "Working at height" + hard hat + ladder/tower/MEWP
+     *   working_height = "over_2m" | "2_to_4m" | "over_4m"
+     *                                 → "Working at height" + hard hat + ladder/tower/MEWP
+     *                                   ("2_to_4m" and "over_4m" resolve to the same
+     *                                   high-tier branch as the legacy "over_2m")
      *   working_height = "under_2m"  → "Working at height (low level)" + hard hat
      *   cable_installation activity  → "Trip hazard from cables"
      *   manual_handling_risk = true  → "Manual handling injury" + back support
@@ -385,7 +393,7 @@ class RiskTemplateResolverService
 
             // ── Working at height ─────────────────────────────────────────────
 
-            if ($workingHeight === 'over_2m') {
+            if (in_array($workingHeight, ['over_2m', '2_to_4m', 'over_4m'], true)) {
                 $this->mergeHazard($hazardMap, $roomName,
                     'Working at height',
                     'Work above 2 m. Risk of falls causing serious injury or death. ' .
