@@ -57,7 +57,9 @@ class SurveyRoomTabFlattenTest extends TestCase
         'x-model="rooms[currentRoomIdx].name"',
 
         // Step 2 — Quick Capture
-        'x-model="rooms[currentRoomIdx]._ui.voice_note"',
+        // voice_note's x-model entry was REMOVED from this inventory by
+        // 46.8 Plan 05 (D-04) — the field itself was deleted from the room
+        // page (UI-only, never read downstream), not lost in a flatten.
         'x-model="rooms[currentRoomIdx]._ui.quick_notes"',
 
         // Step 4 — Infrastructure

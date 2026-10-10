@@ -844,10 +844,9 @@ class SurveyService
         foreach ((array) ($payload['rooms'] ?? []) as $room) {
             if (! is_array($room)) continue;
 
-            // ui_state — any non-default toggle / work_type / voice_note
+            // ui_state — any non-default toggle / work_type
             $ui = (array) ($room['ui_state'] ?? []);
             if (! empty($ui['work_type']))                                return false;
-            if (! empty($ui['voice_note']))                               return false;
             foreach (['power_available','network_available','access_issues','working_at_height','client_present'] as $k) {
                 if (! empty($ui[$k])) return false;
             }

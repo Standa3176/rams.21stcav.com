@@ -26,10 +26,10 @@ use Illuminate\View\View;
  *         "equipment", "risks", "notes" }
  *   ]}
  *
- * UI-only fields (work_type, voice_note, quick_notes, access_issues, working_at_height,
- * client_present, constraints, signoff, is_completed, room_id) live exclusively in the
- * Alpine.js component under a nested `_ui` key on each room object. They are never
- * written into the canonical survey_data payload.
+ * UI-only fields (work_type, quick_notes, access_issues, access_issues_notes,
+ * working_at_height, client_present, constraints, signoff, is_completed, room_id) live
+ * exclusively in the Alpine.js component under a nested `_ui` key on each room object.
+ * They are never written into the canonical survey_data payload.
  *
  * Normalization
  * ─────────────
@@ -266,13 +266,13 @@ class SurveyController extends Controller
             // came back blank when an engineer reopened the survey.
             // Stored here so reload restores what the engineer chose.
             'ui_state' => [
-                'work_type'         => '',     // new_install|upgrade|retrofit|fault_repair
-                'power_available'   => false,
-                'network_available' => false,
-                'access_issues'     => false,
-                'working_at_height' => false,
-                'client_present'    => false,
-                'voice_note'        => null,
+                'work_type'           => '',     // new_install|upgrade|retrofit|fault_repair
+                'power_available'     => false,
+                'network_available'   => false,
+                'access_issues'       => false,
+                'access_issues_notes' => null,
+                'working_at_height'   => false,
+                'client_present'      => false,
             ],
             // Engineer-feedback canonical block (quick task 260503-u2x — mirrors
             // SiteSurveyRoom DB columns added in 260503-rgg). Captured in Step 4
@@ -319,7 +319,7 @@ class SurveyController extends Controller
      * Each object contains:
      *   - Canonical fields (name, type, photos, infrastructure, equipment, risks, notes)
      *   - A `_ui` sub-object with UI-only state (room_id, is_completed, work_type,
-     *     voice_note, quick_notes, toggles, constraints, signoff).
+     *     quick_notes, toggles, constraints, signoff).
      *
      * The `_ui` block is never read by the server on step save. It exists only
      * to drive the wizard UI and enforce conditional visibility client-side.
@@ -543,16 +543,16 @@ class SurveyController extends Controller
                     'work_type'        => (string) ($canonical['ui_state']['work_type'] ?? ''),
 
                     // Step 2 capture fields
-                    'voice_note'       =>          ($canonical['ui_state']['voice_note'] ?? null) ?: null,
                     'quick_notes'      => $canonical['notes'],
 
                     // Step 2 toggles — now persisted to canonical ui_state so
                     // they actually survive page reloads.
-                    'power_available'  => (bool) ($canonical['ui_state']['power_available']  ?? false),
-                    'network_available'=> (bool) ($canonical['ui_state']['network_available']?? false),
-                    'access_issues'    => (bool) ($canonical['ui_state']['access_issues']    ?? false),
-                    'working_at_height'=> (bool) ($canonical['ui_state']['working_at_height']?? false),
-                    'client_present'   => (bool) ($canonical['ui_state']['client_present']   ?? false),
+                    'power_available'    => (bool) ($canonical['ui_state']['power_available']    ?? false),
+                    'network_available'  => (bool) ($canonical['ui_state']['network_available']  ?? false),
+                    'access_issues'      => (bool) ($canonical['ui_state']['access_issues']      ?? false),
+                    'access_issues_notes'=>          ($canonical['ui_state']['access_issues_notes'] ?? null) ?: null,
+                    'working_at_height'  => (bool) ($canonical['ui_state']['working_at_height']   ?? false),
+                    'client_present'     => (bool) ($canonical['ui_state']['client_present']      ?? false),
 
                     // Step 7 constraints — seeded from canonical survey_data
                     // so a reload after stepSave shows what was captured.
@@ -766,8 +766,8 @@ class SurveyController extends Controller
             case 2:
                 // Canonical: notes = quick_notes, plus the Step 2 toggles
                 // (power_available, network_available, access_issues,
-                // working_at_height, client_present, voice_note) preserved
-                // in ui_state so reload restores the engineer's selections.
+                // working_at_height, client_present) preserved in ui_state so
+                // reload restores the engineer's selections.
                 $room['notes']    = (string) ($data['quick_notes'] ?? $room['notes'] ?? '');
                 $room['ui_state'] = (array)  ($room['ui_state']    ?? []);
                 foreach (['power_available','network_available','access_issues','working_at_height','client_present'] as $k) {
@@ -775,9 +775,16 @@ class SurveyController extends Controller
                         $room['ui_state'][$k] = (bool) $data[$k];
                     }
                 }
-                if (array_key_exists('voice_note', $data)) {
-                    $v = $data['voice_note'];
-                    $room['ui_state']['voice_note'] = ($v === '' || $v === null) ? null : (string) $v;
+                // access_issues_notes is a ui_state-only free-text field (same tier
+                // as the removed voice_note). When the client's `access_issues`
+                // boolean is present and resolves false, the note is force-cleared
+                // regardless of what access_issues_notes itself says, so a note
+                // typed while the toggle was on cannot survive a toggle-off save.
+                if (array_key_exists('access_issues', $data) && ! $data['access_issues']) {
+                    $room['ui_state']['access_issues_notes'] = null;
+                } elseif (array_key_exists('access_issues_notes', $data)) {
+                    $v = $data['access_issues_notes'];
+                    $room['ui_state']['access_issues_notes'] = ($v === '' || $v === null) ? null : (string) $v;
                 }
                 break;
 
@@ -901,13 +908,13 @@ class SurveyController extends Controller
                 'signed_at'          =>          ($signoff['signed_at']          ?? null) ?: null,
             ],
             'ui_state'       => [
-                'work_type'         => (string) ($ui['work_type']        ?? ''),
-                'power_available'   => (bool)   ($ui['power_available']  ?? false),
-                'network_available' => (bool)   ($ui['network_available']?? false),
-                'access_issues'     => (bool)   ($ui['access_issues']    ?? false),
-                'working_at_height' => (bool)   ($ui['working_at_height']?? false),
-                'client_present'    => (bool)   ($ui['client_present']   ?? false),
-                'voice_note'        =>          ($ui['voice_note']       ?? null) ?: null,
+                'work_type'           => (string) ($ui['work_type']           ?? ''),
+                'power_available'     => (bool)   ($ui['power_available']     ?? false),
+                'network_available'   => (bool)   ($ui['network_available']   ?? false),
+                'access_issues'       => (bool)   ($ui['access_issues']       ?? false),
+                'access_issues_notes' =>          ($ui['access_issues_notes'] ?? null) ?: null,
+                'working_at_height'   => (bool)   ($ui['working_at_height']   ?? false),
+                'client_present'      => (bool)   ($ui['client_present']      ?? false),
             ],
             // Engineer-feedback canonical block (quick task 260503-u2x). Mirrors
             // SiteSurveyRoom DB columns (260503-rgg). normalizeEngineerFeedback()
