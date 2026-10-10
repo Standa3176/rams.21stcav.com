@@ -153,11 +153,6 @@ class WorksheetDocxService
                 ['bold' => true, 'size' => 10, 'color' => self::TEAL, 'allCaps' => true],
                 ['spaceAfter' => 60]);
 
-            $commsLabels = [
-                'yes' => 'Permission required', 'no' => 'Free access',
-                'outsourced' => 'Outsourced facilities team', 'unknown' => 'Status unknown',
-            ];
-
             $logisticsTable = $section->addTable([
                 'borderSize' => 0, 'borderColor' => self::MID,
                 'cellMarginLeft' => 100, 'cellMarginRight' => 100,
@@ -172,11 +167,6 @@ class WorksheetDocxService
             }
             if (! empty($siteLogistics['delivery_routes'])) {
                 $rows[] = ['Delivery routes', $siteLogistics['delivery_routes']];
-            }
-            if (! empty($siteLogistics['comms_room_access_status']) || ! empty($siteLogistics['comms_room_access_notes'])) {
-                $statusLabel = $commsLabels[$siteLogistics['comms_room_access_status'] ?? ''] ?? '';
-                $parts = array_filter([$statusLabel, $siteLogistics['comms_room_access_notes'] ?? '']);
-                $rows[] = ['Comms room access', implode(' — ', $parts)];
             }
             if (! empty($siteLogistics['distance_from_base_miles']) || ! empty($siteLogistics['distance_from_base_notes'])) {
                 $parts = array_filter([
@@ -907,9 +897,11 @@ class WorksheetDocxService
 
         if ($survey === null) return [];
 
+        // comms_room_access_status/_notes are deliberately excluded below —
+        // 46.8 D-02 removed comms room from the RAMS/worksheet data feed. The
+        // SiteSurvey columns are untouched (D-03); this service simply never
+        // reads them.
         $out = [
-            'comms_room_access_status' => (string) ($survey->comms_room_access_status ?? ''),
-            'comms_room_access_notes'  => (string) ($survey->comms_room_access_notes  ?? ''),
             'parking_restraints'       => (string) ($survey->parking_restraints       ?? ''),
             'distance_from_base_miles' => $survey->distance_from_base_miles, // numeric or null
             'distance_from_base_notes' => (string) ($survey->distance_from_base_notes ?? ''),
@@ -917,7 +909,7 @@ class WorksheetDocxService
             'delivery_routes'          => (string) ($survey->delivery_routes          ?? ''),
         ];
 
-        // Strict empty test — all 7 keys empty ⇒ return [] so caller no-ops.
+        // Strict empty test — all 5 keys empty ⇒ return [] so caller no-ops.
         $hasAny = false;
         foreach ($out as $v) {
             if ($v !== '' && $v !== null) { $hasAny = true; break; }

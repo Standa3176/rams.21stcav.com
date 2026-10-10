@@ -789,23 +789,19 @@ p { margin: 3pt 0; }
 </div>
 
 {{-- ─── Site Logistics & Access (from site survey, quick task 260503-tfb) ─── --}}
+{{-- comms_room_access_status/_notes are deliberately excluded from this guard
+     and row set — 46.8 D-02 removed comms room from the RAMS data feed. The
+     SiteSurvey columns are untouched (D-03); this view simply never reads
+     them. --}}
 @php
     $siteLog    = $data['site_logistics'] ?? [];
     $hasSiteLog = is_array($siteLog) && (
-        ! empty($siteLog['comms_room_access_status']) ||
-        ! empty($siteLog['comms_room_access_notes']) ||
         ! empty($siteLog['parking_restraints']) ||
         ! empty($siteLog['distance_from_base_miles']) ||
         ! empty($siteLog['distance_from_base_notes']) ||
         ! empty($siteLog['site_access_notes']) ||
         ! empty($siteLog['delivery_routes'])
     );
-    $commsLabels = [
-        'yes'        => 'Permission required',
-        'no'         => 'Free access',
-        'outsourced' => 'Outsourced facilities team',
-        'unknown'    => 'Status unknown',
-    ];
 @endphp
 @if($hasSiteLog)
 <div class="sec-subheading" style="margin-top:8pt;">Site Logistics &amp; Access (from site survey)</div>
@@ -822,14 +818,6 @@ p { margin: 3pt 0; }
         @if(! empty($siteLog['delivery_routes']))
             <tr><td class="lbl">Delivery routes:</td>
                 <td>{{ $siteLog['delivery_routes'] }}</td></tr>
-        @endif
-        @if(! empty($siteLog['comms_room_access_status']) || ! empty($siteLog['comms_room_access_notes']))
-            @php
-                $commsStatus = $commsLabels[$siteLog['comms_room_access_status'] ?? ''] ?? '';
-                $commsParts  = array_filter([$commsStatus, $siteLog['comms_room_access_notes'] ?? '']);
-            @endphp
-            <tr><td class="lbl">Comms room access:</td>
-                <td>{{ implode(' — ', $commsParts) }}</td></tr>
         @endif
         @if(! empty($siteLog['distance_from_base_miles']) || ! empty($siteLog['distance_from_base_notes']))
             @php

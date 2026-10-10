@@ -677,10 +677,12 @@ class DocxBuilderService
         //    via 260504-gho). Pure additive: empty/missing $data['site_logistics']
         //    ⇒ this block adds NOTHING to the document, so legacy RAMS DOCX output
         //    is byte-identical to pre-change. Same shape as rams.blade.php 714-734.
+        // comms_room_access_status/_notes are deliberately excluded from this
+        // guard and from the row builder below — 46.8 D-02 removed comms room
+        // from the RAMS data feed. The SiteSurvey columns are untouched (D-03);
+        // this service simply never reads them.
         $siteLog = $data['site_logistics'] ?? [];
         $hasSiteLog = is_array($siteLog) && (
-            ! empty($siteLog['comms_room_access_status']) ||
-            ! empty($siteLog['comms_room_access_notes']) ||
             ! empty($siteLog['parking_restraints']) ||
             ! empty($siteLog['distance_from_base_miles']) ||
             ! empty($siteLog['distance_from_base_notes']) ||
@@ -694,11 +696,6 @@ class DocxBuilderService
                 ['spaceBefore' => 80, 'spaceAfter' => 60],
             );
 
-            $commsLabels = [
-                'yes' => 'Permission required', 'no' => 'Free access',
-                'outsourced' => 'Outsourced facilities team', 'unknown' => 'Status unknown',
-            ];
-
             $logTable = $section->addTable($this->tableStyle());
             $rowsLog = [];
             if (! empty($siteLog['parking_restraints'])) {
@@ -709,11 +706,6 @@ class DocxBuilderService
             }
             if (! empty($siteLog['delivery_routes'])) {
                 $rowsLog[] = ['Delivery routes', $siteLog['delivery_routes']];
-            }
-            if (! empty($siteLog['comms_room_access_status']) || ! empty($siteLog['comms_room_access_notes'])) {
-                $statusLabel = $commsLabels[$siteLog['comms_room_access_status'] ?? ''] ?? '';
-                $parts = array_filter([$statusLabel, $siteLog['comms_room_access_notes'] ?? '']);
-                $rowsLog[] = ['Comms room access', implode(' — ', $parts)];
             }
             if (! empty($siteLog['distance_from_base_miles']) || ! empty($siteLog['distance_from_base_notes'])) {
                 $parts = array_filter([
