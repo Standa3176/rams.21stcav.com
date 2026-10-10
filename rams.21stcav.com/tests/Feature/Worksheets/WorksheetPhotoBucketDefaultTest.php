@@ -46,8 +46,11 @@ class WorksheetPhotoBucketDefaultTest extends TestCase
         $project = Project::factory()->create(['user_id' => $user->id]);
 
         return Worksheet::factory()->create([
-            'user_id'    => $user->id,
-            'project_id' => $project->id,
+            'user_id'        => $user->id,
+            'project_id'     => $project->id,
+            // 261010-foa — uploadPhoto now checks room_name against this list;
+            // 'Boardroom' is the room every fixture row/upload in this file uses.
+            'generated_data' => ['rooms' => [['name' => 'Boardroom']]],
         ]);
     }
 

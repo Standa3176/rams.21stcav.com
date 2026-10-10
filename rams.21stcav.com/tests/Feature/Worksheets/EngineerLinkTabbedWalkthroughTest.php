@@ -607,21 +607,19 @@ class EngineerLinkTabbedWalkthroughTest extends TestCase
             . 'engineer took a photo and lost the sentence describing what it shows.',
         );
 
-        // ⚠️ THE KNOWN PRE-EXISTING GAP, RECORDED HONESTLY AND DELIBERATELY
-        // NOT FIXED HERE.
+        // ⚠️ THE FORMERLY-KNOWN GAP, NOW CLOSED (261010-foa).
         //
-        // `uploadPhoto` has NO room-name inclusion guard. Its two room-scoped
-        // siblings have one and 46.7-03's new `saveRoomNotes` COPIED the guard
-        // rather than the omission. 46.7-CONTEXT.md defers the fix by name
-        // ("Fixing uploadPhoto's missing room-name guard"), and plan 46.7-04
-        // writes NO production code — so the fix belongs to whichever plan owns
-        // that controller method next, not to this file.
-        //
-        // What is asserted below is the endpoint's CURRENT behaviour, so that
-        // this file is an honest record of the gap rather than silent about it:
-        // a forged room name is ACCEPTED, a photo row IS written, and the photo
-        // is then unreachable — no bar button, no panel, no tray. It is storage
-        // and disk consumed by a name nobody can navigate to.
+        // `uploadPhoto` used to have NO room-name inclusion guard, unlike its
+        // room-scoped siblings (`addAdditionalKit`, `markRoomComplete`,
+        // `saveRoomNotes`). 261010-foa brought it into parity by calling the
+        // same `assertRoomNameIsOnTheWorksheet` helper `addAdditionalKit`
+        // already used — no new helper, no schema change. This file's own
+        // prior instruction, left in place for exactly this moment: "If it
+        // now refuses a forged name that is an improvement, not a
+        // regression: delete this assertion and the DEFERRED note above it,
+        // and record the fix in the plan that made it. Do not weaken the
+        // assertion to keep it green." Done — the assertion below now proves
+        // the refusal instead of pinning the gap.
         $forgedUpload = $this->postJson(
             route('public-worksheet.photos.upload', ['token' => $token]),
             [
@@ -631,15 +629,13 @@ class EngineerLinkTabbedWalkthroughTest extends TestCase
             ],
         );
 
-        $forgedUpload->assertOk();
+        $this->assertForgedNameRefused($forgedUpload, 'uploadPhoto');
 
         $this->assertSame(
-            1,
+            0,
             $worksheet->photos()->where('room_name', self::FORGED_ROOM)->count(),
-            'STEP 5 — uploadPhoto\'s missing room-name guard has CHANGED behaviour. If it now '
-            . 'refuses a forged name that is an improvement, not a regression: delete this '
-            . 'assertion and the DEFERRED note above it, and record the fix in the plan that '
-            . 'made it. Do not weaken the assertion to keep it green.',
+            'STEP 5 — uploadPhoto wrote a photo row against a room this worksheet does not '
+            . 'have, despite the 261010-foa room-name guard now being in place.',
         );
 
         $xpath = $this->dom($this->open($worksheet)->getContent());
@@ -647,8 +643,8 @@ class EngineerLinkTabbedWalkthroughTest extends TestCase
         $this->assertSame(
             4,
             $this->barButtonCount($xpath),
-            'STEP 5 — the orphan photo grew the sticky bar. A forged room must not become a '
-            . 'tab; the gap costs disk, it must not cost navigation.',
+            'STEP 5 — the sticky bar moved off 1 site button plus 3 room buttons after the '
+            . 'refused forged upload. A refused upload must not change navigation.',
         );
 
         // ── STEP 6. MARK ROOM 2 COMPLETE ─────────────────────────────────────
