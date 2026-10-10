@@ -682,11 +682,30 @@ Each is **recorded in the admin Hidden Functions register**, not forgotten:
 **Minted PROPOSED at planning time, 2026-10-10; evidence filled in 2026-10-10 at Plan 46.9-03
 after Waves 1 and 2 shipped and every gate below was re-measured for real in the foreground.**
 Five requirements, not eleven — three decisions deliberately mint nothing, and that is recorded
-here so a future agent does not re-derive them as gaps. Four of the five (AIB-01, AIB-02, AIB-04,
-AIB-05) are **DELIVERED**; **AIB-03** is **DELIVERED BUT UNSETTLED** — it genuinely ships and is
-proven on rendered output, but D-11 (memo-less rooms generate nothing) is explicitly the user's
-call to overturn. **None of the five is confirmed settled until the phase's blocking checkpoint
-(Plan 46.9-04) is answered — do not treat this section as closed.**
+here so a future agent does not re-derive them as gaps.
+
+**GROUP CLOSED 2026-10-10 (Plan 46.9-05). All five are DELIVERED.** The phase's blocking
+checkpoint (Plan 46.9-04) was **put to the user and answered on 2026-10-10** — all three questions,
+by the user, not by an agent:
+
+1. *"Move it inline at import"* — **overturns D-02.** The generation no longer runs on a queue; it
+   runs in the import request via `GenerateRoomWorksSummariesJob::dispatchSync()`. The user chose
+   this **after** being told the cost figure behind their original background choice was wrong (one
+   AI call per **package**, not one per room, C-02) and that the trade is that the import screen now
+   blocks on the AI. Implemented by Plan 46.9-05 as **D-12** (inline via `dispatchSync`, job class
+   kept), **D-13** (`$tries`/`$timeout` inert under sync, documented not deleted, `ShouldQueue`
+   retained) and **D-14** (placement unchanged, for a stronger reason — see AIB-04).
+2. *"Generate nothing"* for memo-less rooms — **confirms D-11.** No code change. AIB-03 moves from
+   *DELIVERED BUT UNSETTLED* to **DELIVERED**.
+3. *"Wire it too"* — `completePendingReimport()` now generates as well (**D-15**). AIB-01's
+   coverage claim widens to both live import paths.
+
+**The exposure the user accepted, measured not estimated:** `ClaudeProvider:20` sets
+`DEFAULT_TIMEOUT = 180`, applied at `:177`, with no provider-level retry
+(`AIManager::MAX_ATTEMPTS = 2`). An inline call is therefore **bounded at 180s per attempt**, and on
+timeout the existing `AIGenerationException` path puts the rooms on the prose fallback with the
+import still succeeding (AIB-04). **That timeout was deliberately NOT tightened** — doing so would
+make large quotes fail where they currently succeed, and that decision has not been taken.
 
 Re-measured this session, not inherited: `tests/Feature/Surveys` **88 passed / 717 assertions**,
 `tests/Feature/Worksheets` **273 passed / 2367 assertions**, `tests/Feature/Cockpit` **462 passed /
@@ -708,14 +727,22 @@ after).
   `reviewed_data ?: extracted_data` branch is unreachable by construction. This mirrors the note on
   Group SRV that *"D-02 is a research instruction, not a product requirement, and mints nothing"*.
 
-- **AIB-01** — A queued job fills an **empty** per-room `works_summary` from the room's imported
+- **AIB-01** — A job fills an **empty** per-room `works_summary` from the room's imported
   `overview` at import time, reusing the existing `RoomOverviewSummaryService::summarize()` and the
-  existing `RoomOverviewSummaryPrompt`. The imported original is kept untouched (D-02, D-05, D-07).
-  **DELIVERED** — `App\Jobs\GenerateRoomWorksSummariesJob`, dispatched from
-  `QuoteImportService::importFromData()`. Proven at three levels:
+  existing `RoomOverviewSummaryPrompt`. The imported original is kept untouched (D-05, D-07).
+  **It runs INLINE, in the import request, on BOTH live import paths** — D-12 and D-15, the user's
+  decisions of 2026-10-10, superseding the queued-at-import wording this row carried when it was
+  minted under D-02.
+  **DELIVERED** — `App\Jobs\GenerateRoomWorksSummariesJob`, run via `::dispatchSync()` from
+  `QuoteImportService::importFromData()` **and** from
+  `QuoteImportService::completePendingReimport()` (the live re-import path reached from
+  `ReimportQuoteJob:86`, which Plan 46.9-02 left uncovered and Plan 46.9-05 wired). Proven at three
+  levels:
   `GenerateRoomWorksSummariesJobTest::test_a_room_with_no_works_summary_key_and_prose_gets_ai_bullets`
-  (stored state), `GenerateRoomWorksSummariesDispatchTest::test_an_import_dispatches_exactly_one_job_carrying_the_new_package_id`
-  (the wiring, exactly one job, not "at least one"), and — the only one that proves an engineer sees
+  (stored state),
+  `GenerateRoomWorksSummariesDispatchTest::test_an_import_generates_room_bullets_inline_before_it_returns`
+  plus `::test_a_reimport_generates_room_bullets_inline_too` (the wiring, on both paths, with
+  **exactly one** AI call per package asserted — not "at least one"), and — the only one that proves an engineer sees
   anything — `SurveyPlannedActionsBulletsTest::test_state_1_ai_bullets_reach_the_rendered_engineer_link`,
   which runs the job and asserts the bullet text in `_ctx['planned_actions']` **and** in the raw
   response body of the real `route('survey.show')`. The same test asserts D-05 by re-reading the
@@ -725,8 +752,10 @@ after).
   **the engineer link cannot distinguish AI bullets from office bullets.** Out of scope by the phase
   fence (threat `T-46.9-12`, disposition ACCEPT/SURFACED); it is checkpoint material for the user,
   and it is now pinned by an assertion so changing it is a visible decision. ⚠️ **Not every import
-  path dispatches**: `completePendingReimport():294` (live, reached from `ReimportQuoteJob:86`) does
-  not — about three lines, deliberately left as the user's call (C-06).
+  path generated**: `completePendingReimport()` (live, reached from `ReimportQuoteJob:86`) did not.
+  **CLOSED 2026-10-10** — the user said *"wire it too"* and Plan 46.9-05 wired it (D-15), so both
+  live paths are now covered. `import()` and `reimport()` still do not generate, and that is a
+  **non-issue rather than a declined choice** — neither has any production caller at all.
 - **AIB-02** — The job **never overwrites an office-authored `works_summary`**, and specifically
   cannot be wiped by either of `RoomOverviewSummaryService`'s two wipe paths: the unfiltered
   `array_map` at `:72-84` whose `else` (`:78-82`) assigns an unconditionally-empty
@@ -747,9 +776,10 @@ after).
   wins. **Status: DELIVERED.**
 - **AIB-03** — A room whose imported `overview` is **empty** gets **nothing generated**, still
   renders derived bullets on the engineer link, and the job **never adds a room row** that the
-  office's curated view does not have (D-11, D-09). **DELIVERED BUT UNSETTLED** — it ships and is
-  proven, but D-11 is the user's call to overturn at the Plan 46.9-04 checkpoint, so the behaviour
-  is correct-as-decided rather than settled. Evidence:
+  office's curated view does not have (D-11, D-09). **DELIVERED** — and **SETTLED 2026-10-10**: it
+  was *DELIVERED BUT UNSETTLED* until the Plan 46.9-04 checkpoint, where the user was offered the
+  chance to overturn D-11 and answered *"Generate nothing"*. **D-11 is CONFIRMED by the user**, no
+  code changed, and this row is no longer provisional. Evidence:
   `SurveyPlannedActionsBulletsTest::test_state_3_a_memo_less_room_generates_nothing_and_still_renders_derived_bullets`
   — runs the job with a provider bound `expects($this->never())` on both `execute()` and
   `completeJson()` (so "nothing generated" is proven by the AI never being **asked**, not merely by
@@ -764,32 +794,53 @@ after).
   by `GenerateRoomWorksSummariesJobTest::test_a_room_with_an_empty_overview_generates_nothing_and_the_ai_is_never_asked`
   and by the job's `array_key_exists($index, $freshRooms)` guard.
 - **AIB-04** — AI unavailability, a 429, a timeout or a hard failure **never** breaks an import or a
-  document creation: the job swallows every `\Throwable` after logging, and the dispatch sits in its
-  own try/catch (D-04, D-06, D-10). **DELIVERED** —
+  document creation: the job swallows every `\Throwable` after logging, and the **inline call** sits
+  in its own try/catch on both import paths (D-04, D-06, D-12, D-14, D-15). **DELIVERED** —
   `SurveyPlannedActionsBulletsTest::test_state_4_with_the_ai_unavailable_the_link_still_renders_bullets`
   binds a provider that throws on both call shapes, runs the job (which must not raise), and asserts
   on the **rendered** engineer link that bullets are still shown via the derived path, that
   `_summary_fallback` was persisted, and that **no empty `works_summary` was persisted as content**.
   The import side is
-  `GenerateRoomWorksSummariesDispatchTest::test_a_real_push_failure_does_not_fail_the_import`, which
-  was shown to go **RED** when the dispatch is moved back inside the transaction — and whose first
-  assertion is that the probe was reached at `push()` time, so it cannot be made green at a mere
-  registration step.
+  `GenerateRoomWorksSummariesDispatchTest::test_a_generation_failure_does_not_fail_the_import`
+  (reworked from Wave 2's `::test_a_real_push_failure_does_not_fail_the_import` when the generation
+  moved inline — there is no queue push left to fail). The throw now comes from the **real AI call**,
+  inside the bound provider double's `execute()`, which is the only place a live provider outage
+  actually surfaces; the probe's call-counter is asserted first, so the test cannot be made green by
+  a failure injected somewhere safe (the 2026-09-30 failure mode). It also asserts that **no empty
+  `works_summary` is persisted** — only the `_summary_fallback` marker — and that the imported prose
+  survives for the derived-bullet fallback.
   ⚠️ **CORRECTION to the wording minted at planning time.** This row originally said the dispatch is
-  `->afterCommit()`, per D-10. **It is not, deliberately, and must not be "fixed" to be.**
+  a queued `->afterCommit()` dispatch, per D-10. **There is no queued dispatch at all any more**
+  (D-12, inline), and a queued `afterCommit()` one must never be reintroduced:
   `afterCommit()` only *registers* a callback; the real push then happens inside
   `DatabaseTransactionRecord::executeCallbacks()` — a bare untried `foreach` — reached from
   `ManagesTransactions`' `$this->transactionsManager?->commit(...)`, which sits **outside** that
   method's own try/catch. A queue failure would therefore escape `importFromData()` **after** the
   `project_packages` row had committed, producing a half-reported import, and the try/catch would be
-  wrapping only the registration. D-10's **intent** (a worker must never read an uncommitted row) is
-  instead held **by construction**: the dispatch is placed after `DB::transaction()` has already
-  returned. There is **zero** `->afterCommit()` call site in `app/`, and
-  `config/queue.php`'s global `after_commit` flag was **not** flipped. Proven by
-  `::test_the_push_happens_only_once_the_package_row_is_committed`, which observes
-  `DB::transactionLevel()` at real `push()` time through a probe queue driver (`Queue::fake()`
-  cannot see push-time state, and passes identically in both placements — which is why it is not the
-  seam used).
+  wrapping only the registration. There is **zero** `->afterCommit()` call site in `app/`, and
+  `config/queue.php`'s global `after_commit` flag was **not** flipped.
+  ⚠️ **The placement is unchanged, but the reason that now carries it is STRONGER** (D-14,
+  2026-10-10). Wave 2 placed the call after `DB::transaction()` returned so that a queue-push
+  failure landed inside the try/catch. With no push left, the live reason is that **an inline AI
+  call inside `DB::transaction()` would hold a database transaction open across an outbound HTTP
+  request of up to 180 seconds**, pinning a connection and its locks for the whole call. Both
+  reasons point the same way. Proven by
+  `::test_the_generation_runs_after_the_import_transaction_has_committed`, which keeps Wave 2's
+  probe technique but **rehomes it from the queue driver's `push()` to the provider's `execute()`** —
+  where the work now happens — and records `DB::transactionLevel()` plus the latest readable
+  `project_packages` id at AI-call time. Shown **RED** (`Failed asserting that 2 is identical to 1`)
+  by temporarily moving the call inside the closure, then restored.
+  ⚠️ **Framework fact, measured not assumed:** `Queue::fake()` + `assertNothingPushed()` **cannot**
+  express "no queue push" for a `dispatchSync()` call. `Illuminate\Bus\Dispatcher::dispatchSync()`
+  (`:93-102`) routes a `ShouldQueue` job through
+  `dispatchToQueue($command->onConnection('sync'))`, and `QueueFake::push()` (`:478-486`) records
+  it — so `assertNothingPushed()` **fails on a correct implementation** (reproduced: *"The following
+  jobs were pushed unexpectedly: App\Jobs\GenerateRoomWorksSummariesJob"*). The guard against a
+  silent reversion to a queued dispatch is therefore
+  `::test_no_job_is_ever_deferred_onto_a_queue_connection`, asserted against a **real** recording
+  queue driver installed as `queue.default` (which a `::dispatch()` would hit and a `dispatchSync()`
+  bypasses), plus `::test_queue_fake_sees_an_explicitly_sync_dispatch_and_nothing_deferred`, which
+  pins `$job->connection === 'sync'` (a queued `::dispatch()` leaves it `null`).
 - **AIB-05** — Every generated bullet line is **dash-prefixed**, so a line that renders on the
   survey cannot silently vanish from the worksheet (C-04). **DELIVERED** — the job's `dashPrefix()`
   normalises **every** non-empty line to `"- "` rather than discarding non-dashed AI output (which
