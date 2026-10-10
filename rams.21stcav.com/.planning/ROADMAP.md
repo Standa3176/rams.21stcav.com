@@ -1014,7 +1014,7 @@ bullets already exist by the time anyone creates a site survey or a worksheet.
 **Depends on:** 46.6 (the tabbed survey engineer link that renders the bullets), 46.8 (the capture
 refinements that edit the same view).
 
-**Requirements**: TBD at planning.
+**Requirements**: AIB-01, AIB-02, AIB-03, AIB-04, AIB-05
 
 ⚠️ **KEEP THE IMPORTED ORIGINAL.** The AI version is an ADDITIONAL derived field, never a
 replacement — the raw scope stays exactly where it is (`av_requirements`) and must remain readable.
