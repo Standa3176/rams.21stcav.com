@@ -277,3 +277,42 @@ Also run the protected-file hash check (none of this plan's files are in that li
 <output>
 Create `.planning/quick/261010-cdf-working-at-height-produces-no-rams-hazar/261010-cdf-SUMMARY.md` when done. In it, explicitly raise as an open question for the user (not decided here): whether over_4m should make MEWP mandatory rather than "if required" — this plan deliberately left that safety-content judgement call alone.
 </output>
+
+---
+
+## ⚠ TWO DECISIONS ADDED 2026-10-10 AFTER PLAN-CHECK. BOTH ARE MINE. TASK 3 MUST FOLLOW THEM.
+
+**(a) THE "WORKING HEIGHT NOT RECORDED" FLAG MUST NOT FIRE ON AN UNSTARTED ROOM.**
+
+Plan-check found that `authorizeSurvey()` has **no status gate** — any authenticated user can open any
+survey, including one barely begun. As written, `$workingHeightMissing = $workingHeightRaw === ''`
+would flag **every room nobody has surveyed yet**. On a twelve-room job half-done that is a badge on
+most of the page.
+
+⚠ **That would destroy the flag's purpose.** A warning that fires on everything is one a reviewer
+learns to scroll past, and the whole point is to catch the room where someone answered the other
+questions and skipped this one — the case that silently produces no hazard.
+
+**Gate the MISSING flag so it only fires where the omission is meaningful.** The user's words were
+*"highlighted to the office admin when they review the survey"*, and review happens on a **returned**
+survey, so the natural gate is: show "not recorded" when the survey has been **submitted**, or when
+the room has **other captured data** (so the surveyor was plainly there and skipped this field).
+**Pick one, state which and why, and do not flag a room with no data at all.**
+
+⚠ **The ABOVE-2M flag is NOT gated** — that one is informational and correct whenever the value
+exists, regardless of survey state.
+
+⚠ **TEST THE CASE THAT CAUSED THIS.** The planned test uses a "Blank Room" carrying partial data minus
+the risks key. **Add a genuinely not-started room** and assert the missing flag is **ABSENT** on it,
+alongside a started-but-height-skipped room where it is **PRESENT**. Without both, the gate is
+unproven and this note changes nothing.
+
+**(b) FIX THE CONTRAST CITATION — the conclusion was right, the evidence was not.**
+
+The plan cites `#FEF3C7`/`#92400E` as "already used 3x in this same file (lines 84, 165, 313)".
+Checked: **line 84** uses `var(--warning-light)`, not the literal hex; **line 165** uses `#FDE68A`;
+only **line 313** matches — and the plan **misses line 831**, which is the strongest actual precedent.
+
+The underlying claim holds: the pairing measures **6.37:1**, comfortably past AA's 4.5:1 for normal
+text. **Cite lines 313 and 831, and state the 6.37:1 figure** rather than resting on "it is already
+used here".
