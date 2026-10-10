@@ -1098,19 +1098,6 @@
         <section id="sv-step-2" class="space-y-4" @focusout="autosave(2)">
             <h2 class="text-xs font-bold uppercase tracking-wide text-gray-400 px-1">2. Quick Capture</h2>
 
-            {{-- Voice note (UI-only: _ui.voice_note — not persisted) --}}
-            <div class="bg-white rounded-2xl p-4 shadow-sm">
-                <label class="block text-sm font-semibold text-gray-700 mb-1.5">
-                    Voice Note Transcript
-                    <span class="text-xs font-normal text-gray-400 ml-1">optional</span>
-                </label>
-                <textarea x-model="rooms[currentRoomIdx]._ui.voice_note"
-                          rows="2"
-                          placeholder="Dictate or paste a voice note transcript…"
-                          class="w-full border border-gray-300 rounded-xl px-3 py-3 text-base
-                                 focus:outline-none focus:ring-2 focus:ring-brand-teal resize-none"></textarea>
-            </div>
-
             {{-- Quick notes (UI-only: _ui.quick_notes — mapped to canonical notes on save) --}}
             <div class="bg-white rounded-2xl p-4 shadow-sm">
                 <label class="block text-sm font-semibold text-gray-700 mb-1.5">Quick Notes</label>
@@ -1129,8 +1116,65 @@
                                        parent="rooms[currentRoomIdx]._ui" />
                 <x-survey.toggle-field field="access_issues"     label="Access Issues"     icon="🚧"
                                        parent="rooms[currentRoomIdx]._ui" />
+            </div>
+
+            {{--
+                46.8 Plan 05 (D-05) — Access Issues notes, revealed next to its
+                own toggle (UI-only: _ui.access_issues_notes, same tier as the
+                removed voice note). Server clears this on a toggle-off save
+                (SurveyController stepSave case 2) even if the client resends
+                a value — see that method's own comment for the rule.
+            --}}
+            <div class="bg-white rounded-2xl p-4 shadow-sm"
+                 x-show="rooms[currentRoomIdx]?._ui?.access_issues">
+                <label class="block text-sm font-semibold text-gray-700 mb-1.5">
+                    What's the issue?
+                    <span class="text-xs font-normal text-gray-400 ml-1">optional</span>
+                </label>
+                <textarea x-model="rooms[currentRoomIdx]._ui.access_issues_notes"
+                          rows="2"
+                          maxlength="500"
+                          placeholder="e.g. Narrow corridor, locked plant room, parking restrictions…"
+                          class="w-full border border-gray-300 rounded-xl px-3 py-3 text-base
+                                 focus:outline-none focus:ring-2 focus:ring-brand-teal resize-none"></textarea>
+            </div>
+
+            <div class="bg-white rounded-2xl shadow-sm divide-y divide-gray-100 overflow-hidden">
                 <x-survey.toggle-field field="working_at_height" label="Working at Height" icon="🪜"
                                        parent="rooms[currentRoomIdx]._ui" />
+            </div>
+
+            {{--
+                46.8 Plan 05 (D-05) — Working Height, revealed next to its own
+                toggle. This is an ADDITION, not a move: the pre-existing
+                Working Height card further down (section 6) stays exactly
+                where it is. Both controls read/write the SAME canonical
+                `risks[0].working_height` value — copied verbatim, same
+                value list, same button bindings. The local focusout here
+                also triggers a step-6 autosave (risks lives in the step-6
+                payload, not step 2's), so a selection made from this reveal
+                is not lost if the engineer never visits section 6.
+            --}}
+            <div class="bg-white rounded-2xl p-4 shadow-sm"
+                 x-show="rooms[currentRoomIdx]?._ui?.working_at_height"
+                 @focusout="autosave(6)">
+                <p class="text-sm font-semibold text-gray-700 mb-2.5">Working Height</p>
+                <div class="grid grid-cols-3 gap-2">
+                    @foreach (['under_2m' => 'Under 2m', '2_to_4m' => '2–4m', 'over_4m' => '4m+'] as $val => $display)
+                        <button type="button"
+                                @click="rooms[currentRoomIdx].risks[0].working_height = '{{ $val }}'"
+                                :class="rooms[currentRoomIdx].risks[0]?.working_height === '{{ $val }}'
+                                    ? 'border-amber-500 bg-amber-50 text-amber-700'
+                                    : 'border-gray-200 text-gray-600 hover:border-gray-300'"
+                                class="py-3 rounded-xl border-2 text-sm font-medium
+                                       text-center min-h-[44px] transition-colors">
+                            {{ $display }}
+                        </button>
+                    @endforeach
+                </div>
+            </div>
+
+            <div class="bg-white rounded-2xl shadow-sm divide-y divide-gray-100 overflow-hidden">
                 <x-survey.toggle-field field="client_present"    label="Client on Site"    icon="👤"
                                        parent="rooms[currentRoomIdx]._ui" />
             </div>
@@ -1366,6 +1410,16 @@
                     <p class="text-xs text-gray-500 mb-2 leading-snug">
                         One row per cable category. Length captures total run including slack.
                     </p>
+                    {{--
+                        46.8 Plan 05 (D-06) — photo capture inline in this card,
+                        sharing the SAME `cable_routes` category as the step-3
+                        Photos gallery instance above (by design: a photo
+                        uploaded from either location appears in both
+                        galleries — they are the same underlying list, filtered
+                        by the same category string). Zero IndexedDB schema
+                        change: category is a free string, not a schema key.
+                    --}}
+                    <x-survey.photo-upload category="cable_routes" label="Cable Route Photo" icon="📷" />
                     <template x-if="(rooms[currentRoomIdx].engineer_feedback.cable_routes || []).length === 0">
                         <p class="text-xs text-gray-400 italic">No cable routes recorded — tap "Add" to record one.</p>
                     </template>
@@ -2010,11 +2064,12 @@ function surveyWizard() {
             // Room Context (1): work_type only — name/type save via the
             // section's own @focusout="autosave(1)".
             const step1Fields = ['work_type'];
-            // Quick Capture (2): voice note, quick notes, toggles.
+            // Quick Capture (2): quick notes, toggles, access issues notes.
             const step2Fields = [
-                'voice_note', 'quick_notes',
+                'quick_notes',
                 'power_available', 'network_available',
-                'access_issues', 'working_at_height', 'client_present',
+                'access_issues', 'access_issues_notes',
+                'working_at_height', 'client_present',
             ];
             this.rooms.forEach((_, idx) => {
                 step1Fields.forEach(f => {
@@ -2360,16 +2415,19 @@ function surveyWizard() {
                     break;
                 case 2:
                     // quick_notes maps to canonical notes server-side.
-                    // Toggles + voice_note are persisted into canonical
-                    // ui_state so reload restores the engineer's selections.
+                    // Toggles + access_issues_notes are persisted into
+                    // canonical ui_state so reload restores the engineer's
+                    // selections. The server clears access_issues_notes
+                    // whenever access_issues is false, regardless of what
+                    // is sent here — see SurveyController stepSave case 2.
                     data = {
-                        quick_notes:       r._ui.quick_notes,
-                        power_available:   !! r._ui.power_available,
-                        network_available: !! r._ui.network_available,
-                        access_issues:     !! r._ui.access_issues,
-                        working_at_height: !! r._ui.working_at_height,
-                        client_present:    !! r._ui.client_present,
-                        voice_note:        r._ui.voice_note ?? null,
+                        quick_notes:         r._ui.quick_notes,
+                        power_available:     !! r._ui.power_available,
+                        network_available:   !! r._ui.network_available,
+                        access_issues:       !! r._ui.access_issues,
+                        access_issues_notes: r._ui.access_issues_notes ?? null,
+                        working_at_height:   !! r._ui.working_at_height,
+                        client_present:      !! r._ui.client_present,
                     };
                     break;
                 case 3:
