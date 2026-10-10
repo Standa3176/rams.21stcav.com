@@ -783,8 +783,10 @@ class SiteSurveyController extends Controller
             // Office review surface (quick task 260508-v7g, D-LOCK-2)
             'office_review_notes'                   => ['nullable', 'string', 'max:5000'],
             // Engineer-feedback site logistics (quick task 260503-rgg)
-            'comms_room_access_status'              => ['nullable', 'string', 'in:yes,no,outsourced,unknown'],
-            'comms_room_access_notes'               => ['nullable', 'string', 'max:2000'],
+            // 46.8-03 D-08 — comms_room_access_status/_notes rules removed:
+            // the office edit screen's Comms Room Access select/textarea are
+            // gone (edit.blade.php), so a lingering rule would keep silently
+            // accepting a field nobody renders. Column stays, per D-03.
             'parking_restraints'                    => ['nullable', 'string', 'max:2000'],
             'distance_from_base_miles'              => ['nullable', 'numeric', 'min:0', 'max:9999'],
             'distance_from_base_notes'              => ['nullable', 'string', 'max:2000'],

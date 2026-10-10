@@ -279,8 +279,14 @@ class SurveyService
                 // Office review surface (quick task 260508-v7g, D-LOCK-2)
                 'office_review_notes' => $data['office_review_notes'] ?? null,
                 // Engineer-feedback site logistics (quick task 260503-rgg)
-                'comms_room_access_status' => $data['comms_room_access_status'] ?? null,
-                'comms_room_access_notes'  => $data['comms_room_access_notes']  ?? null,
+                // 46.8-03 D-08 — comms_room_access_status/_notes are no longer
+                // submitted by this form (edit.blade.php's control was removed).
+                // Preserve the EXISTING stored value instead of defaulting to
+                // null on every save, or every office edit of an untouched
+                // survey would silently erase its historical comms-room data —
+                // D-03 requires the column to survive on disk.
+                'comms_room_access_status' => $data['comms_room_access_status'] ?? $survey->comms_room_access_status,
+                'comms_room_access_notes'  => $data['comms_room_access_notes']  ?? $survey->comms_room_access_notes,
                 'parking_restraints'       => $data['parking_restraints']       ?? null,
                 'distance_from_base_miles' => $data['distance_from_base_miles'] ?? null,
                 'distance_from_base_notes' => $data['distance_from_base_notes'] ?? null,

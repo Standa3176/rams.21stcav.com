@@ -162,29 +162,11 @@
         <div class="form-section__body">
             <div class="form-grid-2">
                 <div class="form-group">
-                    <label class="form-label" for="comms_room_access_status">Comms Room Access</label>
-                    <select id="comms_room_access_status" name="comms_room_access_status" class="form-control" data-optional>
-                        <option value="">— Select —</option>
-                        @php $cras = old('comms_room_access_status', $survey->comms_room_access_status); @endphp
-                        <option value="yes"        @selected($cras === 'yes')>Yes — engineer needs permission</option>
-                        <option value="no"         @selected($cras === 'no')>No — open access</option>
-                        <option value="outsourced" @selected($cras === 'outsourced')>Outsourced (third-party manages)</option>
-                        <option value="unknown"    @selected($cras === 'unknown')>Unknown</option>
-                    </select>
-                </div>
-                <div class="form-group">
                     <label class="form-label" for="distance_from_base_miles">Distance from Base (miles)</label>
                     <input type="number" id="distance_from_base_miles" name="distance_from_base_miles" class="form-control"
                            value="{{ old('distance_from_base_miles', $survey->distance_from_base_miles) }}"
                            min="0" max="9999" step="0.1" placeholder="e.g. 47.5" data-optional>
                 </div>
-            </div>
-
-            <div class="form-group">
-                <label class="form-label" for="comms_room_access_notes">Comms Room Access — Notes</label>
-                <textarea id="comms_room_access_notes" name="comms_room_access_notes" class="form-control"
-                          rows="2" maxlength="2000" data-optional
-                          placeholder="e.g. Permit required 48h notice; key from FM desk Mon-Fri 9-5">{{ old('comms_room_access_notes', $survey->comms_room_access_notes) }}</textarea>
             </div>
 
             <div class="form-group">
