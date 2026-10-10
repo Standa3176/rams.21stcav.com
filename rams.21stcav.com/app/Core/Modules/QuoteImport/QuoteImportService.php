@@ -3,6 +3,7 @@
 namespace App\Core\Modules\QuoteImport;
 
 use App\Core\Modules\Projects\ProjectService;
+use App\Jobs\GenerateRoomWorksSummariesJob;
 use App\Models\Project;
 use App\Models\ProjectActivityLog;
 use App\Models\ProjectPackage;
@@ -345,7 +346,7 @@ class QuoteImportService
      */
     public function importFromData(User $user, array $data): ProjectPackage
     {
-        return DB::transaction(function () use ($user, $data) {
+        $package = DB::transaction(function () use ($user, $data) {
             // ── Resolve or auto-create project by client+site (D-02) ──
             $clientName  = $data['client_name'] ?? '';
             $siteAddress = $data['site_address'] ?? '';
@@ -388,6 +389,66 @@ class QuoteImportService
 
             return $package;
         });
+
+        // ── Phase 46.9 (AIB-01, AIB-04): engineer-friendly room bullets ───────
+        //
+        // WHY THE DISPATCH IS HERE, AFTER THE CLOSURE RETURNS, AND WHY IT IS
+        // NOT afterCommit(). Verified against the installed Laravel 12.54.1:
+        //
+        //   afterCommit() does not push the job. It makes Queue::enqueueUsing()
+        //   REGISTER A CALLBACK; the real push happens later inside
+        //   DatabaseTransactionRecord::executeCallbacks() (:83-88), which is a
+        //   bare `foreach ($this->callbacks as $callback) { $callback(); }` with
+        //   NO try/catch of its own. And that runs outside every try/catch in
+        //   the transaction method: ManagesTransactions wraps the PDO commit at
+        //   :51-64, but the $this->transactionsManager?->commit(...) call at
+        //   :66-70 — the call that executes those callbacks — sits OUTSIDE it.
+        //
+        //   Consequence: with afterCommit(), a queue-driver failure throws out
+        //   of transactionsManager->commit(), out of DB::transaction(), and out
+        //   of importFromData() — AFTER the project_packages row has already
+        //   been committed. A try/catch around the dispatch call would be
+        //   wrapping only the CALLBACK REGISTRATION, which cannot fail for this
+        //   reason. The result is a HALF-REPORTED IMPORT: the package exists,
+        //   the request fails. That is strictly worse than AIB-04 and D-04
+        //   promise. DO NOT "simplify" this back to afterCommit().
+        //
+        //   Dispatching after the closure returns puts the REAL PUSH inside the
+        //   catch below, so AIB-04 is actually deliverable. D-10's intent —
+        //   never let a worker see the package before the commit — is kept, and
+        //   is now held BY CONSTRUCTION rather than by a method call: the
+        //   transaction has already committed by the time this line is reached.
+        //
+        // WHY NOT RELY ON THE DRIVER ACCIDENT: config/queue.php:44 sets
+        // 'after_commit' => false. SurveyService:234-236 dispatches from inside
+        // its own open transaction and carries a comment relying on the
+        // `database` driver inserting the jobs row in the same transaction. That
+        // works today on one connection and breaks on redis/sqs, or if
+        // DB_QUEUE_CONNECTION (config/queue.php:40) ever points at a second
+        // connection. Copy SurveyService's TRY/CATCH, not its placement. The
+        // global flag is deliberately NOT flipped — ten existing job classes
+        // depend on today's semantics.
+        //
+        // WHY THE TRY/CATCH: AIB-04. A queue outage must not fail an import.
+        //
+        // WHICH PATHS THIS COVERS: the QuoteWerks SQL path only
+        // (QuoteWerksImportController::lookup():125 →
+        // QuoteWerksImportService::importFromParsedShape():61 →
+        // importFromData():346). The PDF-async path is already covered by
+        // ExtractQuoteJob::generateContentPack():217-270. import():57 and
+        // reimport():202 have NO production caller at all.
+        // completePendingReimport():294 is the one genuinely uncovered live path
+        // and is checkpoint item 3 in Plan 46.9-04 — deliberately not wired here.
+        try {
+            GenerateRoomWorksSummariesJob::dispatch($package->id);
+        } catch (\Throwable $e) {
+            Log::warning('QuoteImportService: could not dispatch GenerateRoomWorksSummariesJob', [
+                'package_id' => $package->id,
+                'error'      => $e->getMessage(),
+            ]);
+        }
+
+        return $package;
     }
 
     // ── Confirm / review ──────────────────────────────────────────────────────

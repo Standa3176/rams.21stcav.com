@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\Jobs;
 
+use App\Core\AI\Contracts\AIProviderContract;
+use App\Core\AI\Providers\ClaudeProvider;
 use App\Core\Modules\QuoteImport\QuoteImportService;
 use App\Jobs\GenerateRoomWorksSummariesJob;
 use App\Models\ProjectPackage;
@@ -37,7 +39,7 @@ use Tests\TestCase;
  *  - Test 3 proves AIB-04 at the boundary that matters: the REAL PUSH throws,
  *    and the import still returns its package and the row is still readable.
  *    It MUST fail at the push, not at a callback registration. This is why the
- *    production code must NOT use ->afterCommit(): with afterCommit() the push
+ *    production code must NOT use afterCommit(): with afterCommit() the push
  *    is deferred into DatabaseTransactionRecord::executeCallbacks() (:83-88), a
  *    bare untried foreach, reached from ManagesTransactions'
  *    transactionsManager?->commit() (:66-70) which sits OUTSIDE that method's
@@ -205,6 +207,103 @@ class GenerateRoomWorksSummariesDispatchTest extends TestCase
         $this->assertNotNull(ProjectPackage::find($package->id),
             'the committed package row must still be readable after a dispatch failure — a '
             . 'rolled-back import here would be the half-reported import of T-46.9-17');
+    }
+
+    // ── The ProjectAutoAdvanceTest guard (T-46.9-09) ─────────────────────────
+
+    /**
+     * tests/Feature/ProjectAutoAdvanceTest.php:56,96 call importFromData()
+     * directly and pass NO extracted_data, and phpunit.xml:40 sets
+     * QUEUE_CONNECTION=sync — so the new dispatch runs the job INLINE there.
+     * That suite was measured green both before and after this change
+     * (9 passed / 21 assertions, unchanged), and the test file was NOT edited.
+     *
+     * This test asserts the REASON it stays green instead of leaving it to luck:
+     * with no room_overviews, the job's step-2 early return fires before any AI
+     * call, so a provider bound with expects($this->never()) is never asked.
+     * An unguarded accident is how this feature breaks for the next agent.
+     *
+     * No Queue::fake() here — faking the queue would hide the very inline
+     * execution this test exists to exercise.
+     */
+    public function test_an_import_with_no_extracted_data_dispatches_a_job_that_never_asks_the_ai(): void
+    {
+        $this->assertSame('sync', config('queue.default'),
+            'this test is only meaningful on the sync driver, where the dispatched job runs inline');
+
+        $this->bindProviderNeverCalled();
+
+        $user = User::factory()->create();
+
+        // The exact payload shape used at ProjectAutoAdvanceTest:51-57.
+        $package = app(QuoteImportService::class)->importFromData($user, [
+            'client_name'  => 'Acme Ltd',
+            'site_address' => '123 Main St',
+            'ref'          => 'ABC123',
+        ]);
+
+        $this->assertInstanceOf(ProjectPackage::class, $package);
+        $this->assertSame([], (array) ($package->fresh()->extracted_data['room_overviews'] ?? []),
+            'no room rows means nothing for the job to do and nothing to ask the AI about');
+    }
+
+    /**
+     * The control half, and it is what makes the test above non-vacuous: on the
+     * SAME sync driver, with the SAME dispatch, a room that does carry prose
+     * really does reach the provider and really does get its bullets persisted.
+     * So the never-called assertion above is the early return doing its job,
+     * not a dispatch that silently never happened.
+     */
+    public function test_the_same_inline_sync_path_does_reach_the_ai_when_a_room_carries_prose(): void
+    {
+        $this->assertSame('sync', config('queue.default'));
+
+        $bullets = "- Mount the Jabra PanaCast 50 above the display\n- Terminate the panel control run";
+
+        $this->bindProviderReturning([
+            'summaries' => [
+                ['room' => 'Boardroom', 'summary' => $bullets],
+            ],
+        ]);
+
+        $user = User::factory()->create();
+
+        $package = app(QuoteImportService::class)->importFromData($user, $this->importPayload());
+
+        $rooms = (array) ($package->fresh()->extracted_data['room_overviews'] ?? []);
+
+        $this->assertCount(1, $rooms);
+        $this->assertSame($bullets, $rooms[0]['works_summary'] ?? null,
+            'the dispatched job must have run inline under sync and persisted the AI bullets — '
+            . 'if this is null the dispatch itself is not happening and the never-called guard '
+            . 'above proves nothing');
+    }
+
+    // ── Provider seams (copied from GenerateRoomWorksSummariesJobTest) ───────
+
+    /**
+     * GenerateSurveyQuestionsJobTest's Mockery::mock(AIManager::class) trick
+     * does not work here — RoomOverviewSummaryService:59 calls AIManager::run()
+     * STATICALLY. The only seam that works is a mock AIProviderContract bound
+     * over ClaudeProvider::class, per RoomOverviewSummaryFallbackTest:44-52.
+     */
+    private function bindProviderReturning(array $payload): void
+    {
+        $mock = $this->createMock(AIProviderContract::class);
+        $mock->method('execute')->willReturn($payload);
+        $mock->method('completeJson')->willReturn($payload);
+        $mock->method('getProviderKey')->willReturn('claude');
+        $this->app->bind(ClaudeProvider::class, fn () => $mock);
+    }
+
+    /** A provider that asserts it is never asked anything at all. */
+    private function bindProviderNeverCalled(): void
+    {
+        $mock = $this->createMock(AIProviderContract::class);
+        $mock->expects($this->never())->method('execute');
+        $mock->expects($this->never())->method('completeJson');
+        $mock->method('getProviderKey')->willReturn('claude');
+        $this->app->bind(ClaudeProvider::class, fn () => $mock);
     }
 }
 
