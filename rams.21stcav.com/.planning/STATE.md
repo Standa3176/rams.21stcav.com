@@ -586,7 +586,37 @@ Zero behavioural regressions across all 5 screens — every form field, every ro
   the three gaps are that generation is manual per room, that `generateRoomSummary` refuses to run
   off the imported scope ("Please write a phrased overview first"), and that nothing runs at import.
   Never overwrites an office-edited summary; degrades to the existing machine-split prose fallback
-  when AI is unavailable. Not planned yet — run `/gsd-plan-phase 46.9`.
+  when AI is unavailable.
+
+  **COMPLETE 2026-10-10, NOT DEPLOYED.** Plans 46.9-01..05 landed (`fe5a6bde`..`05da340c`); the
+  46.9-04 blocking checkpoint was **put to the user and answered**, not self-approved. Production
+  diff is two files: `app/Jobs/GenerateRoomWorksSummariesJob.php` (new) and 63 lines in
+  `QuoteImportService.php`. No migration, no prompt change, no new service, **no Blade edit**.
+  ⚠ **The user overturned D-02 at the checkpoint and chose INLINE generation** — because the cost
+  figure I gave them when they first chose "background" was wrong (`summarize()` batches every room
+  into ONE AI call, not one per room; `RoomOverviewSummaryService:59`). They were told, then chose
+  inline. Now `dispatchSync()` from **both** `importFromData():470` and
+  `completePendingReimport():348`, each after its own transaction returns, inside a try/catch — an
+  inline AI call inside the transaction would hold it open across an HTTP request of up to 180s.
+  ⚠ **There is no `->afterCommit()` call site and there must never be one**: Laravel runs those
+  callbacks in an untried `foreach` (`DatabaseTransactionRecord:83-88`) called outside
+  `ManagesTransactions`' own try/catch (`:66-70`), so a queue failure would commit the package row
+  and then fail the import. The plan-checker caught that before it shipped.
+  ⚠ **FOUND BUT NOT FIXED — a live HTTP 500.** `WorksheetGeneratorService:543` assigns
+  `$installSteps = $phasedPlan` while `buildPhasedPlan()` returns `array` (`:772`), and
+  `worksheets/show.blade.php:587` echoes it through `e()` — so **the worksheet page 500s whenever the
+  install-step AI call returns nothing**. Orchestrator-verified. `WorksheetShowViewParityTest` never
+  caught it because it hand-writes `'install_steps' => ''`. **Needs its own quick task.**
+  Also open: the engineer link **cannot distinguish AI text from office text** —
+  `SurveyController:492` labels any non-empty `works_summary` as `'office'`; asserted as actual
+  behaviour, put to the user, not changed. And the project-level scope
+  (`SurveyService::resolveProjectScopeForSurvey()`) is a second surface this phase did not touch.
+  Measured by the orchestrator in the foreground, before AND after: `tests/Feature/Surveys` 83→**88
+  passed / 717 assertions**, `tests/Feature/Worksheets` 269→**273 / 2367** (⚠ the inherited 265 was
+  STALE — the real pre-phase figure was 269), `tests/Feature/Cockpit` 462 unchanged, dispatch tests
+  **8 / 31**, job tests 7 / 23, `ProjectAutoAdvanceTest` 9 / 21 unchanged either side, D-06 baseline
+  **159 passed / 0 failed / 2 skipped**, three protected files byte-identical. Group AIB-01..05
+  CLOSED. All three pinned counts unmoved.
 
 > ⚠️ **`gsd-sdk query state.add-roadmap-evolution` ALSO CORRUPTES THIS FILE — add it to the
 > do-not-run list beside `state.advance-plan` and `state.update-progress`.** Run on 2026-10-10 to
