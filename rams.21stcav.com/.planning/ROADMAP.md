@@ -1004,6 +1004,80 @@ decision the user has not made.
 
 **Inserted 2026-10-09.**
 
+### Phase 46.9: AI Engineer-Friendly Scope For Site Docs (INSERTED)
+
+**Goal:** An engineer opening a link on site reads short bullets written for them, not the
+QuoteWerks prose the quote was imported with. A queued background job turns the imported scope of
+works / space descriptions into a clear, bulleted, install-friendly version **per room**, so the
+bullets already exist by the time anyone creates a site survey or a worksheet.
+
+**Depends on:** 46.6 (the tabbed survey engineer link that renders the bullets), 46.8 (the capture
+refinements that edit the same view).
+
+**Requirements**: TBD at planning.
+
+⚠️ **KEEP THE IMPORTED ORIGINAL.** The AI version is an ADDITIONAL derived field, never a
+replacement — the raw scope stays exactly where it is (`av_requirements`) and must remain readable.
+
+⚠️ **MOST OF THIS ALREADY EXISTS AND MUST BE REUSED, NOT REBUILT:** `app/Core/AI/AIManager.php`,
+`app/Core/AI/Prompts/RoomOverviewSummaryPrompt.php`, `ScopeOfWorksPrompt.php`,
+`WorksheetPrompt.php`, and the live endpoint `project-packages.room-summary` ->
+`ProjectPackageReviewController::generateRoomSummary` (`:582`). The engineer link ALREADY renders
+office-authored bullets as "Install actions" from `reviewed_data['room_overviews'][n]['works_summary']`
+split on newlines (`SurveyController:375,485-496`; `surveys/show.blade.php:575-592`).
+
+**The gaps are only these three:**
+1. Generation is MANUAL and one room at a time, behind a sparkle button.
+2. `generateRoomSummary` REFUSES to run off the imported scope — it returns *"Please write a phrased
+   overview first"*, so it summarises a HAND-WRITTEN overview rather than the raw imported text,
+   which is the opposite of what is wanted here.
+3. Nothing runs at import or at doc creation.
+
+**Decisions already taken — do not relitigate:**
+
+- **D-01:** Output is BULLETS — short, and written for someone standing on site with a phone. Not
+  prose, not marketing language, not a restatement of the quote.
+- **D-02:** It runs IN THE BACKGROUND RIGHT AFTER IMPORT, as a queued job, so nobody waits on a
+  spinner. **The user's own choice, 2026-10-10**, made from three options with the cost of each
+  stated. Each room is its own AI call — a 12-room job is 12 calls, which is precisely why it is not
+  done inline. The queue worker is already running on live (it serves worksheet builds). A room
+  imported later must also get picked up.
+- **D-03:** It NEVER overwrites an office-edited summary. Hand-authored always wins — the same rule
+  the engineer link already applies when choosing office bullets over machine-split prose. Only an
+  EMPTY summary is filled.
+- **D-04:** If the AI is unavailable or fails, NOTHING BREAKS. The engineer link already falls back
+  to machine-split prose via `App\Support\SurveyPdfHelpers::textToBullets()` (shipped 2026-10-10,
+  quick task `261008-gxt`), so a failed generation degrades to today's behaviour. **A doc creation
+  must NEVER fail because of this.**
+
+⚠️ **AI CALLS COST MONEY AND CAN FAIL.** The plan must state what happens on rate-limit, timeout and
+partial failure: a half-generated project is resumable rather than stuck, and a job does not retry
+forever.
+
+⚠️ **AI OUTPUT IS UNTRUSTED TEXT ON A PAGE A CLIENT MAY SEE.** Every echo stays escaped;
+`resources/views/surveys/show.blade.php` has ZERO unescaped echoes and must keep zero.
+
+⚠️ **Probably NO MIGRATION.** `works_summary` already lives inside the `reviewed_data` JSON and may
+need nothing. If a new column is genuinely required, say so explicitly and justify it rather than
+assuming.
+
+⚠️ **SCOPE FENCE** (the user's own words, 2026-10-09): *"App is for doc creation and doc mgt - no
+for mgt of the whole project process."* This is document production and is in scope. Do not drift
+into scheduling or project management.
+
+**Success criteria:**
+
+- Importing a quote leaves every room with bullet-form install actions, with no human action and no
+  wait on the import screen.
+- A room whose summary the office has edited is left exactly as the office wrote it.
+- With AI disabled or failing, import still completes and the engineer link still shows bullets.
+- Both the site survey and the worksheet engineer links read the same generated bullets.
+- The raw imported scope is still present and readable on the office side.
+
+**UI hint**: minimal — the bullets render through surfaces that already exist.
+
+**Inserted 2026-10-10.**
+
 ### Phase 47: Cockpit — Links, Visits and Returns
 
 **Goal**: The cockpit stops hiding what it already does. It becomes the place an engineer link is

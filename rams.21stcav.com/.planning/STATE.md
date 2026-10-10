@@ -574,6 +574,29 @@ Zero behavioural regressions across all 5 screens — every form field, every ro
 
 ## Accumulated Context
 
+### Roadmap Evolution
+
+- **Phase 46.9 inserted after Phase 46.8** (2026-10-10, URGENT) — *AI Engineer-Friendly Scope For
+  Site Docs.* A queued background job turns the imported scope of works / space descriptions into
+  bulleted, install-friendly text **per room, at import time**, so the bullets exist before anyone
+  creates a site survey or worksheet. Requested by the user on 2026-10-10; the background-at-import
+  timing is **their own choice**, made from three options with the cost of each stated. ⚠️ Most of
+  the machinery already exists (`AIManager`, `RoomOverviewSummaryPrompt`, the live
+  `project-packages.room-summary` endpoint, and the engineer link's "Install actions" rendering) —
+  the three gaps are that generation is manual per room, that `generateRoomSummary` refuses to run
+  off the imported scope ("Please write a phrased overview first"), and that nothing runs at import.
+  Never overwrites an office-edited summary; degrades to the existing machine-split prose fallback
+  when AI is unavailable. Not planned yet — run `/gsd-plan-phase 46.9`.
+
+> ⚠️ **`gsd-sdk query state.add-roadmap-evolution` ALSO CORRUPTES THIS FILE — add it to the
+> do-not-run list beside `state.advance-plan` and `state.update-progress`.** Run on 2026-10-10 to
+> add the entry above, it reverted the whole frontmatter to a stale Phase 30 snapshot: it
+> overwrote the hand-written Phase 46.8 `stopped_at` handoff, flipped `status` executing→verifying,
+> set `last_activity` back to 2026-09-13, and rewrote `progress` (total_phases 10→21,
+> completed_phases 2→11, completed_plans 67→79, percent 22→52). It also reflowed ~15 bullet lists
+> with inserted blank lines. Reverted from the index and this entry written by hand. Same signature
+> as the five Phase 45 corruptions. **Append Roadmap Evolution entries manually.**
+
 ### Key Decisions (v2.0)
 
 - **Plan 30-09 LANDED** (2026-09-14) — **PHASE 30 COMPLETE.** Authored the two 21CQ30960 fixtures (clean post-fix + defect-bearing pre-fix RAMS 97 shape) proving ROADMAP criterion 4 by fixture, wired the clean fixture into both snapshot test files, reconciled `30-VALIDATION.md` against actual wave 3-6 results, and ran the full phase gate: **2670/2671 passing on the whole suite** (the one failure is the pre-existing, pre-documented `QueueRecoverCommandTest` — not a Phase 30 regression), **12/12 on the snapshot suite**, **873/873 on `--filter=Rams`**. Two load-bearing findings for Phase 31: (1) **GATE-13's permit half is architecturally unreachable through the real `upgrade()` pipeline** — `addPermitAndIsolation()` unconditionally overwrites `permit_and_isolation` with its own conditional wording on every call, on all six production call sites; only the COSHH half (solder/flux in `coshh_baseline`) can fire in production today, independently re-confirmed against `HotWorksGateTest`'s own docblock, not merely assumed from the plan's illustrative prose. (2) **GATE-14 has a `manual_handling` coverage gap** — fires on RA01 (Working at Height) but cannot fire on RA02 (Manual Handling), since no `manual_handling` signal exists in `config('rams_tier1.missing_risk_implications')` or `StructuralGateVocabulary::SUPPORTED_SIGNALS` — deliberately left for `30-MEASUREMENT.md`'s corpus pass to drive with evidence rather than guessed at now, per explicit coordinator direction. **Coordinator override on close-out (deliberate, recorded per instruction):** GATE-01/GATE-02/GATE-04 were corrected from Complete BACK to Pending in `REQUIREMENTS.md` (both the checklist and the traceability table) — they had been marked Complete despite shipping behind the disarmed `structural_gates_enabled`/`RAMS_STRUCTURAL_GATES` flag (`env(..., false)`, confirmed absent from the actual `.env` by direct grep), reproducing the exact ambiguity `REQUIREMENTS.md:72`'s 2026-09-12 GATE-11 reconciliation ("a disarmed gate is not Complete") already existed to prevent. All five Phase 30 gates (GATE-01/02/04/13/14) now correctly read Pending with a code-complete/tested/disarmed/flag-name/`30-MEASUREMENT.md`-pointer note, matching the GATE-11 wording pattern exactly. `requirements-completed: []` in `30-09-SUMMARY.md`'s frontmatter for the identical reason. All three Phase 30 flags remain `env(..., false)` in `config/rams_tier1.php`; no `.env` anywhere carries any of them. Commits: `1941939` (Task 1), `0af82ea` (Task 2), `964ccba` (VALIDATION.md reconciliation), `b66b7e5` (REQUIREMENTS.md correction), `54e4247` (SUMMARY). See `.planning/phases/30-structural-validation-gates/30-09-SUMMARY.md`. **This closes Phase 30 — Structural Validation Gates. Next: Phase 31 (Standards/COSHH Scoping & Padding Gates), which inherits the two findings above before arming any flag.**
