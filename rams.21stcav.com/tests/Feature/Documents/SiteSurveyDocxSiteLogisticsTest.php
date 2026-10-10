@@ -62,11 +62,10 @@ class SiteSurveyDocxSiteLogisticsTest extends TestCase
         $xml = $this->buildAndReadDocumentXml($this->fullLogistics());
 
         foreach ([
-            'parking_restraints'      => self::PARKING,
-            'site_access_notes'       => self::ACCESS,
-            'delivery_routes'         => self::DELIVERY,
-            'comms_room_access_notes' => self::COMMS,
-            'general_notes'           => self::NOTES,
+            'parking_restraints' => self::PARKING,
+            'site_access_notes'  => self::ACCESS,
+            'delivery_routes'    => self::DELIVERY,
+            'general_notes'      => self::NOTES,
         ] as $column => $text) {
             $this->assertStringContainsString(
                 $text,
@@ -75,6 +74,24 @@ class SiteSurveyDocxSiteLogisticsTest extends TestCase
                 .'the cockpit document form, it persists, and the generated Word document drops it.'
             );
         }
+    }
+
+    /**
+     * 46.8 D-02 — the survey's own Word document never prints comms room, for
+     * any stored status. The column stays on disk (D-03); only this render is
+     * gone.
+     */
+    public function test_comms_room_access_never_renders(): void
+    {
+        $xml = $this->buildAndReadDocumentXml($this->fullLogistics());
+
+        $this->assertStringNotContainsString('Comms room access', $xml);
+        $this->assertStringNotContainsString(self::COMMS, $xml);
+        $this->assertStringNotContainsString('Permission required', $xml);
+
+        // Control: the other logistics fields still render, so this is not
+        // asserting an empty document.
+        $this->assertStringContainsString(self::PARKING, $xml);
     }
 
     /**
@@ -88,7 +105,6 @@ class SiteSurveyDocxSiteLogisticsTest extends TestCase
             'parking_restraints',
             'site_access_notes',
             'delivery_routes',
-            'comms_room_access_status',
             'distance_from_base_miles',
         ];
 
@@ -119,21 +135,22 @@ class SiteSurveyDocxSiteLogisticsTest extends TestCase
     }
 
     /**
-     * `comms_room_access_status` stores `yes|no|outsourced|unknown`. The document
-     * must print the shared label, never the raw stored token.
+     * 46.8 D-02 — `COMMS_ROOM_LABELS` no longer exists on `SurveyCarryForward`
+     * at all, not merely unused. The vocabulary question this test used to ask
+     * ("does the document print the shared label or the raw token?") is moot
+     * once the row never renders.
      */
-    public function test_comms_room_access_status_renders_the_shared_label_not_the_stored_token(): void
+    public function test_comms_room_access_status_renders_nothing_and_the_label_map_is_gone(): void
     {
+        $this->assertFalse(
+            defined(SurveyCarryForward::class.'::COMMS_ROOM_LABELS'),
+            'COMMS_ROOM_LABELS must be deleted (46.8 D-02), not left unused.'
+        );
+
         $xml = $this->buildAndReadDocumentXml($this->fullLogistics());
 
-        $label = SurveyCarryForward::COMMS_ROOM_LABELS['yes'];
-
-        $this->assertStringContainsString(
-            $label.' — '.self::COMMS,
-            $xml,
-            "Stored 'yes' must render as '{$label}' joined to the notes by SurveyCarryForward, "
-            .'not as a fifth hand-rolled copy of that vocabulary (see D-46.2-04-02).'
-        );
+        $this->assertStringNotContainsString('Comms room access', $xml);
+        $this->assertStringNotContainsString(self::COMMS, $xml);
     }
 
     /**
@@ -154,7 +171,6 @@ class SiteSurveyDocxSiteLogisticsTest extends TestCase
             'parking_restraints',
             'site_access_notes',
             'delivery_routes',
-            'comms_room_access_status',
             'distance_from_base_miles',
         ] as $key) {
             $this->assertStringNotContainsString(

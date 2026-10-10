@@ -33,8 +33,8 @@ class SiteSurveyDocxService
     // ── Site logistics ────────────────────────────────────────────────────────
     /**
      * The site-logistics columns this document carries, as the KEYS of
-     * `SurveyCarryForward::FIELDS` — which supplies the label, the render order
-     * and the `comms_room_access_status` vocabulary map.
+     * `SurveyCarryForward::FIELDS` — which supplies the label and the render
+     * order.
      *
      * WHY AN ALLOW-LIST RATHER THAN ALL OF `FIELDS`: this set is parity with the
      * survey PDF (`resources/views/pdf/site-survey/_header-meta.blade.php` lines
@@ -43,6 +43,11 @@ class SiteSurveyDocxService
      * `access_constraints`, `site_risks` and `h_and_s_notes`, which the PDF does
      * not render either — a separate gap, deliberately NOT closed here (see the
      * quick-task summary). Deleting an entry from this list is how you'd add one.
+     *
+     * `comms_room_access_status` is absent by 46.8 D-02's override of 46.5 D-03:
+     * the survey's own Word document no longer prints comms room at all, for any
+     * survey. See `46.8-CONTEXT.md` D-02/D-03 and
+     * `App\Support\Visits\SurveyCarryForward::FIELDS`, which dropped the same key.
      *
      * `general_notes` is absent on purpose: `buildCover()` already renders it as
      * a Survey Details row, and listing it here would print it twice.
@@ -53,7 +58,6 @@ class SiteSurveyDocxService
         'parking_restraints',
         'site_access_notes',
         'delivery_routes',
-        'comms_room_access_status',
         'distance_from_base_miles',
     ];
 
@@ -182,13 +186,13 @@ class SiteSurveyDocxService
     // =========================================================================
 
     /**
-     * The PM-typed site findings: parking, site access, delivery routes, comms
-     * room access and distance from depot.
+     * The PM-typed site findings: parking, site access, delivery routes and
+     * distance from depot.
      *
-     * Rows, labels, order and the `comms_room_access_status` label map all come
-     * from `SurveyCarryForward::forSurvey()` — the one place this project derives
-     * survey findings — rather than from a copy made here. A sixth hand-rolled
-     * copy of that vocabulary is exactly how D-46.2-04-02 happened.
+     * Rows, labels and order all come from `SurveyCarryForward::forSurvey()` —
+     * the one place this project derives survey findings — rather than from a
+     * copy made here. Comms room is deliberately absent from `LOGISTICS_KEYS`
+     * (46.8 D-02); see that constant's docblock.
      *
      * `forSurvey()` already drops every empty field, so an unfilled survey
      * yields `[]` and this method returns having added NOTHING: no heading, no

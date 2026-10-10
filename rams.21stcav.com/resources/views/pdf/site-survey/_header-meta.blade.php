@@ -17,8 +17,9 @@
     // Site Logistics (engineer-feedback fields from quick task 260503-rgg).
     // Pre-populate when set; render blank-line slot when null so the engineer
     // can fill on paper and transcribe back into the digital wizard 1:1.
-    $commsAccessStatus = $survey?->comms_room_access_status;          // yes|no|outsourced|unknown|null
-    $commsAccessNotes  = $survey?->comms_room_access_notes;
+    // Comms room access is deliberately absent here (46.8 D-02 overrides 46.5
+    // D-03's "keep it everywhere" ruling) — the column stays on the model,
+    // this view just never reads it.
     $parkingNotes      = $survey?->parking_restraints ?? null;
     $distanceMi        = $survey?->distance_from_base_miles;
     $distanceNotes     = $survey?->distance_from_base_notes;
@@ -60,25 +61,10 @@
 
 <h2>Site Logistics</h2>
 <table>
-    <tr>
-        <td class="label">Comms room access</td>
-        <td colspan="3">
-            {{-- D-46.2-04-02: the STORED vocabulary is `yes,no,outsourced,unknown`
-                 (validated in PublicSurveyController:759, SiteSurveyController:681,
-                 SurveyController:1096) and the canonical label map is
-                 yes => 'Permission required', no => 'Free access'
-                 (WorksheetDocxService:156, DocxBuilderService:711). This row
-                 compared against `permission|outsourced|free`, so two of three
-                 boxes could never tick. The glyphs are now the ballot CHARACTERS
-                 rather than numeric entities, because Blade's double-escaping
-                 printed the entity as literal text in the PDF. `unknown` ticks
-                 nothing, which is correct - there is no fourth box. --}}
-            <span class="checkbox">{{ $commsAccessStatus === 'yes' ? '☑' : '☐' }}</span> Permission required &nbsp;
-            <span class="checkbox">{{ $commsAccessStatus === 'outsourced' ? '☑' : '☐' }}</span> Outsourced &nbsp;
-            <span class="checkbox">{{ $commsAccessStatus === 'no' ? '☑' : '☐' }}</span> Free &nbsp;
-            Notes: {!! H::blank($commsAccessNotes) !!}
-        </td>
-    </tr>
+    {{-- Comms room access row removed by 46.8 D-02 (overrides 46.5 D-03's
+         "keep it everywhere" ruling for this field specifically) — the survey's
+         own Word document/PDF never prints comms room, for any survey. The
+         stored column is untouched; see 46.8-CONTEXT.md D-02/D-03. --}}
     <tr>
         <td class="label">Distance from base</td>
         <td>{!! H::blank($distanceMi) !!} miles</td>
