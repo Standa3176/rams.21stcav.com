@@ -138,7 +138,10 @@ class PublicWorksheetController extends Controller
             'bucket'    => ['sometimes', 'string', \Illuminate\Validation\Rule::in(\App\Models\WorksheetPhoto::BUCKETS)],
         ]);
 
-        $roomName = $request->input('room_name');
+        // 261010-foa — parity fix: this endpoint was the one write path on the
+        // controller that never checked room_name against the worksheet's own
+        // room list. Mirrors addAdditionalKit's call (:523), same position.
+        $roomName = $this->assertRoomNameIsOnTheWorksheet($worksheet, $request->input('room_name'));
         $bucket   = $request->input('bucket') ?: \App\Models\WorksheetPhoto::BUCKET_COMPLETION;
 
         $file = $request->file('photo');
