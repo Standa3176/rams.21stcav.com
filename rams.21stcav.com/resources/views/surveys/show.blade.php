@@ -351,7 +351,7 @@
 
         {{-- ── Site Address + Site Contact card (quick task 261008-mb9) ──
              Reuses $siteContactName / $siteContactPhone / $telHref, already
-             computed once in the masthead's own @php block above — no
+             computed once in the masthead's own PHP block above — no
              second implementation. Blank-field case renders a plainly
              labelled placeholder, never a dangling heading or empty
              tel: href — the office must see the gap, not a silent blank. --}}
