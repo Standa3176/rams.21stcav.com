@@ -235,4 +235,40 @@ class RamsReviewDataServiceTest extends TestCase
             'Phase 26 HAZ-04: risk is fully superseded by the 4 numeric fields + score_reviewed',
         );
     }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // Quick task 261010-cdf Part 2: working_height_overrides is a new,
+    // independent top-level key — must never widen room_overviews' locked
+    // 4-key schema, and must sanitise invalid vocabulary to '' rather than
+    // dropping the row or passing garbage through raw.
+    // ══════════════════════════════════════════════════════════════════════════
+
+    public function test_normaliseWorkingHeightOverrides_sanitises_invalid_values_and_keeps_all_rows(): void
+    {
+        $out = $this->service->normalise([
+            'working_height_overrides' => [
+                ['room' => 'Board Room', 'working_height' => '2_to_4m'],
+                ['room' => 'Bad Room', 'working_height' => 'not_a_real_value'],
+                ['room' => '', 'working_height' => 'over_4m'],
+            ],
+        ])['working_height_overrides'];
+
+        $this->assertSame(
+            ['room' => 'Board Room', 'working_height' => '2_to_4m'],
+            $out[0],
+            'A valid override row must pass through verbatim.',
+        );
+
+        $this->assertSame(
+            ['room' => 'Bad Room', 'working_height' => ''],
+            $out[1],
+            'An invalid vocabulary value must be sanitised to empty string, not dropped or passed through raw.',
+        );
+
+        $this->assertCount(
+            3,
+            $out,
+            'Rows with a blank room name must still be kept (matches existing per-row leniency elsewhere).',
+        );
+    }
 }

@@ -609,6 +609,56 @@
                 </table>
             @endif
 
+            @php
+                // Quick task 261010-cdf Part 2: per-room office correction of
+                // the survey's recorded working height, honoured at
+                // generation time by RamsBuilderService::applyWorkingHeightOverrides().
+                // Mirrors $roomOverviewMap's construction, same $roomNames loop.
+                $whOverrideMap = [];
+                foreach (($reviewPayload['working_height_overrides'] ?? []) as $wh) {
+                    $whRoom = trim((string) ($wh['room'] ?? ''));
+                    if ($whRoom !== '') {
+                        $whOverrideMap[$whRoom] = $wh;
+                    }
+                }
+            @endphp
+
+            @if (! empty($roomNames))
+                <div style="padding:1rem 1.25rem; border-bottom:1px solid var(--border); background:#fbfcfd;">
+                    <strong style="color:#0f5460;">Working Height Corrections</strong>
+                    <p style="margin:.35rem 0 0;font-size:.78rem;color:var(--text-muted);">
+                        Correct a room's recorded working height before generating — the survey does not need to be reopened or resubmitted by the engineer.
+                    </p>
+                </div>
+                <table class="repeater-table" style="margin-bottom:.75rem;">
+                    <thead>
+                        <tr>
+                            <th style="width:180px;">Room / Space</th>
+                            <th>Working Height</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach ($roomNames as $roomIdx => $roomName)
+                            @php
+                                $whSelected = old("working_height_overrides.{$roomIdx}.working_height", $whOverrideMap[$roomName]['working_height'] ?? '');
+                            @endphp
+                            <tr>
+                                <td style="font-weight:600;color:#0f5460;">{{ $roomName }}</td>
+                                <td>
+                                    <input type="hidden" name="working_height_overrides[{{ $roomIdx }}][room]" value="{{ $roomName }}">
+                                    <select name="working_height_overrides[{{ $roomIdx }}][working_height]">
+                                        <option value="" {{ $whSelected === '' ? 'selected' : '' }}>— as surveyed —</option>
+                                        <option value="under_2m" {{ $whSelected === 'under_2m' ? 'selected' : '' }}>Under 2m</option>
+                                        <option value="2_to_4m" {{ $whSelected === '2_to_4m' ? 'selected' : '' }}>2–4m</option>
+                                        <option value="over_4m" {{ $whSelected === 'over_4m' ? 'selected' : '' }}>4m+</option>
+                                    </select>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            @endif
+
             @foreach ($categoryOptions as $catKey => $catLabel)
                 <div style="padding:1rem 1.25rem; border-bottom:1px solid var(--border); background:#fbfcfd; display:flex; align-items:center; justify-content:space-between;">
                     <strong style="color:#0f5460;">{{ $catLabel }}</strong>

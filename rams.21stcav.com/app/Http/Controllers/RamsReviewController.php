@@ -310,6 +310,30 @@ class RamsReviewController extends Controller
         }
         $raw['room_overviews'] = $roomOverviews;
 
+        // ── Working height overrides (quick task 261010-cdf Part 2) ──────────
+        // Office-entered per-room correction to the survey's recorded working
+        // height, honoured at generation time by
+        // RamsBuilderService::applyWorkingHeightOverrides(). A NEW, independent
+        // reviewed_data key — does not touch the locked room_overviews schema
+        // above. working_height is sanitised against the same 3-item
+        // allow-list RamsReviewDataService::normaliseWorkingHeightOverrides()
+        // uses (defence in depth, T-261010-cdf-01) — a blank or invalid value
+        // sanitises to '' rather than passing garbage through raw.
+        $allowedWorkingHeight = ['under_2m', '2_to_4m', 'over_4m'];
+        $workingHeightOverrides = [];
+        foreach (array_values($raw['working_height_overrides'] ?? []) as $row) {
+            $room = trim((string) ($row['room'] ?? ''));
+            if ($room === '') {
+                continue;
+            }
+            $workingHeight = trim((string) ($row['working_height'] ?? ''));
+            $workingHeightOverrides[] = [
+                'room'           => $room,
+                'working_height' => in_array($workingHeight, $allowedWorkingHeight, true) ? $workingHeight : '',
+            ];
+        }
+        $raw['working_height_overrides'] = $workingHeightOverrides;
+
         return $raw;
     }
 

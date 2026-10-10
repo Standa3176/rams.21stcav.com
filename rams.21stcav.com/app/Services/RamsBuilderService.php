@@ -157,6 +157,13 @@ class RamsBuilderService
 
         // Build ProjectContext — passed forward to RamsDataBuilderService for all data shaping.
         $projectContext = $this->buildProjectContext($record);
+        // Quick task 261010-cdf Part 2: apply any office-reviewer working-height
+        // corrections BEFORE assemble() so RiskTemplateResolverService sees the
+        // corrected value, not the original survey value.
+        $projectContext['rooms'] = $this->applyWorkingHeightOverrides(
+            $projectContext['rooms'] ?? [],
+            $reviewedData['working_height_overrides'] ?? [],
+        );
 
         // Generate fresh AI summaries only when some room overviews lack a saved summary.
         if (! empty($reviewedData['room_overviews'])) {
@@ -1050,6 +1057,68 @@ class RamsBuilderService
         } catch (\Throwable) {
             return null;
         }
+    }
+
+    /**
+     * Quick task 261010-cdf Part 2: merge office-reviewer working-height
+     * corrections into freshly-built ProjectContext rooms, before they
+     * reach RamsDataBuilderService::assemble() -> RiskTemplateResolverService.
+     *
+     * $roomOverrides reaches this method RAW — runFromReview()'s
+     * $reviewedData is Jobs/BuildRamsDocumentJob.php's $record->reviewed_data
+     * exactly as RamsReviewController::parseReviewPayload() saved it, NOT run
+     * through RamsReviewDataService::normalise() on this path — so the
+     * allow-list check here is a necessary, independent validation (defence
+     * in depth with RamsReviewDataService::normaliseWorkingHeightOverrides()
+     * and RamsReviewController's own sanitising loop, T-261010-cdf-01), not
+     * belt-and-braces.
+     *
+     * A blank/missing override means "no correction" — the survey's own
+     * value is left untouched. An override for a room name that does not
+     * match any room in $rooms is a no-op for every room.
+     *
+     * @param  array  $rooms         ProjectContext rooms, each with a 'name'
+     *                                and 'risks' array.
+     * @param  array  $roomOverrides Raw working_height_overrides rows:
+     *                                [{ room: string, working_height: string }]
+     * @return array  $rooms with risks[0].working_height overridden where a
+     *                 valid, matching override exists.
+     */
+    private function applyWorkingHeightOverrides(array $rooms, array $roomOverrides): array
+    {
+        $allowed = ['under_2m', '2_to_4m', 'over_4m'];
+
+        $overrideMap = [];
+        foreach ($roomOverrides as $row) {
+            $room          = trim((string) (is_array($row) ? ($row['room'] ?? '') : ''));
+            $workingHeight = trim((string) (is_array($row) ? ($row['working_height'] ?? '') : ''));
+
+            if ($room === '' || ! in_array($workingHeight, $allowed, true)) {
+                continue;
+            }
+
+            $overrideMap[$room] = $workingHeight;
+        }
+
+        if (empty($overrideMap)) {
+            return $rooms;
+        }
+
+        return array_map(function ($room) use ($overrideMap) {
+            $roomName = trim((string) ($room['name'] ?? ''));
+
+            if (! isset($overrideMap[$roomName])) {
+                return $room;
+            }
+
+            $risks = (array) ($room['risks'] ?? []);
+            $primaryRisk = (array) ($risks[0] ?? []);
+            $primaryRisk['working_height'] = $overrideMap[$roomName];
+            $risks[0] = $primaryRisk;
+            $room['risks'] = $risks;
+
+            return $room;
+        }, $rooms);
     }
 
     private function buildProjectContext(RamsDocument $record): array

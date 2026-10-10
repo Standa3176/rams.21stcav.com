@@ -85,6 +85,7 @@ class RamsReviewDataService
             'scope_of_works'         => (string) ($data['scope_of_works']  ?? ''),
             'works_overview'         => (string) ($data['works_overview']  ?? ''),
             'room_overviews'         => $this->normaliseRoomOverviews($data['room_overviews'] ?? []),
+            'working_height_overrides' => $this->normaliseWorkingHeightOverrides($data['working_height_overrides'] ?? []),
             'meta'                   => $this->normaliseMeta($data['meta'] ?? []),
             'programme'              => $this->normaliseProgramme($data['programme'] ?? []),
             'site_logistics'         => $this->normaliseSiteLogistics($data['site_logistics'] ?? []),
@@ -240,6 +241,40 @@ class RamsReviewDataService
                 'works_summary'    => (string) ($r['works_summary']    ?? ''),
                 'solution_type_id' => (int)    ($r['solution_type_id'] ?? 0) ?: null,
             ],
+            $raw,
+        ));
+    }
+
+    /**
+     * Quick task 261010-cdf, Part 2: office-entered per-room corrections to
+     * a survey's recorded working height, applied at generation time by
+     * RamsBuilderService::applyWorkingHeightOverrides() BEFORE assemble().
+     * A NEW, independent top-level key — does NOT touch the locked 4-key
+     * room_overviews schema above (precedent: reviewed_data.project_field_overrides
+     * in RamsEditAdapter already uses this same "_overrides" sibling-key pattern).
+     *
+     * Rows are kept even when `working_height` is blank/invalid (matching the
+     * existing per-row leniency elsewhere in this class, e.g. normaliseActivities)
+     * — only the `working_height` value itself is sanitised to '' unless it is
+     * exactly one of the three allowed vocabulary values. Sanitisation never
+     * fabricates a real value out of garbage input.
+     */
+    private function normaliseWorkingHeightOverrides(mixed $raw): array
+    {
+        if (! is_array($raw)) {
+            return [];
+        }
+
+        $allowed = ['under_2m', '2_to_4m', 'over_4m'];
+
+        return array_values(array_map(
+            function ($r) use ($allowed) {
+                $workingHeight = trim((string) ($r['working_height'] ?? ''));
+                return [
+                    'room'            => trim((string) ($r['room'] ?? '')),
+                    'working_height'  => in_array($workingHeight, $allowed, true) ? $workingHeight : '',
+                ];
+            },
             $raw,
         ));
     }

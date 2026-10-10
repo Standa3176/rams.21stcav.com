@@ -142,6 +142,21 @@ class RamsBuilderServiceTest extends TestCase
         );
     }
 
+    /**
+     * Quick task 261010-cdf Part 2: reflection invoker for the new private
+     * applyWorkingHeightOverrides(array $rooms, array $roomOverrides): array
+     * method, mirroring invokeRunFromReview()/invokeReviewedToRisk() above.
+     */
+    private function invokeApplyWorkingHeightOverrides(
+        RamsBuilderService $service,
+        array $rooms,
+        array $roomOverrides,
+    ): array {
+        $method = new \ReflectionMethod(RamsBuilderService::class, 'applyWorkingHeightOverrides');
+        $method->setAccessible(true);
+        return $method->invoke($service, $rooms, $roomOverrides);
+    }
+
     private function invokeReviewedToRisk(
         RamsBuilderService $service,
         array $rd,
@@ -821,5 +836,76 @@ class RamsBuilderServiceTest extends TestCase
         $this->assertSame(1, $out['hazards'][0]['id']);
         $this->assertSame('Low voltage AV connections', $out['hazards'][1]['hazard']);
         $this->assertSame(2, $out['hazards'][1]['id'], 'ids are re-sequenced 1..N across the FULL merged array');
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // Quick task 261010-cdf Part 2: applyWorkingHeightOverrides() merges
+    // office-reviewer corrections into ProjectContext rooms BEFORE
+    // RamsDataBuilderService::assemble() runs. $reviewedData reaches
+    // runFromReview() RAW (never through RamsReviewDataService::normalise()),
+    // so this method must re-validate against the allow-list itself.
+    // ══════════════════════════════════════════════════════════════════════════
+
+    public function test_applyWorkingHeightOverrides_applies_a_valid_override(): void
+    {
+        $service = $this->makeService($this->roomOverviewSummary);
+
+        $rooms = [[
+            'name'  => 'Board Room',
+            'risks' => [['working_height' => 'under_2m']],
+        ]];
+        $overrides = [['room' => 'Board Room', 'working_height' => '2_to_4m']];
+
+        $out = $this->invokeApplyWorkingHeightOverrides($service, $rooms, $overrides);
+
+        $this->assertSame('2_to_4m', $out[0]['risks'][0]['working_height']);
+    }
+
+    public function test_applyWorkingHeightOverrides_blank_override_leaves_survey_value_untouched(): void
+    {
+        $service = $this->makeService($this->roomOverviewSummary);
+
+        $rooms = [[
+            'name'  => 'Board Room',
+            'risks' => [['working_height' => 'under_2m']],
+        ]];
+        $overrides = [['room' => 'Board Room', 'working_height' => '']];
+
+        $out = $this->invokeApplyWorkingHeightOverrides($service, $rooms, $overrides);
+
+        $this->assertSame('under_2m', $out[0]['risks'][0]['working_height'], 'Blank override means "no correction, keep the survey value."');
+    }
+
+    public function test_applyWorkingHeightOverrides_unmatched_room_name_leaves_all_rooms_unchanged(): void
+    {
+        $service = $this->makeService($this->roomOverviewSummary);
+
+        $rooms = [[
+            'name'  => 'Board Room',
+            'risks' => [['working_height' => 'under_2m']],
+        ]];
+        $overrides = [['room' => 'Nonexistent Room', 'working_height' => 'over_4m']];
+
+        $out = $this->invokeApplyWorkingHeightOverrides($service, $rooms, $overrides);
+
+        $this->assertSame($rooms, $out, 'An override for a room that does not exist must leave all rooms completely unchanged.');
+    }
+
+    public function test_applyWorkingHeightOverrides_invalid_value_is_ignored_defensively(): void
+    {
+        $service = $this->makeService($this->roomOverviewSummary);
+
+        $rooms = [[
+            'name'  => 'Board Room',
+            'risks' => [['working_height' => 'under_2m']],
+        ]];
+        // reviewed_data reaches runFromReview() RAW -- never passed through
+        // RamsReviewDataService::normalise() -- so an invalid value must be
+        // rejected HERE too (defence in depth, T-261010-cdf-01).
+        $overrides = [['room' => 'Board Room', 'working_height' => 'eiffel_tower']];
+
+        $out = $this->invokeApplyWorkingHeightOverrides($service, $rooms, $overrides);
+
+        $this->assertSame('under_2m', $out[0]['risks'][0]['working_height'], 'An invalid vocabulary value must be ignored; original survey value untouched.');
     }
 }
