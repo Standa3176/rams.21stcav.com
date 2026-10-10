@@ -51,17 +51,33 @@ use App\Models\SiteSurvey;
  *
  * Modelled on `app/Support/Cockpit/CockpitPanelPresenter.php`: pure reading,
  * derivation here, printing in Blade.
+ *
+ * ── 46.8 D-02 OVERRIDE ───────────────────────────────────────────────────────
+ *
+ * `comms_room_access_status`/`comms_room_access_notes` are DELIBERATELY absent
+ * from `FIELDS` below. 46.5 D-03 recorded keeping comms room here precisely
+ * because the installing engineer inherited the surveyor's access notes
+ * through this class — 46.8 D-02 was shown that exact cost and overrode it:
+ * comms room is removed everywhere, including this carry-forward. The
+ * `comms_room_access_status`/`_notes` COLUMNS stay on `site_surveys`, untouched
+ * (46.8 D-03 forbids any migration or write path) — only this class's READ of
+ * them is gone. See `.planning/phases/46.8-survey-capture-refinements/
+ * 46.8-CONTEXT.md` D-02/D-03. Do not read the "two rules" below as still
+ * covering comms room — they do not.
  */
 final class SurveyCarryForward
 {
     /**
-     * The ten D-01 columns, keyed by the `SiteSurvey` column that drives the
-     * row, mapped to the label an engineer reads, IN RENDER ORDER.
+     * The D-01 columns this class still carries, keyed by the `SiteSurvey`
+     * column that drives the row, mapped to the label an engineer reads, IN
+     * RENDER ORDER.
      *
-     * Two of the ten rows are composed from a pair of columns and so appear
-     * once here, under their primary column:
-     *   comms_room_access_status  +  comms_room_access_notes
+     * One of the rows is composed from a pair of columns and so appears once
+     * here, under its primary column:
      *   distance_from_base_miles  +  distance_from_base_notes
+     *
+     * `comms_room_access_status` + `comms_room_access_notes` were a second such
+     * pair until 46.8 D-02 removed the row — see the class docblock.
      *
      * Order is arrival-first: how do I park, how do I get in, what stops me,
      * where do deliveries go — then the safety fields the surveyor recorded and
@@ -76,26 +92,10 @@ final class SurveyCarryForward
         'site_access_notes'        => 'Site access notes',
         'access_constraints'       => 'Access constraints',
         'delivery_routes'          => 'Delivery routes',
-        'comms_room_access_status' => 'Comms room access',
         'distance_from_base_miles' => 'Distance from depot',
         'site_risks'               => 'Site risks',
         'h_and_s_notes'            => 'Health and safety',
         'general_notes'            => "Surveyor's notes",
-    ];
-
-    /**
-     * Moved here from the inline `$commsRoomLabels` map in
-     * `resources/views/worksheets/public-show.blade.php` rather than copied:
-     * two maps would disagree the first time a status is added, and the page
-     * would then show one wording while any other reader showed another.
-     *
-     * @var array<string, string>
-     */
-    public const COMMS_ROOM_LABELS = [
-        'yes'        => 'Permission required',
-        'no'         => 'Free access',
-        'outsourced' => 'Outsourced facilities team',
-        'unknown'    => 'Status unknown',
     ];
 
     /**
@@ -145,7 +145,6 @@ final class SurveyCarryForward
 
         foreach (self::FIELDS as $key => $label) {
             $value = match ($key) {
-                'comms_room_access_status' => self::commsRoomAccess($survey),
                 'distance_from_base_miles' => self::distanceFromBase($survey),
                 default                    => trim((string) ($survey->{$key} ?? '')),
             };
@@ -162,18 +161,6 @@ final class SurveyCarryForward
         }
 
         return $rows;
-    }
-
-    /** "Permission required — keys held by reception", or either half alone. */
-    private static function commsRoomAccess(SiteSurvey $survey): string
-    {
-        $status = trim((string) ($survey->comms_room_access_status ?? ''));
-        $notes  = trim((string) ($survey->comms_room_access_notes ?? ''));
-
-        return self::join([
-            self::COMMS_ROOM_LABELS[$status] ?? '',
-            $notes,
-        ]);
     }
 
     /** "42 miles from depot — M4 J11 then 10 min", or either half alone. */

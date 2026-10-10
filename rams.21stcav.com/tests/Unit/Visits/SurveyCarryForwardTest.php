@@ -41,20 +41,49 @@ class SurveyCarryForwardTest extends TestCase
         ], $attributes));
     }
 
-    /** All ten D-01 fields, and nothing else. */
-    public function test_fields_const_names_the_ten_d01_columns_in_render_order(): void
+    /**
+     * Eight of the ten D-01 fields. `comms_room_access_status` is deliberately
+     * absent — 46.8 D-02 overrode 46.5 D-03's "keep it everywhere" ruling for
+     * this field specifically; see the class docblock.
+     */
+    public function test_fields_const_names_the_eight_surviving_d01_columns_in_render_order(): void
     {
         $this->assertSame([
             'parking_restraints',
             'site_access_notes',
             'access_constraints',
             'delivery_routes',
-            'comms_room_access_status',
             'distance_from_base_miles',
             'site_risks',
             'h_and_s_notes',
             'general_notes',
         ], array_keys(SurveyCarryForward::FIELDS));
+    }
+
+    /**
+     * 46.8 D-02 — comms room is removed from the carry-forward entirely:
+     * neither a FIELDS row nor the class constants that once supported one.
+     */
+    public function test_comms_room_access_status_is_never_carried_forward(): void
+    {
+        $this->assertArrayNotHasKey('comms_room_access_status', SurveyCarryForward::FIELDS);
+        $this->assertFalse(
+            defined(SurveyCarryForward::class.'::COMMS_ROOM_LABELS'),
+            'COMMS_ROOM_LABELS must be deleted, not merely unused (46.8 D-02).'
+        );
+
+        $project = $this->project();
+        $this->survey($project, [
+            'comms_room_access_status' => 'yes',
+            'comms_room_access_notes'  => 'SENTINEL-COMMS-ROOM-MUST-NOT-CARRY',
+            'site_risks'               => 'Live overhead cables',
+        ]);
+
+        $encoded = json_encode(SurveyCarryForward::forProject($project->fresh()));
+
+        $this->assertStringNotContainsString('SENTINEL-COMMS-ROOM-MUST-NOT-CARRY', $encoded);
+        $this->assertStringNotContainsString('Permission required', $encoded);
+        $this->assertStringContainsString('Live overhead cables', $encoded);
     }
 
     /**
@@ -79,7 +108,7 @@ class SurveyCarryForwardTest extends TestCase
         $this->assertStringContainsString('Live overhead cables', $encoded);
     }
 
-    public function test_it_returns_all_ten_fields_labelled_in_render_order(): void
+    public function test_it_returns_all_eight_surviving_fields_labelled_in_render_order(): void
     {
         $project = $this->project();
         $this->survey($project, [
@@ -103,7 +132,6 @@ class SurveyCarryForwardTest extends TestCase
             'site_access_notes',
             'access_constraints',
             'delivery_routes',
-            'comms_room_access_status',
             'distance_from_base_miles',
             'site_risks',
             'h_and_s_notes',
@@ -115,7 +143,6 @@ class SurveyCarryForwardTest extends TestCase
             'Site access notes',
             'Access constraints',
             'Delivery routes',
-            'Comms room access',
             'Distance from depot',
             'Site risks',
             'Health and safety',
@@ -127,8 +154,7 @@ class SurveyCarryForwardTest extends TestCase
         $this->assertSame('SENTINEL-ACCESS-NOTES', $values['site_access_notes']);
         $this->assertSame('SENTINEL-CONSTRAINTS', $values['access_constraints']);
         $this->assertSame('SENTINEL-ROUTES', $values['delivery_routes']);
-        // Comms room status renders through the SAME label map the page used.
-        $this->assertSame('Permission required — SENTINEL-COMMS-NOTES', $values['comms_room_access_status']);
+        $this->assertArrayNotHasKey('comms_room_access_status', $values);
         $this->assertSame('42 miles from depot — SENTINEL-DISTANCE-NOTES', $values['distance_from_base_miles']);
         $this->assertSame('SENTINEL-RISKS', $values['site_risks']);
         $this->assertSame('SENTINEL-HS', $values['h_and_s_notes']);

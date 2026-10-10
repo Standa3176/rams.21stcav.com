@@ -74,7 +74,11 @@ class SurveyCarryForwardOnEngineerLinkTest extends TestCase
         ], $attributes));
     }
 
-    /** A distinct sentinel per field, so a failure names the missing field. */
+    /**
+     * A distinct sentinel per field, so a failure names the missing field.
+     * Includes comms-room columns on the SURVEY (they still exist on disk,
+     * 46.8 D-03) even though 46.8 D-02 stops them carrying forward.
+     */
     private function allTenFields(): array
     {
         return [
@@ -97,7 +101,7 @@ class SurveyCarryForwardOnEngineerLinkTest extends TestCase
         return $this->get(route('public-worksheet.show', ['token' => $worksheet->access_token]));
     }
 
-    public function test_all_ten_fields_render_on_an_unauthenticated_engineer_link(): void
+    public function test_eight_surviving_fields_render_on_an_unauthenticated_engineer_link(): void
     {
         $project   = $this->project();
         $this->survey($project, $this->allTenFields());
@@ -108,16 +112,16 @@ class SurveyCarryForwardOnEngineerLinkTest extends TestCase
         $response->assertOk();
         $this->assertGuest();
 
-        // Ten labels. Asserted WITH escaping, because the labels print through
+        // Eight labels. Asserted WITH escaping, because the labels print through
         // an escaped echo like every value does — "Surveyor's notes" reaches the
         // engineer as `Surveyor&#039;s notes`, which is the correct output and
-        // renders as an apostrophe.
+        // renders as an apostrophe. Comms room access is deliberately absent
+        // (46.8 D-02).
         foreach ([
             'Parking arrangements',
             'Site access notes',
             'Access constraints',
             'Delivery routes',
-            'Comms room access',
             'Distance from depot',
             'Site risks',
             'Health and safety',
@@ -126,14 +130,15 @@ class SurveyCarryForwardOnEngineerLinkTest extends TestCase
             $response->assertSee($label);
         }
 
-        // Ten values — the four that never carried before are the point.
+        $response->assertDontSee('Comms room access', escape: false);
+
+        // Eight values — the four that never carried before 46-03 are still
+        // the point; comms room's sentinel notes must now be absent.
         foreach ([
             'SENTINEL-PARKING-RESTRAINTS',
             'SENTINEL-SITE-ACCESS-NOTES',
             'SENTINEL-ACCESS-CONSTRAINTS',
             'SENTINEL-DELIVERY-ROUTES',
-            'Permission required',
-            'SENTINEL-COMMS-ROOM-NOTES',
             '42 miles from depot',
             'SENTINEL-DISTANCE-NOTES',
             'SENTINEL-SITE-RISKS',
@@ -142,6 +147,9 @@ class SurveyCarryForwardOnEngineerLinkTest extends TestCase
         ] as $value) {
             $response->assertSee($value, escape: false);
         }
+
+        $response->assertDontSee('SENTINEL-COMMS-ROOM-NOTES', escape: false);
+        $response->assertDontSee('Permission required', escape: false);
     }
 
     /** ONE drawer, not two — the user asked for "simple and less scary". */
