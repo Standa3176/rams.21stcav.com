@@ -67,20 +67,34 @@ class VisitLifecycleEndToEndTest extends TestCase
     }
 
     /**
-     * The ten D-01 fields, one distinct sentinel each, so a failure names the
+     * The D-01 fields, one distinct sentinel each, so a failure names the
      * field that did not carry rather than saying "a string was missing".
+     *
+     * `comms_room_access_status`/`_notes` were REMOVED from this map (46.8
+     * D-02): `/survey/{token}/submit` is handled by
+     * `PublicSurveyController::submit()`, whose `validatePublicSurvey()` no
+     * longer validates either key — posting them is now a silent no-op, so
+     * asserting their round-trip through THIS endpoint tests something that
+     * cannot happen through the UI this walk exercises.
+     *
+     * `distance_from_base_miles`/`_notes` STAY — 46.8 D-01 removed them from
+     * the live engineer-link WIZARD's own capture surface
+     * (`SurveyController`/`surveys/show.blade.php`) specifically, but this
+     * walk's engineer step posts through the OTHER public endpoint
+     * (`PublicSurveyController::submit()`), whose `validatePublicSurvey()`/
+     * `extractSiteEngineerFeedback()` still accept and write both — confirmed
+     * by reading both methods directly rather than assuming the two capture
+     * paths behave identically.
      *
      * @return array<string, string>
      */
-    private function tenSurveyFields(): array
+    private function surveyCaptureFields(): array
     {
         return [
             'parking_restraints'       => 'E2E-PARKING-LOADING-BAY-ONLY',
             'site_access_notes'        => 'E2E-SITE-ACCESS-REPORT-TO-GATEHOUSE',
             'access_constraints'       => 'E2E-CONSTRAINT-GOODS-LIFT-ONLY',
             'delivery_routes'          => 'E2E-DELIVERY-REAR-SERVICE-ROAD',
-            'comms_room_access_status' => 'yes',
-            'comms_room_access_notes'  => 'E2E-COMMS-KEY-WITH-FACILITIES',
             'distance_from_base_miles' => '42',
             'distance_from_base_notes' => 'E2E-DISTANCE-M4-JUNCTION-11',
             'site_risks'               => 'E2E-RISK-ASBESTOS-IN-CEILING-VOID',
@@ -195,10 +209,11 @@ class VisitLifecycleEndToEndTest extends TestCase
         $surveyToken = $survey->access_token;
 
         // ── 2. THE ENGINEER RETURNS THE SURVEY — UNAUTHENTICATED, BY TOKEN ───
-        // All ten D-01 fields are captured through the REAL public submit
-        // endpoint. Nothing here is forceFilled into place except survey_data,
-        // which is the wizard's own captured payload and has no flat-form
-        // route to arrive by.
+        // Every D-01 field this endpoint still accepts (comms room excluded —
+        // 46.8 D-02) is captured through the REAL public submit endpoint.
+        // Nothing here is forceFilled into place except survey_data, which is
+        // the wizard's own captured payload and has no flat-form route to
+        // arrive by.
 
         $this->travel(3)->days();
 
@@ -212,7 +227,7 @@ class VisitLifecycleEndToEndTest extends TestCase
         ]);
 
         $this->asEngineer()->post("/survey/{$surveyToken}/submit", array_merge(
-            $this->tenSurveyFields(),
+            $this->surveyCaptureFields(),
             ['surveyor_name' => 'Dan Okafor'],
         ))->assertRedirect(route('survey.confirmation', ['token' => $surveyToken]));
 
@@ -222,7 +237,7 @@ class VisitLifecycleEndToEndTest extends TestCase
         $survey->refresh();
         $this->assertNotNull($survey->submitted_at);
 
-        foreach ($this->tenSurveyFields() as $column => $value) {
+        foreach ($this->surveyCaptureFields() as $column => $value) {
             $this->assertSame(
                 $value,
                 (string) $survey->{$column},
@@ -297,8 +312,9 @@ class VisitLifecycleEndToEndTest extends TestCase
             'E2E-SITE-ACCESS-REPORT-TO-GATEHOUSE',
             'E2E-CONSTRAINT-GOODS-LIFT-ONLY',
             'E2E-DELIVERY-REAR-SERVICE-ROAD',
-            'Permission required',
-            'E2E-COMMS-KEY-WITH-FACILITIES',
+            // 'Permission required'/'E2E-COMMS-KEY-WITH-FACILITIES' removed
+            // (46.8 D-02) — comms room no longer flows through
+            // SurveyCarryForward to this page at all.
             '42 miles from depot',
             'E2E-DISTANCE-M4-JUNCTION-11',
             'E2E-RISK-ASBESTOS-IN-CEILING-VOID',
@@ -307,6 +323,12 @@ class VisitLifecycleEndToEndTest extends TestCase
         ] as $carried) {
             $engineerPage->assertSee($carried, escape: false);
         }
+
+        // Non-vacuity for the removal above: comms room must not merely be
+        // absent because the sentinel changed shape — it must not be ON this
+        // page at all, in any form, after 46.8 D-02.
+        $engineerPage->assertDontSee('Permission required', escape: false);
+        $engineerPage->assertDontSee('E2E-COMMS-KEY-WITH-FACILITIES', escape: false);
 
         $survey->update([
             'site_risks'         => 'E2E-RISK-LIVE-OVERHEAD-CABLES',
@@ -396,7 +418,7 @@ class VisitLifecycleEndToEndTest extends TestCase
         $this->travel(1)->days();
 
         $this->asEngineer()->post("/survey/{$surveyToken}/submit", array_merge(
-            $this->tenSurveyFields(),
+            $this->surveyCaptureFields(),
             [
                 'surveyor_name'      => 'Dan Okafor',
                 'site_risks'         => 'E2E-RISK-LIVE-OVERHEAD-CABLES',
