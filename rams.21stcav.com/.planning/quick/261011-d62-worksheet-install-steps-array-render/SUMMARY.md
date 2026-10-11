@@ -230,3 +230,58 @@ assignment, preserving the model's `$fillable` omissions). No `device_label_phot
 - `tests/Feature/Worksheets/WorksheetInstallStepsShapeTest.php` — FOUND
 - Commits `00029168`, `43e04bf1`, `56cddc77`, `4fa97d58` — all present in `git log`
 - Working tree clean of task changes; only pre-existing untracked PNG clutter remains
+
+---
+
+## Addendum — the third surface, closed 2026-10-11 by the orchestrator (`f5ff0220`)
+
+`D62-DEF-01` is **no longer deferred.** The user's instruction was "fix worksheet", and leaving a
+known, identical 500 on the DOCX download would have been narrowing that request rather than
+delivering it.
+
+`WorksheetDocxService.php:295` carried the same unguarded `trim((string) $room['install_steps'])`.
+Fixed by swapping it for `WorksheetInstallSteps::lines()` and deleting the duplicated
+split-and-strip loop that followed it, so the DOCX and both web surfaces now share one normaliser
+and cannot drift apart again.
+
+**Why it mattered more than "another instance":** `WorksheetEditAdapter` writes the flat-array shape
+(`:256` / `:285`) and then rebuilds the DOCX (`:373`). So an engineer appending a single install step
+through the document-edit drawer wrote the array and immediately triggered the build that could not
+read it — a live, one-step path, not a theoretical shape. It also inverted the premise of
+`WorksheetShowViewParityTest`, which exists precisely to stop the web view and the DOCX diverging on
+one payload.
+
+**Proven RED first.** The real failure, quoted:
+
+```
+FAILED  Tests\Feature\Worksheets\WorksheetDocxInstallStepsShapeTest > shape c nested phases reach…
+  ErrorException: Array to string conversion
+  at app\Services\WorksheetDocxService.php:295
+  ➜ 295▕  $installStepsRaw = trim((string) ($room['install_steps'] ?? ''));
+  Tests:  2 failed, 2 passed (12 assertions)
+```
+
+Shapes (a) and empty passed before the fix; (b) and (c) failed — the two the plan predicted.
+
+**The new guard is not vacuous.** `WorksheetDocxInstallStepsShapeTest` unzips the written `.docx`,
+reads `word/document.xml` back, and asserts the step **text** and the phase **titles**. Asserting
+"no exception" would have passed on a builder that silently dropped every step; asserting the
+filename alone would have passed on an empty document, so the filename assertion carries an explicit
+non-vacuity message.
+
+**Measured by the orchestrator in the foreground**, one suite per invocation, redirected, never
+piped:
+
+| Gate | Result |
+|---|---|
+| `WorksheetDocxInstallStepsShapeTest` | **4 passed, 26 assertions** |
+| `tests/Feature/Worksheets` | 283 → **287 passed, 2458 assertions** |
+| `-Baseline` | **159 passed, 0 failed, 2 skipped** |
+| `-Hashes` | all three **MATCH** `4abd2b24` |
+
+No migration. No Blade file touched by this addendum. Nothing pushed, nothing deployed.
+
+**Still open from this task:** `D62-DEF-02` — the engineer link's `<ol>` numbers the `PHASE n —`
+heading rows alongside the real actions, so the ordinals no longer equal the action count. Cosmetic,
+needs CSS counters in that standalone document's own style block, and deliberately not smuggled into
+a correctness fix.
