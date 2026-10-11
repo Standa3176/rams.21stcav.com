@@ -1990,6 +1990,15 @@
 // ('svDraft_' + SURVEY_ID / 'svDraftProbe_' + SURVEY_ID, localStorage).
 var SURVEY_ID = {{ (int) $survey->id }};
 
+// 261011-tax — how often a held draft re-tries itself. Mirrors the
+// worksheet's NOTES_RETRY_MS (public-show.blade.php), which is the
+// reference implementation this queue was ported from in the first place.
+// A drain that only runs on the 'online' event misses every case where
+// the event never fires: a tab reopened already online, a phone that
+// re-associates with wifi without Chrome noticing, a captive portal that
+// answers the handshake and nothing else.
+var SV_DRAFT_RETRY_MS = 30000;
+
 function surveyWizard() {
     return {
         // ── State ─────────────────────────────────────────────────────────────
@@ -2055,6 +2064,21 @@ function surveyWizard() {
         _draftStorageWorks: null,
 
         init() {
+            // ── 261011-tax — HELD DRAFTS GO BACK INTO THE FIELDS, FIRST ───────
+            // A draft held from the LAST session is NEWER than whatever the
+            // server just rendered — it was typed after that render — so it
+            // goes back into the model, and the status ribbon says so. The
+            // worksheet states this rule in its own words; this is the same
+            // rule, applied to the survey's room model.
+            //
+            // THIS RUNS BEFORE EVERY WATCH REGISTRATION BELOW, DELIBERATELY
+            // (D-03). Writing the held values back is a model mutation; if a
+            // watch were already listening, the restore would trigger the very
+            // autosaves it is recovering from — an autosave storm on every
+            // load. The page carries x-cloak on <body>, so nothing of this is
+            // visible as a flash.
+            this._draftRestoreAll();
+
             // Seed activeTab from a reload-surviving source, first match wins:
             // 1. location.hash naming a real tab (explicit, possibly a link
             //    somebody was just handed),
@@ -2069,6 +2093,26 @@ function surveyWizard() {
             // binary queue for photos only — see the AUTOSAVE USES
             // localStorage block on autosave() below).
             window.addEventListener('online', () => this._draftDrain());
+
+            // ── 261011-tax — DRAIN ON LOAD, AND KEEP TRYING ───────────────────
+            // The 'online' listener above was the ONLY thing that ever sent a
+            // held draft, and it is not enough. An engineer who refreshes with
+            // no signal, closes the tab, and opens the link again back at the
+            // office is ALREADY online: no transition happens, no 'online'
+            // event fires, and the draft sits in localStorage until something
+            // overwrites it. That is silent permanent loss, and it is not what
+            // the engineer reported — they only saw the empty fields.
+            //
+            // Both of these mirror the worksheet's _notesDrainAll('load') and
+            // its retry interval, and both go through _draftDrain, which
+            // already guards readonly and the storage probe.
+            this._draftDrain();
+
+            setInterval(() => {
+                if (typeof navigator === 'undefined' || navigator.onLine !== false) {
+                    this._draftDrain();
+                }
+            }, SV_DRAFT_RETRY_MS);
 
             // Room Context (1): work_type only — name/type save via the
             // section's own @focusout="autosave(1)".
@@ -2234,6 +2278,133 @@ function surveyWizard() {
             if (!Object.prototype.hasOwnProperty.call(map, key)) return;
             delete map[key];
             this._draftWriteAll(map);
+        },
+
+        /*
+         * ══════════════════════════════════════════════════════════════════
+         * 261011-tax — THE RESTORE HALF OF THE QUEUE
+         *
+         * Everything above is the SEND half. Without the two methods below, a
+         * held draft is invisible: the page re-renders from server data, the
+         * fields look empty, and the engineer's typing is still in
+         * localStorage with nothing reading it back.
+         *
+         * THE STORED SHAPE IS NOT TOUCHED (D-01). Real queued drafts may be
+         * sitting on engineers' phones right now; a shape change strands them.
+         * These methods read the existing { room_index, step, data, queuedAt }
+         * entry exactly as _draftPut writes it, and there is no migration of
+         * it anywhere. Still localStorage only — the frozen offline-photo
+         * database is never opened, here or anywhere in this view.
+         *
+         * THE MAPPING IS WRITTEN OUT PER STEP, ON PURPOSE. A draft holds a
+         * stepSave PAYLOAD, and the payload is NOT the room shape:
+         * buildStepPayload flattens _ui fields up to the top level and renames
+         * one of them. So the restore is the explicit inverse of that switch,
+         * case by case, and it is the one place that has to be kept in step
+         * with it. Steps 3, 7 and 8 have nothing to restore — 3 is the photo
+         * list, which is hydrated from the database on load and owned by the
+         * photo queue, and 7 and 8 send an empty payload because constraints
+         * and sign-off are UI-only and discarded server-side (a separate known
+         * issue, handled in its own phase).
+         *
+         * ONLY KEYS THE DRAFT ACTUALLY CARRIES ARE WRITTEN. A blanket
+         * assignment would clobber a field the draft never mentioned with
+         * undefined, which would turn a partial draft into data loss of its
+         * own.
+         * ══════════════════════════════════════════════════════════════════
+         */
+        _draftApplyToRoom(roomIndex, step, data) {
+            const r = this.rooms[roomIndex];
+            if (!r || !data || typeof data !== 'object' || Array.isArray(data)) return false;
+            if (!r._ui || typeof r._ui !== 'object') r._ui = {};
+
+            let applied = false;
+
+            // Write `key` from the draft payload through `assign`, but ONLY if
+            // the draft really carries it.
+            const take = (key, assign) => {
+                if (!Object.prototype.hasOwnProperty.call(data, key)) return;
+                assign(data[key]);
+                applied = true;
+            };
+
+            switch (step) {
+                case 1:
+                    take('name',      v => { r.name          = v; });
+                    take('type',      v => { r.type          = v; });
+                    take('work_type', v => { r._ui.work_type = v; });
+                    break;
+                case 2:
+                    // quick_notes is sent flattened as `quick_notes` and lives
+                    // on _ui; the rest are _ui toggles sent at top level.
+                    take('quick_notes',         v => { r._ui.quick_notes         = v; });
+                    take('power_available',     v => { r._ui.power_available     = !! v; });
+                    take('network_available',   v => { r._ui.network_available   = !! v; });
+                    take('access_issues',       v => { r._ui.access_issues       = !! v; });
+                    take('access_issues_notes', v => { r._ui.access_issues_notes = v; });
+                    take('working_at_height',   v => { r._ui.working_at_height   = !! v; });
+                    take('client_present',      v => { r._ui.client_present      = !! v; });
+                    break;
+                case 3:
+                    // Nothing to restore: the photo list is hydrated from the
+                    // database and owned by the separate photo queue.
+                    break;
+                case 4:
+                    take('infrastructure',    v => { r.infrastructure    = v; });
+                    take('engineer_feedback', v => { r.engineer_feedback = v; });
+                    break;
+                case 5:
+                    take('equipment',        v => { r.equipment        = v; });
+                    take('additional_items', v => { r.additional_items = v; });
+                    break;
+                case 6:
+                    // working_at_height rides along as normalization context
+                    // and lives on _ui, same as in step 2.
+                    take('working_at_height', v => { r._ui.working_at_height = !! v; });
+                    take('risks',             v => { r.risks               = v; });
+                    break;
+                case 7:
+                case 8:
+                    // Nothing to restore: both send an empty payload.
+                    break;
+            }
+
+            return applied;
+        },
+
+        // Put every held draft back into the room model. Returns how many
+        // entries were actually applied, so the caller can tell the engineer.
+        _draftRestoreAll() {
+            if (this.readonly) return 0;
+            if (!this._draftProbe()) return 0;
+
+            const map = this._draftReadAll();
+            let restored = 0;
+
+            Object.keys(map).forEach((key) => {
+                const entry = map[key];
+                if (!entry || typeof entry !== 'object') return;
+
+                const idx  = Number(entry.room_index);
+                const step = Number(entry.step);
+                if (!Number.isInteger(idx) || !this.rooms[idx]) return;
+                if (!Number.isInteger(step)) return;
+
+                if (this._draftApplyToRoom(idx, step, entry.data)) restored++;
+            });
+
+            if (restored > 0) {
+                // D-04 — SAY SO. A silent restore is nearly as bad as a silent
+                // loss: the engineer has to know the values on screen are their
+                // own unsent work rather than what the office already holds.
+                // This is the page's EXISTING red ribbon and its existing
+                // sentence (the same one a failed autosave sets), not a new
+                // visual language, and the drain below clears it the moment the
+                // work lands.
+                this.saveError = 'Needs a connection';
+            }
+
+            return restored;
         },
 
         // Drain every queued draft back through stepSave on reconnect. Stops

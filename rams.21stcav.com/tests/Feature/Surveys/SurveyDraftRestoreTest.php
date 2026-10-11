@@ -335,7 +335,7 @@ class SurveyDraftRestoreTest extends TestCase
     public function test_a_restore_tells_the_engineer_using_the_pages_existing_wording(): void
     {
         $source = $this->rawSource();
-        $body   = $this->methodBody($source, '_draftRestoreAll(');
+        $body   = $this->methodBody($source, '_draftRestoreAll() {');
 
         $this->assertStringContainsString(
             'Needs a connection',
@@ -359,7 +359,9 @@ class SurveyDraftRestoreTest extends TestCase
         $init = $this->initBody($this->rawSource());
 
         $this->assertMatchesRegularExpression(
-            '/^[ \t]*this\._draftDrain\(\);[ \t]*$/m',
+            // [ \t\r] not [ \t]: this view is stored with CRLF line endings,
+            // so the carriage return sits between the semicolon and the $.
+            '/^[ \t]*this\._draftDrain\(\);[ \t\r]*$/m',
             $init,
             'init() has no bare drain-on-load. Without one, an engineer who refreshes offline, '
             .'closes the tab and reopens ALREADY ONLINE fires no \'online\' event, so the held '
@@ -409,7 +411,7 @@ class SurveyDraftRestoreTest extends TestCase
 
     public function test_the_restore_and_the_drain_respect_readonly_and_the_storage_probe(): void
     {
-        $restore = $this->methodBody($this->rawSource(), '_draftRestoreAll(');
+        $restore = $this->methodBody($this->rawSource(), '_draftRestoreAll() {');
 
         $this->assertStringContainsString(
             'this.readonly',
@@ -434,7 +436,9 @@ class SurveyDraftRestoreTest extends TestCase
         $this->assertStringContainsString('_draftApplyToRoom(', $html);
         $this->assertStringContainsString('SV_DRAFT_RETRY_MS', $html);
         $this->assertMatchesRegularExpression(
-            '/^[ \t]*this\._draftDrain\(\);[ \t]*$/m',
+            // [ \t\r] not [ \t]: this view is stored with CRLF line endings,
+            // so the carriage return sits between the semicolon and the $.
+            '/^[ \t]*this\._draftDrain\(\);[ \t\r]*$/m',
             $html,
             'The page actually served to an engineer does not drain on load.'
         );
