@@ -1021,6 +1021,37 @@
              on this page and must never become "useful site context".
              ══════════════════════════════════════════════════════════════════ --}}
         @php
+            // ── Sign-off gate (260504-hqe + 260504-iy4 H4) — collect rooms that
+            //    have a survey but have NOT yet been reviewed. The set drives the
+            //    soft-disable on the Sign-Off button. Visual-only gate — never
+            //    blocks server. Reads via $worksheet->surveyReviewedAt() so
+            //    legacy flat-shape AND the namespaced shape both resolve
+            //    cleanly (legacy → null → re-mark).
+            //
+            //    MOVED UP HERE BY 261011-hfb, out of the block that used to sit
+            //    between the site panel and the room loop. The Client Sign-Off
+            //    card is now INSIDE the site tab panel below, and it reads
+            //    $signOffBlocked and $unreviewedRooms — so the derivation has
+            //    to precede the panel. Nothing about the gate itself changed,
+            //    and it is still derived EXACTLY ONCE: the top banner further
+            //    down reads the same three variables.
+            $unreviewedRooms  = [];
+            foreach ($rooms as $r) {
+                $rName = (string) ($r['name'] ?? '');
+                if ($rName === '') continue;
+                $rKey  = strtolower(trim($rName));
+                $hasSurveyForThisRoom = in_array($rKey, $roomsRequiringReview, true);
+                if ($hasSurveyForThisRoom && $worksheet->surveyReviewedAt($rName) === null) {
+                    $unreviewedRooms[] = $rName;
+                }
+            }
+            $signOffBlocked = ! empty($unreviewedRooms);
+            // 260504-ij9 fix H2 — slug of the FIRST unreviewed room, used by the
+            // top banner's "Jump to first unreviewed room" anchor link.
+            $firstUnreviewedSlug = ! empty($unreviewedRooms)
+                ? \Illuminate\Support\Str::slug((string) $unreviewedRooms[0])
+                : '';
+
             // ── 260602-mlt — Site contact line ──────────────────────────────
             // Sourced from $worksheet->project->latestPackage->extracted_data
             // ['ship_contact' / 'ship_phone'] (top-level keys, NOT nested under
@@ -1074,6 +1105,137 @@
                         @if($siteContactPhone !== '')<a href="tel:{{ $telHref }}">{{ $siteContactPhone }}</a>@endif
                     </div>
                 @endif
+            </div>
+
+            {{-- ══════════════════════════════════════════════════════════════
+                 261011-hfb TASK A — THE CLIENT SIGN-OFF LIVES HERE NOW.
+                 ──────────────────────────────────────────────────────────────
+                 It was a SIBLING of the tab panels, so it rendered below
+                 whichever tab was showing. There was only ever ONE signature
+                 pad and it was never inside a room panel — but appearing under
+                 every room read as a sign-off PER room, which is what the user
+                 reported on 2026-10-11. The choice, made with the risk stated
+                 (an engineer who never opens Site never sees it), was: the Site
+                 tab, once, at the end of site details. The answer to that risk
+                 is the always-visible pointer below the panels.
+
+                 ⚠ THE PAD INITIALISES WHILE THIS PANEL IS HIDDEN. The server
+                 activates the first INCOMPLETE room, so on a normal install day
+                 the site panel is hidden on load; a hidden element measures 0x0
+                 and the pad's own sizing floors the backing store to ONE PIXEL
+                 SQUARE. The page-level resize listener is deliberately gated to
+                 genuine WIDTH changes (260919-chb) and a tab switch is not one,
+                 so nothing would ever have re-sized it and the client could not
+                 have signed. The tab switcher now reflows the pad through
+                 window.__resizeSignaturePad — see the signature script, and
+                 WorksheetSignoffPlacementTest for both halves of that contract.
+                 ══════════════════════════════════════════════════════════════ --}}
+            {{-- ── Sign-off card ─────────────────────────────────────────── --}}
+            @if($latestSignoff)
+                <div class="alert alert-info" style="margin-bottom:1rem;">
+                    🔒 This worksheet was signed by <strong>{{ $latestSignoff->client_name }}</strong>
+                    on <strong>{{ $latestSignoff->signed_at->format('d M Y H:i') }}</strong>.
+                    Photo uploads, label captures, and review actions are now disabled.
+                    Additional sign-offs are recorded as snag / follow-up entries — contact your
+                    project manager if you need to re-open the worksheet.
+                </div>
+            @endif
+
+            <div class="card">
+                <div class="card-title">Client Sign-Off</div>
+
+                {{-- ── 260504-hqe — soft-block warning banner ──
+                     Renders only when one or more rooms with a linked survey have
+                     NOT yet been ticked "reviewed". Visual-only — server still
+                     accepts the sign-off POST so a stuck engineer cannot be locked
+                     out by a stale legacy survey. --}}
+                @if($signOffBlocked)
+                    <div style="margin-bottom:.85rem;padding:.7rem .9rem;border-radius:6px;background:#FEF3C7;color:#92400E;font-size:.85rem;">
+                        ⚠ Review the survey reference for these rooms before signing off:
+                        <strong>{{ implode(', ', $unreviewedRooms) }}</strong>.
+                        Open each room above, expand <em>📋 Survey Reference</em>, and tap <em>Mark Reviewed</em>.
+                    </div>
+                @endif
+
+                <p style="font-size:.88rem;color:#4B5563;margin-bottom:.95rem;">
+                    By signing below you confirm you have reviewed the installation worksheet for this project.
+                    Tick which option applies — if you have outstanding items, list them below before signing.
+                </p>
+
+                <form method="POST"
+                      action="{{ route('public-worksheet.sign', ['token' => $token]) }}"
+                      id="signoff-form"
+                      x-data="{
+                          happy: {{ old('happy_with_work') ? 'true' : 'false' }},
+                          outstanding: {{ old('signed_with_comments') ? 'true' : 'false' }}
+                      }"
+                      onsubmit="return prepareSignoff(this);">
+                    @csrf
+
+                    <div class="form-group">
+                        <label class="form-label" for="client_name">Your Full Name <span class="req">*</span></label>
+                        <input type="text"
+                               name="client_name"
+                               id="client_name"
+                               class="form-control"
+                               value="{{ old('client_name') }}"
+                               maxlength="200"
+                               autocomplete="name"
+                               required>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Signature <span class="req">*</span></label>
+                        <div class="sig-pad-wrap">
+                            <canvas id="sig-pad" class="sig-pad" aria-label="Signature pad"></canvas>
+                            <div class="sig-actions">
+                                <button type="button" class="btn btn-outline btn-sm" onclick="clearSignature()">Clear</button>
+                            </div>
+                        </div>
+                        <input type="hidden" name="signature_image" id="signature_image" value="">
+                    </div>
+
+                    {{-- 260504-q19 — two-checkbox gate: at least one must be ticked. --}}
+                    <label class="checkbox-row">
+                        <input type="checkbox"
+                               name="happy_with_work"
+                               id="happy_with_work"
+                               value="1"
+                               x-model="happy"
+                               @change="window.refreshSignoffSubmitState && window.refreshSignoffSubmitState()">
+                        <span>I am happy with the work carried out.</span>
+                    </label>
+
+                    <label class="checkbox-row">
+                        <input type="checkbox"
+                               name="signed_with_comments"
+                               id="signed_with_comments"
+                               value="1"
+                               x-model="outstanding"
+                               @change="window.refreshSignoffSubmitState && window.refreshSignoffSubmitState()">
+                        <span>Outstanding items — list them in the comments below. The engineering team will follow up.</span>
+                    </label>
+
+                    {{-- Comments textarea — revealed only when "Outstanding items" is ticked. --}}
+                    <div class="form-group" x-show="outstanding" x-cloak style="margin-top:.5rem;">
+                        <label class="form-label" for="comments">Outstanding Items / Comments <span class="req">*</span></label>
+                        <textarea name="comments"
+                                  id="comments"
+                                  class="form-control"
+                                  rows="4"
+                                  maxlength="5000"
+                                  placeholder="List the outstanding items the engineering team needs to follow up on…">{{ old('comments') }}</textarea>
+                    </div>
+
+                    <div class="submit-row">
+                        <button type="submit"
+                                id="signoff-submit"
+                                class="btn btn-teal"
+                                data-signoff-blocked="{{ $signOffBlocked ? '1' : '0' }}"
+                                @disabled(true)
+                                title="Please confirm you are happy with the work or list outstanding items, then draw your signature.">Sign &amp; Submit</button>
+                    </div>
+                </form>
             </div>
         </section>
 
@@ -1163,37 +1325,47 @@
                 required per space before sign-off.
             </p>
 
-            @php
-                // ── Sign-off gate (260504-hqe + 260504-iy4 H4) — collect rooms that
-                //    have a survey but have NOT yet been reviewed. The set drives the
-                //    soft-disable on the page-level Sign-Off button. Visual-only gate —
-                //    never blocks server. Now reads via $worksheet->surveyReviewedAt()
-                //    accessor so legacy flat-shape AND the new namespaced shape both
-                //    resolve cleanly (legacy → null → re-mark).
-                $unreviewedRooms  = [];
-                foreach ($rooms as $r) {
-                    $rName = (string) ($r['name'] ?? '');
-                    if ($rName === '') continue;
-                    $rKey  = strtolower(trim($rName));
-                    $hasSurveyForThisRoom = in_array($rKey, $roomsRequiringReview, true);
-                    if ($hasSurveyForThisRoom && $worksheet->surveyReviewedAt($rName) === null) {
-                        $unreviewedRooms[] = $rName;
-                    }
-                }
-                $signOffBlocked = ! empty($unreviewedRooms);
-                // 260504-ij9 fix H2 — slug of the FIRST unreviewed room, used by the
-                // top banner's "Jump to first unreviewed room" anchor link.
-                $firstUnreviewedSlug = ! empty($unreviewedRooms)
-                    ? \Illuminate\Support\Str::slug((string) $unreviewedRooms[0])
-                    : '';
+            {{-- ══════════════════════════════════════════════════════════════
+                 261011-hfb TASKS A AND C — THE TWO THINGS NOBODY COULD FIND.
+                 ──────────────────────────────────────────────────────────────
+                 DELIBERATELY OUTSIDE EVERY TAB PANEL, which is the whole point
+                 of it: this block sits between the site panel and the room
+                 loop, so it is on screen whichever tab is showing. A pointer
+                 that only renders on the tab it points at is not a pointer.
 
-                // ── 260504-iy4 H1 — auto-collapse on completion ──
-                // MOVED to the page-level @php block by 46.7-02, together with
-                // $roomTabs, because the sticky bar renders outside this block and
-                // has to mark the SAME tab selected that the panel marks active.
-                // Deriving it twice is how the two would disagree. $firstIncompleteIdx
-                // and $activeTabKey are both already in scope here.
-            @endphp
+                 BOTH ARE DISCOVERABILITY, NOT MISSING FEATURES. Checked on the
+                 live worksheet on 2026-10-11: there has always been exactly one
+                 signature pad, and the serial capture already offered 45 "Box
+                 Serial Label" buttons on that one job — 3 of the 4 kit rows on
+                 Board Room, the wall mount correctly excluded as a mount. The
+                 user could find neither.
+
+                 GUIDANCE ONLY (Task C). No serial count, no typed serial
+                 field, no new capture control: all three were offered to the
+                 user and declined.
+                 ══════════════════════════════════════════════════════════════ --}}
+            <div style="margin-bottom:1rem;padding:.75rem .9rem;border-radius:8px;background:#EFF6FF;border:1px solid #BFDBFE;color:#1E3A5F;font-size:.85rem;line-height:1.55;">
+                <div style="font-weight:700;margin-bottom:.3rem;">Before you leave site</div>
+                <div style="margin-bottom:.4rem;">
+                    <strong>Serial numbers are required</strong> for every piece of hardware you install.
+                    Open a space from the bar below, expand its <strong>📦 Kit List</strong> drawer, and tap
+                    <strong>📷 Box Serial Label</strong> on each hardware line to photograph the serial /
+                    label on the box. Cables, mounts and brackets do not need one.
+                </div>
+                <div>
+                    <strong>Sign-off is on the Site tab</strong> (🏢, first button in the bar below) —
+                    one signature covers the whole worksheet, not one per space. Mark every space
+                    complete first, then open Site and hand the phone to the client.
+                </div>
+            </div>
+
+            {{-- The sign-off gate ($unreviewedRooms / $signOffBlocked /
+                 $firstUnreviewedSlug) USED TO BE DERIVED HERE. Quick task
+                 261011-hfb moved the derivation ABOVE the site tab panel,
+                 because the Client Sign-Off card now renders INSIDE that panel
+                 and a card cannot read a variable the page has not reached yet.
+                 Same three variables, same single definition, read in two
+                 places — this banner and the card. --}}
 
             {{-- 260504-ij9 fix H2 — TOP banner mirrors the bottom Sign-Off banner so
                  engineers see the warning whether they're at top or bottom of the page.
@@ -1979,6 +2151,16 @@
                                 <span class="chev">▾</span>
                             </summary>
                             <div class="room-drawer-body">
+                                {{-- 261011-hfb Task C — the instruction AT THE POINT OF
+                                     CAPTURE. The block above the room loop is read once,
+                                     at the top of the day, and forgotten by the time this
+                                     drawer is open on the fourth space. Renders whether or
+                                     not the worksheet is locked: on a signed record it
+                                     reads as the record of what was asked for. --}}
+                                <p class="muted" style="font-size:.8rem;line-height:1.5;margin:0 0 .6rem;">
+                                    Tap 📷 Box Serial Label on each hardware line below and photograph the
+                                    serial / label on the box. Cables, mounts and brackets are skipped.
+                                </p>
                                 <ul class="kit-rows" style="list-style:none;padding:0;margin:0;">
                                     @foreach($equipment as $item)
                                         @php
@@ -2220,113 +2402,13 @@
             @endunless
         @endif
 
-        {{-- ── Sign-off card ─────────────────────────────────────────── --}}
-        @if($latestSignoff)
-            <div class="alert alert-info" style="margin-bottom:1rem;">
-                🔒 This worksheet was signed by <strong>{{ $latestSignoff->client_name }}</strong>
-                on <strong>{{ $latestSignoff->signed_at->format('d M Y H:i') }}</strong>.
-                Photo uploads, label captures, and review actions are now disabled.
-                Additional sign-offs are recorded as snag / follow-up entries — contact your
-                project manager if you need to re-open the worksheet.
-            </div>
-        @endif
-
-        <div class="card">
-            <div class="card-title">Client Sign-Off</div>
-
-            {{-- ── 260504-hqe — soft-block warning banner ──
-                 Renders only when one or more rooms with a linked survey have
-                 NOT yet been ticked "reviewed". Visual-only — server still
-                 accepts the sign-off POST so a stuck engineer cannot be locked
-                 out by a stale legacy survey. --}}
-            @if($signOffBlocked)
-                <div style="margin-bottom:.85rem;padding:.7rem .9rem;border-radius:6px;background:#FEF3C7;color:#92400E;font-size:.85rem;">
-                    ⚠ Review the survey reference for these rooms before signing off:
-                    <strong>{{ implode(', ', $unreviewedRooms) }}</strong>.
-                    Open each room above, expand <em>📋 Survey Reference</em>, and tap <em>Mark Reviewed</em>.
-                </div>
-            @endif
-
-            <p style="font-size:.88rem;color:#4B5563;margin-bottom:.95rem;">
-                By signing below you confirm you have reviewed the installation worksheet for this project.
-                Tick which option applies — if you have outstanding items, list them below before signing.
-            </p>
-
-            <form method="POST"
-                  action="{{ route('public-worksheet.sign', ['token' => $token]) }}"
-                  id="signoff-form"
-                  x-data="{
-                      happy: {{ old('happy_with_work') ? 'true' : 'false' }},
-                      outstanding: {{ old('signed_with_comments') ? 'true' : 'false' }}
-                  }"
-                  onsubmit="return prepareSignoff(this);">
-                @csrf
-
-                <div class="form-group">
-                    <label class="form-label" for="client_name">Your Full Name <span class="req">*</span></label>
-                    <input type="text"
-                           name="client_name"
-                           id="client_name"
-                           class="form-control"
-                           value="{{ old('client_name') }}"
-                           maxlength="200"
-                           autocomplete="name"
-                           required>
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label">Signature <span class="req">*</span></label>
-                    <div class="sig-pad-wrap">
-                        <canvas id="sig-pad" class="sig-pad" aria-label="Signature pad"></canvas>
-                        <div class="sig-actions">
-                            <button type="button" class="btn btn-outline btn-sm" onclick="clearSignature()">Clear</button>
-                        </div>
-                    </div>
-                    <input type="hidden" name="signature_image" id="signature_image" value="">
-                </div>
-
-                {{-- 260504-q19 — two-checkbox gate: at least one must be ticked. --}}
-                <label class="checkbox-row">
-                    <input type="checkbox"
-                           name="happy_with_work"
-                           id="happy_with_work"
-                           value="1"
-                           x-model="happy"
-                           @change="window.refreshSignoffSubmitState && window.refreshSignoffSubmitState()">
-                    <span>I am happy with the work carried out.</span>
-                </label>
-
-                <label class="checkbox-row">
-                    <input type="checkbox"
-                           name="signed_with_comments"
-                           id="signed_with_comments"
-                           value="1"
-                           x-model="outstanding"
-                           @change="window.refreshSignoffSubmitState && window.refreshSignoffSubmitState()">
-                    <span>Outstanding items — list them in the comments below. The engineering team will follow up.</span>
-                </label>
-
-                {{-- Comments textarea — revealed only when "Outstanding items" is ticked. --}}
-                <div class="form-group" x-show="outstanding" x-cloak style="margin-top:.5rem;">
-                    <label class="form-label" for="comments">Outstanding Items / Comments <span class="req">*</span></label>
-                    <textarea name="comments"
-                              id="comments"
-                              class="form-control"
-                              rows="4"
-                              maxlength="5000"
-                              placeholder="List the outstanding items the engineering team needs to follow up on…">{{ old('comments') }}</textarea>
-                </div>
-
-                <div class="submit-row">
-                    <button type="submit"
-                            id="signoff-submit"
-                            class="btn btn-teal"
-                            data-signoff-blocked="{{ $signOffBlocked ? '1' : '0' }}"
-                            @disabled(true)
-                            title="Please confirm you are happy with the work or list outstanding items, then draw your signature.">Sign &amp; Submit</button>
-                </div>
-            </form>
-        </div>
+        {{-- THE CLIENT SIGN-OFF CARD USED TO BE HERE, a sibling of the tab
+             panels, which is why it appeared below every room and read as a
+             per-room sign-off. Quick task 261011-hfb moved it INSIDE the site
+             tab panel above, at the user's choice. It is still inside this same
+             capture-lock fieldset span (the fieldset opens before the site
+             panel and closes below), so a signed worksheet still cannot
+             re-submit it. --}}
 
         @if($captureLocked)
             {{-- 46.4-04 — pairs with the fieldset opened above; both read $captureLocked. --}}
@@ -2364,8 +2446,15 @@
          NO `documents` AND NO `wrap` TAB. 46.7-CONTEXT.md leaves this to
          discretion and the ruling is NO: reference files are per-project
          downloads that already live in a drawer inside the rooms, and the
-         sign-off card IS the wrap-up and is always visible below the panels.
+         SITE tab is the wrap-up — the sign-off card renders at the end of it.
          Two empty tabs on a phone are two mis-taps.
+
+         ⚠ THAT LAST SENTENCE USED TO READ "the sign-off card IS the wrap-up
+         and is always visible below the panels", which stopped being true on
+         2026-10-11 (quick task 261011-hfb). The card used to be a sibling of
+         the panels; it is now inside the site panel, because appearing under
+         every room read as a sign-off per room. The ruling itself is
+         unchanged — there is still no wrap tab, because Site is now it.
          ══════════════════════════════════════════════════════════════════════ --}}
     <nav class="ws-tab-bar" role="tablist" aria-label="Worksheet sections" data-ws-tab-bar>
         <button type="button"
@@ -2575,14 +2664,35 @@
 
             // Defer initial resize so layout has settled.
             requestAnimationFrame(resizeCanvas);
+
             // 260919-chb — `resize` fires on mobile for viewport-height-only
             // changes (on-screen keyboard opening/closing, iOS Safari URL-bar
             // collapse) far more often than for a genuine width change. Only the
             // canvas's rendered CSS width actually invalidates the backing store,
             // so gate on measured width to stop those height-only events from
             // wiping a drawn signature (the Worksheet 22 / 21CQ30674-03-OPS bug).
-            window.addEventListener('resize', () => {
+            //
+            // ── 261011-hfb — THE SAME BODY IS NOW A NAMED FUNCTION, AND THE TAB
+            //    SWITCHER CALLS IT. The sign-off card moved INSIDE the site tab
+            //    panel, and the server activates the first INCOMPLETE room — so
+            //    on a normal install day this canvas initialises while its panel
+            //    is display:none. A hidden element measures 0x0 and
+            //    resizeCanvas()'s own Math.max(1, ...) floors the backing store
+            //    to ONE PIXEL SQUARE. Nothing would then ever have re-sized it:
+            //    the width gate above is exactly what stops a tab switch from
+            //    firing this, because a tab switch is not a window resize at all.
+            //    A dead pad means a client cannot sign off a completed install.
+            //
+            // ⚠ TWO GUARDS, AND THE FIRST ONE IS THE DANGEROUS HALF TO OMIT.
+            //    activate() fires for ROOM tabs too, which HIDES this panel. A
+            //    reflow that ran then would measure 0 width, floor the canvas to
+            //    1x1 and snapshot that — destroying a signature the client had
+            //    already drawn and "restoring" a single pixel. So: bail while the
+            //    pad has no width, and bail when the width has not changed, which
+            //    together also make this safe to call as often as you like.
+            function reflowCanvas() {
                 const newWidth = canvas.getBoundingClientRect().width;
+                if (newWidth <= 0) return;
                 const widthChanged = Math.abs(newWidth - lastWidth) > 1;
                 if (! widthChanged) return;
 
@@ -2612,7 +2722,15 @@
                     window.refreshSignoffSubmitState();
                     document.getElementById('signature_image').value = '';
                 }
-            });
+            }
+
+            window.addEventListener('resize', reflowCanvas);
+
+            // The seam the tab switcher reaches through. Exposed rather than
+            // reaching into this IIFE, and guarded at the call site too, so a
+            // page with no sign-off card (there is no such state today) would
+            // not throw.
+            window.__resizeSignaturePad = reflowCanvas;
 
             // Initial sync once DOM is ready (covers old() repopulation after a
             // failed validation round-trip).
@@ -3128,6 +3246,23 @@
                     if (head) { try { head.focus(); } catch (e) { } }
                 }
                 if (opts && opts.toTop) window.scrollTo(0, 0);
+
+                // ── 261011-hfb — RE-SIZE THE SIGNATURE PAD, AND DO IT HERE ──
+                // This is the ONE function every route into a tab goes through:
+                // a bar tap, a hashchange from the sign-off-blocked banner's
+                // jump link, and the session restore that survives the server
+                // redirect after a photo upload. Wiring it to the bar's click
+                // handler alone would leave the other two dead.
+                //
+                // The sign-off card lives inside the SITE panel now, and the
+                // server activates the first incomplete ROOM — so the pad is
+                // normally sized while hidden, at one pixel square, and this
+                // call is the only thing that ever fixes it. The reflow itself
+                // bails while the pad has no width, so switching to a room is a
+                // no-op and a drawn signature is never touched.
+                try {
+                    window.__resizeSignaturePad && window.__resizeSignaturePad();
+                } catch (e) { /* a signed record still navigates */ }
 
                 return true;
             }
