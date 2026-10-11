@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\SiteSurvey;
 use App\Models\Worksheet;
 use App\Services\DocumentArtifactStorage;
+use App\Support\WorksheetInstallSteps;
 use Illuminate\Support\Facades\Log;
 use PhpOffice\PhpWord\IOFactory;
 use PhpOffice\PhpWord\PhpWord;
@@ -292,18 +293,17 @@ class WorksheetDocxService
         // The pipeline calls WorksheetPrompt per room and stores the numbered
         // install sequence. Render it here so engineers see project-specific
         // actions instead of the generic checklist below.
-        $installStepsRaw = trim((string) ($room['install_steps'] ?? ''));
-        $installStepLines = [];
-        if ($installStepsRaw !== '') {
-            foreach (preg_split('/\r?\n/', $installStepsRaw) ?: [] as $ln) {
-                $ln = trim($ln);
-                if ($ln === '') continue;
-                // Strip leading "1.", "1)", "•", "-" etc. so the docx list
-                // numbering doesn't collide with text-side numbering.
-                $ln = preg_replace('/^\s*(?:\d+[\.\)]|[-•])\s*/', '', $ln);
-                $installStepLines[] = $ln;
-            }
-        }
+        //
+        // 261011-d62: this read used to be `trim((string) $room['install_steps'])`
+        // plus its own split-and-strip loop. `install_steps` has three live
+        // producers and only one of them writes a string, so the cast raised
+        // "Array to string conversion" — promoted to an ErrorException by
+        // HandleExceptions — and the DOCX build threw. Reachable in one step:
+        // WorksheetEditAdapter writes the flat-array shape (:256 / :285) and
+        // then rebuilds the DOCX (:373). The shared helper owns every shape,
+        // including the leading "1." / "-" / bullet strip this loop did, so
+        // the DOCX and both web surfaces cannot drift apart again.
+        $installStepLines = WorksheetInstallSteps::lines($room['install_steps'] ?? null);
         if (! empty($installStepLines)) {
             $this->heading($section, 'INSTALL STEPS');
             foreach ($installStepLines as $i => $step) {
