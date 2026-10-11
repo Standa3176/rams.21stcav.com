@@ -2073,10 +2073,10 @@ function surveyWizard() {
             ];
             this.rooms.forEach((_, idx) => {
                 step1Fields.forEach(f => {
-                    this.$watch(`rooms.${idx}._ui.${f}`, () => this.debouncedAutosave(1));
+                    this.$watch(`rooms[${idx}]._ui.${f}`, () => this.debouncedAutosave(1));
                 });
                 step2Fields.forEach(f => {
-                    this.$watch(`rooms.${idx}._ui.${f}`, () => this.debouncedAutosave(2));
+                    this.$watch(`rooms[${idx}]._ui.${f}`, () => this.debouncedAutosave(2));
                 });
             });
 
@@ -2097,7 +2097,7 @@ function surveyWizard() {
             // section (4) payload includes engineer_feedback alongside
             // infrastructure, so both ride the same stepSave call.
             this.rooms.forEach((_, idx) => {
-                this.$watch(`rooms.${idx}.engineer_feedback`, () => this.debouncedAutosave(4), { deep: true });
+                this.$watch(`rooms[${idx}].engineer_feedback`, () => this.debouncedAutosave(4), { deep: true });
             });
         },
 
