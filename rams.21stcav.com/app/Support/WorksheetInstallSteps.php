@@ -48,6 +48,29 @@ namespace App\Support;
  * plain, escaped list — no markup is emitted, because every echo on the
  * client-signed engineer link stays escaped.
  *
+ * ── WHY rows() IS THE REAL API (261011-f9l) ──────────────────────────────────
+ *
+ * 261011-d62 emitted the heading as a plain string into the same flat
+ * `list<string>` as the actions, so NO consumer could tell one from the other.
+ * That single root cause produced three live symptoms:
+ *
+ *   1. the engineer link's drawer counted headings as steps, so a 2-phase,
+ *      7-action room advertised "Install Steps (9)";
+ *   2. its `<ol>` gave every heading an ordinal of its own, so an engineer's
+ *      "step 7" no longer meant the 7th action;
+ *   3. the office view and the DOCX could not number actions at all without
+ *      numbering the headings too.
+ *
+ * rows() returns `['kind' => 'heading'|'step', 'text' => string]` so each
+ * surface can render and count by kind. lines() and text() are kept and are
+ * defined ON TOP of rows(): both Blade files, WorksheetDocxService and
+ * tests/Unit/Support/WorksheetInstallStepsTest call them, and their output is
+ * byte-for-byte what it was before this task.
+ *
+ * Ordinals are NEVER stored in the text — each surface supplies its own, in
+ * ONE continuous sequence across the whole room (not restarting per phase), so
+ * "step 7" means the 7th action of that room on every surface.
+ *
  * @see \App\Support\SurveyPdfHelpers  house precedent for a shared render helper
  * @see .planning/quick/261011-d62-worksheet-install-steps-array-render/PLAN.md
  */
@@ -67,8 +90,18 @@ class WorksheetInstallSteps
     /** ASCII-only fallback for text that is not valid UTF-8. */
     private const LEADING_MARKER_ASCII = '/^\s*(?:\d+[\.\)]|[-*])\s*/';
 
+    /** A phase title row. Carries no ordinal and is never counted as a step. */
+    public const KIND_HEADING = 'heading';
+
+    /** An action row. The thing an engineer does, and the thing that is numbered. */
+    public const KIND_STEP = 'step';
+
     /**
-     * Flat, clean, render-ready step lines from ANY install_steps shape.
+     * Render-ready rows from ANY install_steps shape, each tagged with its kind.
+     *
+     * This is the method every surface should use. Counting steps is
+     * `count(stepsOnly($rows))`, never `count($rows)`; numbering walks only
+     * the `step` rows, in one continuous sequence across the whole room.
      *
      * Returns `[]` for null, `''`, whitespace, `[]`, and for a nested phase
      * list whose phases carry no items — so the callers' existing empty states
@@ -76,16 +109,47 @@ class WorksheetInstallSteps
      * the engineer link) are preserved. A normaliser that turned "nothing" into
      * one blank bullet would be a regression.
      *
+     * Shapes (a) and (b) carry no phase structure, so every row they produce
+     * is a `step` — which is why those surfaces still number 1..N exactly as
+     * they did before 261011-f9l.
+     *
+     * @return list<array{kind: string, text: string}>
+     */
+    public static function rows(mixed $steps): array
+    {
+        return self::flatten($steps);
+    }
+
+    /**
+     * Just the action rows — what "how many install steps are there" means.
+     *
+     * @param  list<array{kind: string, text: string}>  $rows
+     * @return list<array{kind: string, text: string}>
+     */
+    public static function stepsOnly(array $rows): array
+    {
+        return array_values(array_filter(
+            $rows,
+            fn ($row) => ($row['kind'] ?? null) === self::KIND_STEP
+        ));
+    }
+
+    /**
+     * Flat, clean step lines — headings and actions undifferentiated.
+     *
+     * Kept because it is the pre-261011-f9l public API and returns exactly
+     * what it returned then. New callers want rows(); a caller that cannot
+     * tell a heading from an action is the defect f9l fixed.
+     *
      * @return list<string>
      */
     public static function lines(mixed $steps): array
     {
-        return self::clean(self::flatten($steps));
+        return array_map(fn ($row) => $row['text'], self::rows($steps));
     }
 
     /**
-     * The same lines joined with newlines, for the office view's existing
-     * `white-space:pre-wrap` block. `''` when there are no steps.
+     * The same lines joined with newlines. `''` when there are no steps.
      */
     public static function text(mixed $steps): string
     {
@@ -93,19 +157,33 @@ class WorksheetInstallSteps
     }
 
     /**
-     * Shape dispatch. Everything collapses to a list of raw candidate lines.
+     * Wrap clean, non-empty strings as rows of one kind.
      *
-     * @return list<string>
+     * @param  list<string>  $lines
+     * @return list<array{kind: string, text: string}>
+     */
+    private static function rowsOf(array $lines, string $kind): array
+    {
+        return array_map(
+            fn ($text) => ['kind' => $kind, 'text' => $text],
+            self::clean($lines)
+        );
+    }
+
+    /**
+     * Shape dispatch. Everything collapses to a list of clean, kinded rows.
+     *
+     * @return list<array{kind: string, text: string}>
      */
     private static function flatten(mixed $steps): array
     {
         // (a) string — and also any array element that itself carries newlines.
         if (is_string($steps)) {
-            return preg_split('/\r?\n/', $steps) ?: [];
+            return self::rowsOf(preg_split('/\r?\n/', $steps) ?: [], self::KIND_STEP);
         }
 
         if (is_int($steps) || is_float($steps)) {
-            return [(string) $steps];
+            return self::rowsOf([(string) $steps], self::KIND_STEP);
         }
 
         if (! is_array($steps)) {
@@ -141,8 +219,12 @@ class WorksheetInstallSteps
      * nested list and flattened recursively, so a merely double-wrapped flat
      * array still renders.
      *
+     * The title row is tagged `heading`; the items stay `step`. That tag is
+     * the whole point of 261011-f9l — before it, the label was an untagged
+     * string and every consumer counted and numbered it as an action.
+     *
      * @param  array<array-key, mixed>  $phase
-     * @return list<string>
+     * @return list<array{kind: string, text: string}>
      */
     private static function flattenPhase(array $phase): array
     {
@@ -153,7 +235,7 @@ class WorksheetInstallSteps
             return self::flatten(array_values($phase));
         }
 
-        $items = self::clean(self::flatten($phase['items'] ?? []));
+        $items = self::flatten($phase['items'] ?? []);
         if ($items === []) {
             return [];
         }
@@ -168,7 +250,7 @@ class WorksheetInstallSteps
             ? 'PHASE ' . (int) $step . ' — ' . $title
             : 'PHASE — ' . $title;
 
-        return array_merge([$label], $items);
+        return array_merge(self::rowsOf([$label], self::KIND_HEADING), $items);
     }
 
     /**

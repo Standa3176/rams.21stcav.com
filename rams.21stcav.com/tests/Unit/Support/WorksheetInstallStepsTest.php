@@ -198,4 +198,134 @@ class WorksheetInstallStepsTest extends TestCase
     {
         $this->assertSame(['7'], WorksheetInstallSteps::lines(7));
     }
+
+    // ── rows(): the kind tag (261011-f9l) ────────────────────────────────────
+    //
+    // Every assertion above pins lines()/text() and is deliberately left
+    // untouched: rows() is additive and the old API must keep returning
+    // byte-identical output. What follows pins the NEW information — which
+    // rows are headings and which are actions — because a consumer that
+    // cannot tell them apart miscounts the drawer and misnumbers the list.
+
+    public function test_rows_tags_a_phase_title_as_a_heading_and_its_items_as_steps(): void
+    {
+        $this->assertSame(
+            [
+                ['kind' => 'heading', 'text' => 'PHASE 1 — Pre-Start & Access'],
+                ['kind' => 'step',    'text' => 'Confirm site access'],
+                ['kind' => 'step',    'text' => 'Review RAMS'],
+                ['kind' => 'heading', 'text' => 'PHASE 2 — Second Fix'],
+                ['kind' => 'step',    'text' => 'Mount the display'],
+            ],
+            WorksheetInstallSteps::rows([
+                ['step' => 1, 'title' => 'Pre-Start & Access', 'items' => ['Confirm site access', 'Review RAMS']],
+                ['step' => 2, 'title' => 'Second Fix', 'items' => ['Mount the display']],
+            ]),
+        );
+    }
+
+    public function test_rows_for_shape_a_are_all_steps_so_shape_a_still_numbers_one_to_n(): void
+    {
+        $rows = WorksheetInstallSteps::rows("1. Mount the display\n2. Terminate the HDMI run");
+
+        $this->assertSame(
+            [
+                ['kind' => 'step', 'text' => 'Mount the display'],
+                ['kind' => 'step', 'text' => 'Terminate the HDMI run'],
+            ],
+            $rows,
+        );
+        $this->assertCount(2, WorksheetInstallSteps::stepsOnly($rows));
+    }
+
+    public function test_rows_for_shape_b_are_all_steps_so_shape_b_still_numbers_one_to_n(): void
+    {
+        $rows = WorksheetInstallSteps::rows(['Install bracket', 'Hang display', 'Commission']);
+
+        $this->assertSame(['step', 'step', 'step'], array_column($rows, 'kind'));
+        $this->assertCount(3, WorksheetInstallSteps::stepsOnly($rows));
+    }
+
+    public function test_steps_only_excludes_headings_which_is_the_drawer_count(): void
+    {
+        // The exact arithmetic of symptom 1: 2 headings + 3 actions is THREE
+        // install steps, not five.
+        $rows = WorksheetInstallSteps::rows([
+            ['step' => 1, 'title' => 'Pre-Start & Access', 'items' => ['One', 'Two']],
+            ['step' => 2, 'title' => 'Second Fix', 'items' => ['Three']],
+        ]);
+
+        $this->assertCount(5, $rows);
+        $this->assertCount(3, WorksheetInstallSteps::stepsOnly($rows));
+    }
+
+    public function test_rows_with_a_blank_title_emit_no_heading_row(): void
+    {
+        $this->assertSame(
+            [['kind' => 'step', 'text' => 'Confirm site access']],
+            WorksheetInstallSteps::rows([['step' => 1, 'title' => '   ', 'items' => ['Confirm site access']]]),
+        );
+    }
+
+    public function test_rows_for_an_itemless_phase_are_empty_so_no_orphan_heading_renders(): void
+    {
+        $this->assertSame([], WorksheetInstallSteps::rows([['step' => 1, 'title' => 'First Fix', 'items' => []]]));
+        $this->assertSame([], WorksheetInstallSteps::rows([['step' => 1, 'title' => 'First Fix']]));
+    }
+
+    public function test_rows_for_mixed_shapes_tag_only_the_real_phase_title(): void
+    {
+        $this->assertSame(
+            [
+                ['kind' => 'heading', 'text' => 'PHASE 1 — First Fix'],
+                ['kind' => 'step',    'text' => 'Install bracket'],
+                ['kind' => 'step',    'text' => 'Engineer-appended step'],
+            ],
+            WorksheetInstallSteps::rows([
+                ['step' => 1, 'title' => 'First Fix', 'items' => ['Install bracket']],
+                'Engineer-appended step',
+            ]),
+        );
+    }
+
+    public function test_rows_for_a_titleless_step_label_heading_still_has_the_heading_kind(): void
+    {
+        $this->assertSame(
+            [
+                ['kind' => 'heading', 'text' => 'PHASE — First Fix'],
+                ['kind' => 'step',    'text' => 'Install display brackets'],
+            ],
+            WorksheetInstallSteps::rows([['title' => 'First Fix', 'items' => ['Install display brackets']]]),
+        );
+    }
+
+    /**
+     * @dataProvider emptyInputs
+     */
+    public function test_degenerate_input_yields_no_rows_either(mixed $input): void
+    {
+        $this->assertSame([], WorksheetInstallSteps::rows($input));
+        $this->assertSame([], WorksheetInstallSteps::stepsOnly(WorksheetInstallSteps::rows($input)));
+    }
+
+    /**
+     * lines() is rows()' text column, in order — the contract that lets both
+     * APIs coexist without drifting.
+     */
+    public function test_lines_is_exactly_the_text_column_of_rows(): void
+    {
+        $steps = [
+            ['step' => 1, 'title' => 'Pre-Start & Access', 'items' => ['Confirm site access']],
+            ['step' => 2, 'title' => 'Second Fix', 'items' => ['Mount the display', 'Commission']],
+        ];
+
+        $this->assertSame(
+            array_column(WorksheetInstallSteps::rows($steps), 'text'),
+            WorksheetInstallSteps::lines($steps),
+        );
+        $this->assertSame(
+            implode("\n", WorksheetInstallSteps::lines($steps)),
+            WorksheetInstallSteps::text($steps),
+        );
+    }
 }
