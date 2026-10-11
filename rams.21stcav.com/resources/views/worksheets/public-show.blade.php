@@ -1187,13 +1187,19 @@
                 @php
                     $equipment    = $room['equipment'] ?? [];
                     $bullets      = (array) ($room['works_summary_bullets'] ?? []);
-                    $installSteps = trim((string) ($room['install_steps'] ?? ''));
-                    $stepLines    = $installSteps !== ''
-                        ? array_values(array_filter(array_map(
-                              fn ($s) => preg_replace('/^\s*(?:\d+[\.\)]|[-•])\s*/', '', trim($s)),
-                              preg_split('/\r?\n/', $installSteps)
-                          ), fn ($s) => $s !== ''))
-                        : [];
+                    // 261011-d62 — install_steps has THREE live producers: a
+                    // newline string (the AI prompt), a flat array (the edit
+                    // adapter) and a nested {step,title,items} phase list (the
+                    // generator's AI-empty fallback). Casting it to string
+                    // raised "Array to string conversion", which this app's
+                    // exception handler promotes to a thrown error — so two of
+                    // the three shapes 500'd the engineer link, on the degraded
+                    // path that is meant to keep working. The shared normaliser
+                    // splits lines, strips list numbering (the ordered list
+                    // below supplies its own) and carries each phase title
+                    // through as a PHASE heading line. It returns [] for every
+                    // empty shape, which keeps the drawer hidden as before.
+                    $stepLines    = \App\Support\WorksheetInstallSteps::lines($room['install_steps'] ?? null);
                     $roomKey      = strtolower(trim((string) ($room['name'] ?? '')));
                     // 46.7-02 — this room's row out of the ONE page-level derivation.
                     // The sticky bar walks the same array, so the bar and this panel

@@ -567,6 +567,16 @@
                         $worksBullets
                     ), fn ($b) => $b !== ''));
                     $worksDescription = trim((string) ($room['room_works_description'] ?? ''));
+
+                    // 261011-d62 — install_steps has THREE live producers: a
+                    // newline string (the AI prompt), a flat array (the edit
+                    // adapter) and a nested {step,title,items} phase list (the
+                    // generator's AI-empty fallback). Echoing the raw value put
+                    // an array through htmlspecialchars() and 500'd this page,
+                    // so the shared normaliser is now the only reader. It
+                    // returns '' for every empty shape, which is what keeps the
+                    // "being generated" chip below.
+                    $installStepsText = \App\Support\WorksheetInstallSteps::text($room['install_steps'] ?? null);
                 @endphp
                 @if(! empty($worksBullets) || $worksDescription !== '')
                     <div class="room-section-hdr">Engineer Work Summary</div>
@@ -583,8 +593,8 @@
 
                 {{-- Section B: Install Steps --}}
                 <div class="room-section-hdr">Install Steps</div>
-                @if(! empty($room['install_steps']))
-                    <div style="font-size:.875rem;line-height:1.6;color:var(--text);white-space:pre-wrap;">{{ $room['install_steps'] }}</div>
+                @if($installStepsText !== '')
+                    <div style="font-size:.875rem;line-height:1.6;color:var(--text);white-space:pre-wrap;">{{ $installStepsText }}</div>
                 @else
                     <div style="display:inline-flex;align-items:center;gap:.4rem;background:#FEF3C7;color:#92400E;padding:.3rem .85rem;border-radius:20px;font-size:.78rem;font-weight:700;">
                         Install steps being generated…
