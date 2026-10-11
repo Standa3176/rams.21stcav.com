@@ -714,7 +714,15 @@
          active. Flattening these 8 steps is 46.6-03 — out of scope
          here.
     ─────────────────────────────────────────────────────── --}}
-    <div x-show="activeTab !== 'site' && currentRoomIdx !== null">
+    <template x-if="activeTab !== 'site' && currentRoomIdx !== null">
+    <div>{{-- 261011-n91: this was an x-show. x-show only toggles display, so
+             Alpine still evaluated all 71 rooms[currentRoomIdx] bindings against
+             rooms[null] on the Site tab - 109 swallowed TypeErrors per load. The
+             x-if above keeps the subtree out of existence instead. This div is
+             the template's single root; its body keeps the original indentation
+             so a 1,200-line block stays a four-line diff. Room-to-room switching
+             never crosses the guard, so the subtree is not remounted, and no
+             answer lives in this DOM - room answers are in the rooms array. --}}
 
         {{-- Room heading row — 46.6-03 flattened this room's 8 former wizard
              steps into always-visible labelled sections below, so this row
@@ -1919,6 +1927,7 @@
         </div>{{-- /:class pointer-events when readonly --}}
 
     </div>{{-- /room wizard, now flattened (46.6-03) --}}
+    </template>{{-- /room panel guard, 261011-n91 --}}
 
 </main>
 
