@@ -643,7 +643,7 @@ class CockpitRamsWizardTest extends TestCase
             $fence->getConstant('FORBIDDEN_MARKUP'),
         );
 
-        $this->assertCount(21, $banned, 'The fence is 19 deferred affordances (Plan 47-03 lifted "Download"; Plan 47-04 lifted "Add note") and 2 forbidden markup entries.');
+        $this->assertCount(20, $banned, 'The fence is 18 deferred affordances (quick task 261011-hfb lifted "Edit details") and 2 forbidden markup entries.');
 
         foreach ($copy as $line) {
             foreach ($banned as $entry) {

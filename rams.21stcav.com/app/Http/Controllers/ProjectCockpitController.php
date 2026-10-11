@@ -304,6 +304,17 @@ class ProjectCockpitController extends Controller
         $kpis       = $this->headerPresenter->kpis($project, $health);
         $stageChips = $this->headerPresenter->stageChips($project);
 
+        // ── QUICK TASK 261011-hfb (Task B) — PROJECT DATA AND THE DOCUMENTS ──
+        //
+        // Derived HERE and never in Blade, on this page's standing rule: the
+        // controller wires, the presenter derives, the view draws. Both are
+        // READS and neither adds a route — every URL below is an existing GET
+        // that was reachable from `projects/show.blade.php` and
+        // `site-survey/edit.blade.php` and from nowhere on the page a project
+        // is actually delivered from.
+        $projectDataRoute  = $this->projectDataRoute($project);
+        $projectDocuments  = $this->projectDocumentGroups($project);
+
         return view('projects.cockpit', compact(
             'project',
             'health',
@@ -333,7 +344,99 @@ class ProjectCockpitController extends Controller
             'docStep',
             'docSteps',
             'docStepTitle',
+            'projectDataRoute',
+            'projectDocuments',
         ));
+    }
+
+    /**
+     * The project-data editor's URL, or null when there is nothing to edit.
+     *
+     * ⚠ NOT DEEP-LINKED. The pre-existing footnote link carries
+     * `#s-room-overviews`, which is ONE SECTION of the review page — the AV
+     * Works Summary. The user asked for project data, which is the page. Both
+     * links now render and they go to different places on purpose;
+     * CockpitAvWorksSummaryLinkTest pins the deep one.
+     *
+     * Null when the project has no package: the route cannot even be built
+     * without one, so the alternative is a dead link.
+     */
+    private function projectDataRoute(Project $project): ?string
+    {
+        $package = $project->latestPackage;
+
+        return $package === null ? null : route('project-packages.review.show', $package);
+    }
+
+    /**
+     * The branded documents, grouped, labelled, and ONLY when they exist.
+     *
+     * A DEAD DOWNLOAD IS WORSE THAN NO LINK, so every entry is gated on what
+     * its controller actually aborts on — not on `Route::has()`, which was
+     * already true for all three previously-orphaned survey reports and is
+     * exactly why nobody noticed they were unreachable.
+     *
+     *   · The six SURVEY downloads are rendered on demand from the SiteSurvey
+     *     row (Browsershot / PhpSpreadsheet). There is no stored artifact to
+     *     miss, so the row is the condition.
+     *   · `worksheets.engineer-report-pdf` 404s unless hasEngineerActivity().
+     *   · `worksheets.download` 404s unless `filename` is set AND the artifact
+     *     is readable — a half-finished generation leaves the first true and
+     *     the second false, which is the state a bare filename check ships as
+     *     a dead link.
+     *
+     * EVERY LABEL SAYS INTERNAL OR CLIENT-FACING, as site-survey/edit.blade.php
+     * already does. Getting those two the wrong way round sends an internal
+     * document to a client. `site-surveys.pdf` is the one route that is BOTH:
+     * `?internal=0` is the client rendering and `?internal=1` the internal one
+     * (the controller defaults to internal).
+     *
+     * @return list<array{title: string, links: list<array{label: string, href: string}>}>
+     */
+    private function projectDocumentGroups(Project $project): array
+    {
+        $groups = [];
+
+        $survey = $project->latestSurvey;
+        if ($survey !== null) {
+            $groups[] = [
+                'title' => 'Site survey',
+                'links' => [
+                    ['label' => 'Survey report (PDF) — Client-facing',  'href' => route('site-surveys.pdf', ['siteSurvey' => $survey, 'internal' => 0])],
+                    ['label' => 'Survey report (PDF) — Internal',       'href' => route('site-surveys.pdf', ['siteSurvey' => $survey, 'internal' => 1])],
+                    ['label' => 'Survey report (Word) — Internal',      'href' => route('site-surveys.docx', $survey)],
+                    ['label' => 'Client report (PDF) — Client-facing',  'href' => route('site-surveys.client-report', $survey)],
+                    ['label' => 'Completed report (PDF) — Internal',    'href' => route('site-surveys.completed-report', $survey)],
+                    ['label' => 'Completed report (.xlsx) — Internal',  'href' => route('site-surveys.completed-report.xlsx', $survey)],
+                ],
+            ];
+        }
+
+        $worksheet     = $project->worksheets()->latest('id')->first();
+        $worksheetLinks = [];
+        if ($worksheet !== null) {
+            if ($worksheet->hasEngineerActivity()) {
+                $worksheetLinks[] = [
+                    'label' => 'Engineer report (PDF) — Internal',
+                    'href'  => route('worksheets.engineer-report-pdf', $worksheet),
+                ];
+            }
+
+            $filename = (string) ($worksheet->filename ?? '');
+            if ($filename !== '' && app(\App\Services\DocumentArtifactStorage::class)
+                ->exists(\App\Services\DocumentArtifactStorage::TYPE_WORKSHEET, basename($filename))) {
+                $worksheetLinks[] = [
+                    'label' => 'Worksheet (Word) — Internal',
+                    'href'  => route('worksheets.download', $worksheet),
+                ];
+            }
+        }
+
+        if ($worksheetLinks !== []) {
+            $groups[] = ['title' => 'Worksheet', 'links' => $worksheetLinks];
+        }
+
+        return $groups;
     }
 
     /*

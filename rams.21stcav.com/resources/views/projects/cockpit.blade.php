@@ -272,6 +272,66 @@
                 <x-cockpit.activity-panel :activity="$activity" />
             </div>
 
+            {{-- ══════════════════════════════════════════════════════════════
+                 QUICK TASK 261011-hfb (Task B) — PROJECT DATA AND DOCUMENTS,
+                 AS CONTROLS RATHER THAN A FOOTNOTE.
+                 ──────────────────────────────────────────────────────────────
+                 The user read this page on 2026-10-11 and could reach neither.
+                 Nothing was missing: every document below already existed and
+                 was already generated — they were linked only from
+                 projects/show.blade.php and site-survey/edit.blade.php, never
+                 from the page a project is delivered from. The only links here
+                 were the small grey note below, and its second one is
+                 deep-linked to ONE SECTION of the review page.
+
+                 STILL READ-ONLY, AND THAT IS NOT A TECHNICALITY. Every control
+                 added here is an <a href> GET to a route that already exists.
+                 No form, no control, no script, no Alpine directive — the
+                 phase's rulings are untouched and the fence next door still
+                 judges this subtree.
+
+                 ⚠ THE FENCE MOVED BY NAME, ONCE. 'Edit details' was
+                 DEFERRED_AFFORDANCES' Phase 49 entry; the user asked for
+                 project-data editing by name on 2026-10-11, so it is LIFTED
+                 and the count goes 19 -> 18 in the same commit that ships this
+                 control. NOTHING ELSE IS LIFTED: 'Add document', 'Open
+                 register' and 'Export CSV' are Phase 48 and the document copy
+                 below was substring-checked against every remaining entry
+                 before use.
+
+                 EVERY LINK IS CONDITIONAL ON ITS DOCUMENT, resolved in
+                 ProjectCockpitController — a dead download is worse than no
+                 link, and Route::has() was already true for all three
+                 previously-orphaned survey reports.
+                 ══════════════════════════════════════════════════════════════ --}}
+            @if ($projectDataRoute !== null || $projectDocuments !== [])
+                <section class="cav-docs">
+                    <h2 class="cav-docs__head">Project data and documents</h2>
+
+                    @if ($projectDataRoute !== null)
+                        <div class="cav-docs__group">
+                            <h3 class="cav-docs__title">Project data</h3>
+                            <p class="cav-docs__sub">
+                                Rooms, equipment, works summary and install detail — the data every
+                                document on this page is generated from.
+                            </p>
+                            <a class="cav-docs__link" href="{{ $projectDataRoute }}">Edit details</a>
+                        </div>
+                    @endif
+
+                    @foreach ($projectDocuments as $group)
+                        <div class="cav-docs__group">
+                            <h3 class="cav-docs__title">{{ $group['title'] }}</h3>
+                            <div class="cav-docs__links">
+                                @foreach ($group['links'] as $link)
+                                    <a class="cav-docs__link" href="{{ $link['href'] }}">{{ $link['label'] }}</a>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endforeach
+                </section>
+            @endif
+
             <p class="cav-note">
                 <a class="cav-link" href="{{ route('projects.show', $project) }}">Open full project</a>
                 @if ($project->latestPackage)

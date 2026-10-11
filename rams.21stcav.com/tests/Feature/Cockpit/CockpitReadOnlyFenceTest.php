@@ -4,6 +4,7 @@ namespace Tests\Feature\Cockpit;
 
 use App\Http\Controllers\ProjectCockpitController;
 use App\Models\Project;
+use App\Models\ProjectPackage;
 use App\Models\SiteSurvey;
 use App\Models\User;
 use App\Models\Visit;
@@ -87,11 +88,45 @@ class CockpitReadOnlyFenceTest extends TestCase
         'Upload a drawing'         => 'Phase 48',
         'Add document'             => 'Phase 48',
         'Add anyway'               => 'Phase 48',
-        'Edit details'             => 'Phase 49',
         'Re-import from QuoteWerks' => 'Phase 50',
         'Close this project'       => 'Phase 50',
         'Open register'            => 'Phase 48',
         'Export CSV'               => 'Phase 48',
+
+        // ══ 'Edit details' LIFTED, 19 -> 18, BY QUICK TASK 261011-hfb ═══════
+        //
+        // IT WAS HERE: 'Edit details' => 'Phase 49'. Project-data editing from
+        // the cockpit was DELIBERATELY DEFERRED to Phase 49, and this is a
+        // PULL-FORWARD, not a discovery that the deferral was wrong. The user
+        // read this page on 2026-10-11, could not reach the project data from
+        // it, and asked for an edit link by name. The only link that existed
+        // was the footnote's 'Edit AV Works Summary', deep-linked to ONE
+        // SECTION of the review page, which is not what "edit project data"
+        // means.
+        //
+        // Lifted BY NAME, IN THE SAME COMMIT that ships the control, per this
+        // file's own standing rule (46-04, 46.1-04 and 47-03's precedent), and
+        // the lift is PAID FOR: `populatedProject()` now carries a real
+        // `ProjectPackage`, so the region this fence judges really does render
+        // the string, and the bite is asserted in
+        // test_none_of_the_deferred_affordances_appears() exactly as
+        // 'Download all photos (ZIP)' is. Without the package the lift would
+        // have been free — the control renders only when there is a package to
+        // edit, because the route cannot be built without one.
+        //
+        // WHAT PHASE 49 STILL OWNS: everything about project data that is not
+        // this anchor. The cockpit links to the review page; it does not host
+        // a field, a form or a write of its own, and nothing in FORBIDDEN_MARKUP
+        // moved to let this through.
+        //
+        // NOTHING ELSE WAS LIFTED. The same task added SIX survey downloads and
+        // TWO worksheet downloads, and their copy was substring-checked against
+        // every remaining entry here and both FORBIDDEN_MARKUP entries before
+        // use: 'Add document', 'Open register', 'Export CSV', 'Upload files',
+        // 'Issue to client' and 'Mark as sent' are untouched Phase 48 entries,
+        // and the word 'Download' is on no entry at all (Plan 47-03 lifted it).
+        // Those links are NEW READ-ONLY SURFACE, not a lift, so they move no
+        // count — see CockpitProjectDataAndDocumentsTest.
 
         // ══ ONE ENTRY REMAINS RETURNED, 18 -> 21 -> 20 -> 19, BY 46.2 D-02
         //    (Plan 46.2-03) THEN PLAN 47-03 THEN PLAN 47-04 ══════════════════
@@ -522,6 +557,21 @@ class CockpitReadOnlyFenceTest extends TestCase
             'scheduled_date' => '2026-08-11',
         ]);
 
+        // A REAL PACKAGE, ADDED BY QUICK TASK 261011-hfb, AND THE REASON IS THE
+        // SAME ONE THE WORKSHEET PHOTO AND THE SITE SURVEY ABOVE CARRY: the
+        // project-data control renders ONLY when there is a package to edit
+        // (the route cannot be built without one), so without this row the
+        // fence would walk every region and never once see the 'Edit details'
+        // string it had just stopped banning. The lift would then be free and
+        // the entry could have stayed — which is the exact vacuity this file
+        // exists to refuse.
+        ProjectPackage::create([
+            'project_id'     => $project->id,
+            'user_id'        => User::factory()->create()->id,
+            'quote_filename' => 'fence-quote.pdf',
+            'status'         => ProjectPackage::STATUS_EXTRACTED,
+        ]);
+
         return $project;
     }
 
@@ -648,6 +698,18 @@ class CockpitReadOnlyFenceTest extends TestCase
             collect($regions)->contains(fn (string $region): bool => str_contains($region, 'Download all photos (ZIP)')),
             "Read-only fence: lifting 'Download' from DEFERRED_AFFORDANCES is only earned if the ".
             'region it was lifted for actually renders the string somewhere.'
+        );
+
+        // QUICK TASK 261011-hfb: THE SAME PROOF, FOR THE SAME REASON, A THIRD
+        // TIME. 'Edit details' just left DEFERRED_AFFORDANCES — and it left as
+        // a PULL-FORWARD of Phase 49's deferral, at the user's request, which
+        // makes the bite matter more rather than less. `populatedProject()`'s
+        // real ProjectPackage is what makes the project-data control render, so
+        // the region really does carry the lifted string.
+        $this->assertTrue(
+            collect($regions)->contains(fn (string $region): bool => str_contains($region, 'Edit details')),
+            "Read-only fence: lifting 'Edit details' from DEFERRED_AFFORDANCES is only earned if ".
+            'the project-data control it was lifted for actually renders the string somewhere.'
         );
     }
 
@@ -1132,10 +1194,27 @@ class CockpitReadOnlyFenceTest extends TestCase
         // was: it was returned by 46.2-03 only because the control had left
         // the page, and this plan puts it back beneath the evidence on the
         // Returned tab. 'Create visit' does NOT lift alongside it — D-03
-        // never ships it, so it stays the one Unsurfaced entry. The history
-        // of this number is now 15 -> 18 -> 19 -> 18 -> 21 -> 20 -> 19.
+        // never ships it, so it stays the one Unsurfaced entry.
+        //
+        // MOVED AGAIN, 19 -> 18, BY QUICK TASK 261011-hfb. 'Edit details' is
+        // LIFTED — and this one is a PULL-FORWARD of a deliberate deferral
+        // rather than the completion of the phase that owned it. Phase 49 owned
+        // project-data editing; the user read this page on 2026-10-11, could
+        // not reach the project data from it, and asked for the link by name.
+        // The only link that existed was the footnote's 'Edit AV Works
+        // Summary', deep-linked to one section of the review page.
+        //
+        // The lift is paid for the same way 'Download' was: `populatedProject()`
+        // now carries a real ProjectPackage, so the judged region really does
+        // render the string rather than the entry being removed for a control
+        // nobody exercised. The EIGHT document links the same task added are
+        // NEW READ-ONLY SURFACE, not a lift, and moved nothing here — their
+        // copy was substring-checked against every remaining entry first.
+        //
+        // The history of this number is now
+        // 15 -> 18 -> 19 -> 18 -> 21 -> 20 -> 19 -> 18.
         $this->assertCount(
-            19,
+            18,
             self::DEFERRED_AFFORDANCES,
             'Every affordance drawn in either sketch is enumerated; nothing is dropped silently.'
         );

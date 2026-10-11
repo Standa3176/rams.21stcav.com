@@ -403,7 +403,7 @@ class CockpitDocumentFormTest extends TestCase
 
         // The pins are re-taken here too: a check against a list that silently
         // shrank would be a check against nothing.
-        $this->assertCount(19, $deferred, 'DEFERRED_AFFORDANCES is no longer 19 (Plan 47-03 lifted "Download" 21 -> 20, Plan 47-04 lifted "Add note" 20 -> 19) — see 46.3-COUNT-LEDGER.md C-2.');
+        $this->assertCount(18, $deferred, 'DEFERRED_AFFORDANCES is no longer 18 (quick task 261011-hfb lifted "Edit details", 19 -> 18 — a pull-forward of Phase 49 at the user request of 2026-10-11) — see 46.3-COUNT-LEDGER.md C-2.');
         $this->assertCount(2, $markup, 'FORBIDDEN_MARKUP is no longer 2 — see 46.3-COUNT-LEDGER.md C-1.');
 
         $project = $this->project();
@@ -452,7 +452,7 @@ class CockpitDocumentFormTest extends TestCase
         /** @var list<string> $markup */
         $markup = $fence->getConstant('FORBIDDEN_MARKUP');
 
-        $this->assertCount(19, $deferred, 'DEFERRED_AFFORDANCES is no longer 19 (Plan 47-03 lifted "Download" 21 -> 20, Plan 47-04 lifted "Add note" 20 -> 19) — see 46.3-COUNT-LEDGER.md C-2.');
+        $this->assertCount(18, $deferred, 'DEFERRED_AFFORDANCES is no longer 18 (quick task 261011-hfb lifted "Edit details", 19 -> 18 — a pull-forward of Phase 49 at the user request of 2026-10-11) — see 46.3-COUNT-LEDGER.md C-2.');
         $this->assertCount(2, $markup, 'FORBIDDEN_MARKUP is no longer 2 — see 46.3-COUNT-LEDGER.md C-1.');
 
         $project = $this->project();

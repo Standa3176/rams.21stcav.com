@@ -2140,3 +2140,88 @@
     line-height: 1.5;
     color: var(--cav-mid);
 }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   PROJECT DATA AND DOCUMENTS — quick task 261011-hfb (Task B)
+   ────────────────────────────────────────────────────────────────────────────
+   The documents already existed and were already generated; they were linked
+   only from projects/show.blade.php and site-survey/edit.blade.php, never from
+   the page a project is delivered from. This is the surface that fixes that.
+
+   Only --cav-* tokens, and no Tailwind colour/type/spacing utilities — the
+   layout aliases --teal-* onto its navy/accent palette and tailwind.config.js
+   maps brand.teal to a blue, so either would fight this subtree.
+
+   EVERY CONTROL IS AN ANCHOR. There is no rule here for a button, an input or
+   a disabled state, because the read-only fence still holds: the only thing
+   this section ships is a GET.
+   ════════════════════════════════════════════════════════════════════════════ */
+.cav-cockpit .cav-docs {
+    margin-top: var(--cav-s6);
+    padding: var(--cav-s5);
+    background: var(--cav-surface);
+    border: 1px solid var(--cav-border);
+    border-radius: var(--cav-radius);
+    box-shadow: var(--cav-shadow);
+}
+
+.cav-cockpit .cav-docs__head {
+    margin: 0 0 var(--cav-s4);
+    font-family: var(--cav-font-head);
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--cav-ink);
+}
+
+.cav-cockpit .cav-docs__group + .cav-docs__group {
+    margin-top: var(--cav-s5);
+    padding-top: var(--cav-s5);
+    border-top: 1px solid var(--cav-rule);
+}
+
+.cav-cockpit .cav-docs__title {
+    margin: 0 0 var(--cav-s2);
+    font-family: var(--cav-font-head);
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--cav-ink);
+}
+
+.cav-cockpit .cav-docs__sub {
+    margin: 0 0 var(--cav-s3);
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--cav-mid);
+}
+
+/* Wraps rather than scrolls: a PM reads this on a phone in a plant room, and a
+   horizontal scroller hides the document they came for. */
+.cav-cockpit .cav-docs__links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--cav-s2);
+}
+
+.cav-cockpit .cav-docs__link {
+    display: inline-block;
+    padding: var(--cav-s2) var(--cav-s3);
+    font-size: 13px;
+    line-height: 1.4;
+    color: var(--cav-teal-dark);
+    background: var(--cav-bg);
+    border: 1px solid var(--cav-border);
+    border-radius: var(--cav-radius-sm);
+    text-decoration: none;
+}
+
+.cav-cockpit .cav-docs__link:hover {
+    background: var(--cav-row-hover);
+    border-color: var(--cav-teal);
+}
+
+.cav-cockpit .cav-docs__link:focus-visible {
+    outline: 2px solid var(--cav-focus);
+    outline-offset: 2px;
+}
