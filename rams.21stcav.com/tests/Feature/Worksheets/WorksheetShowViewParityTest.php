@@ -173,7 +173,16 @@ class WorksheetShowViewParityTest extends TestCase
                 'works_summary_bullets'  => ['Real bullet', '', '   ', 'Another real bullet'],
                 'room_works_description' => '',
                 'equipment'              => [],
-                'install_steps'          => '',
+                // 261011-d62 — deliberately the NESTED install_steps shape.
+                // This fixture hand-wrote `''` here, which is why the pinned
+                // <li> count below never caught the defect where an array
+                // install_steps put htmlspecialchars() through a TypeError and
+                // 500'd this whole page. The nested shape renders into the
+                // pre-wrap Install Steps block, never into an <li>, so the pin
+                // stays 2 AND the page is now also proven to stay up.
+                'install_steps'          => [
+                    ['step' => 1, 'title' => 'First Fix', 'items' => ['Install the display bracket']],
+                ],
             ],
         ]);
 
@@ -182,6 +191,7 @@ class WorksheetShowViewParityTest extends TestCase
         $response->assertOk();
         $response->assertSee('Real bullet', false);
         $response->assertSee('Another real bullet', false);
+        $response->assertSee('Install the display bracket', false);
         // The empty/whitespace entries must not produce empty <li> rows.
         $this->assertEquals(
             2,
