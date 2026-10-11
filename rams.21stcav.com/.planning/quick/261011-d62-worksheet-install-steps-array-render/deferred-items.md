@@ -50,7 +50,21 @@ is stripped one byte at a time into mojibake).
 Needs its own quick task with its own RED proof against
 `WorksheetDocxService`.
 
-## D62-DEF-02 — the engineer link's `<ol>` numbers phase headings too
+## D62-DEF-02 — CLOSED 2026-10-11 by quick task 261011-f9l (`24e961b8`)
+
+**Not deferred after all.** The user said "fix all issues", and this turned out to share a root
+cause with the office view's lost numbering: the phase title was a plain string in the same flat
+list as the actions, so no consumer could tell a heading from an action. Fixed by giving
+`WorksheetInstallSteps` a structured `rows(): list<{kind, text}>` plus `stepsOnly()`, and rendering
+by kind on all three surfaces. The engineer link now counts actions only — a 2-phase/7-action room
+says "Install Steps (7)", not (9) — headings render as `<li class="phase">` with no ordinal, and
+actions as `<li class="step" value="N">` numbered continuously across phases.
+
+See `.planning/quick/261011-f9l-install-step-headings-vs-actions/`.
+
+<details><summary>Original deferral note, kept for the record</summary>
+
+## D62-DEF-02 (original) — the engineer link's `<ol>` numbers phase headings too
 
 Shape (c) flattens into the existing `<ol class="steps">`, so a phase heading
 line gets an ordinal of its own and the drawer's count (`Install Steps (9)`)
@@ -63,5 +77,7 @@ Fixing it properly needs CSS counters plus a per-row class in
 `public-show.blade.php`'s standalone `<style>` block, which is a materially
 larger edit to a pinned 5,400-line document than D-05's "smallest possible"
 allows. Left as a readability follow-up, not a correctness one.
+
+</details>
 
 </details>

@@ -604,11 +604,20 @@ Zero behavioural regressions across all 5 screens — every form field, every ro
   callbacks in an untried `foreach` (`DatabaseTransactionRecord:83-88`) called outside
   `ManagesTransactions`' own try/catch (`:66-70`), so a queue failure would commit the package row
   and then fail the import. The plan-checker caught that before it shipped.
-  ⚠ **FOUND BUT NOT FIXED — a live HTTP 500.** `WorksheetGeneratorService:543` assigns
-  `$installSteps = $phasedPlan` while `buildPhasedPlan()` returns `array` (`:772`), and
-  `worksheets/show.blade.php:587` echoes it through `e()` — so **the worksheet page 500s whenever the
-  install-step AI call returns nothing**. Orchestrator-verified. `WorksheetShowViewParityTest` never
-  caught it because it hand-writes `'install_steps' => ''`. **Needs its own quick task.**
+  ⚠ **FOUND HERE AND SINCE FIXED — a live HTTP 500 on THREE surfaces.** Discovered by 46.9-03:
+  `WorksheetGeneratorService:543` assigns `$installSteps = $phasedPlan` while `buildPhasedPlan()`
+  returns `array` (`:772`). `install_steps` turned out to hold THREE legitimate shapes (newline
+  string from the AI prompt; flat array from `WorksheetEditAdapter:256`/`:285`; nested
+  `{step,title,items}` from `:543`) and every reader had only learned the first — so the office
+  view (`e(array)` → `TypeError`), the engineer link, AND the DOCX build all returned **500**,
+  exactly when the install-step AI call returned nothing. `WorksheetShowViewParityTest` never caught
+  it because it hand-writes `'install_steps' => ''`. **Fixed by quick tasks `261011-d62`
+  (`b4a833de`, `f5ff0220`) and `261011-f9l` (`24e961b8`)** via one shared normaliser,
+  `App\Support\WorksheetInstallSteps`, used by all three readers; `f9l` then made phase headings
+  structurally distinct from actions so counts and ordinals are right. ⚠ Deliberately did NOT narrow
+  the write — an array is a SUPPORTED shape per the adapter's own docblock at `:249`, and
+  `generated_data` is persisted JSON, so narrowing it would have left already-saved worksheets
+  broken.
   Also open: the engineer link **cannot distinguish AI text from office text** —
   `SurveyController:492` labels any non-empty `works_summary` as `'office'`; asserted as actual
   behaviour, put to the user, not changed. And the project-level scope
