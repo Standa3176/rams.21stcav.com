@@ -303,11 +303,28 @@ class WorksheetDocxService
         // then rebuilds the DOCX (:373). The shared helper owns every shape,
         // including the leading "1." / "-" / bullet strip this loop did, so
         // the DOCX and both web surfaces cannot drift apart again.
-        $installStepLines = WorksheetInstallSteps::lines($room['install_steps'] ?? null);
-        if (! empty($installStepLines)) {
+        // 261011-f9l: rows(), not lines(). This loop numbered every line it
+        // was handed, so a phase heading took an ordinal of its own and the
+        // document read "1. PHASE 1 — Pre-Start & Access" / "2. Confirm site
+        // access …" — the engineer's step 2 was the first thing they do. Phase
+        // titles are now their own unnumbered lines and the action ordinals
+        // run 1..N continuously across the whole room, matching both web
+        // surfaces so "step 7" means the same thing on paper and on a phone.
+        $installStepRows = WorksheetInstallSteps::rows($room['install_steps'] ?? null);
+        if (! empty($installStepRows)) {
             $this->heading($section, 'INSTALL STEPS');
-            foreach ($installStepLines as $i => $step) {
-                $section->addListItem($this->t(($i + 1) . '. ' . $step), 0,
+            $stepNo = 0;
+            foreach ($installStepRows as $row) {
+                if ($row['kind'] === WorksheetInstallSteps::KIND_HEADING) {
+                    $section->addText($this->t($row['text']),
+                        ['size' => 10, 'bold' => true, 'color' => self::DARK],
+                        ['spaceBefore' => 80, 'spaceAfter' => 40]);
+
+                    continue;
+                }
+
+                $stepNo++;
+                $section->addListItem($this->t($stepNo . '. ' . $row['text']), 0,
                     ['size' => 10, 'color' => self::DARK], 'listBullet');
             }
             $section->addTextBreak(1);

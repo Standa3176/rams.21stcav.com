@@ -432,6 +432,33 @@
             font-size: .88rem; color: #374151; margin: .35rem 0;
             line-height: 1.45;
         }
+        /* 261011-f9l — a phase heading is not a numbered step.
+           The native marker is dropped and the ordinal is printed from the
+           row's own value attribute, so the number an engineer reads is
+           literally the number in the markup - one source of truth, and the
+           action ordinals run 1..N across the whole room regardless of how
+           many phase headings sit between them.
+           Scoped to ol.steps ONLY: the rules above are SHARED with
+           ul.actions, which must stay bulleted and is deliberately not
+           touched here. */
+        .room-drawer-body ol.steps { list-style: none; }
+        .room-drawer-body ol.steps li.step { position: relative; }
+        /* right:100% rather than a fixed width so a two- or three-digit
+           ordinal grows leftwards into the drawer padding instead of
+           overflowing a box - a 12-step room is ordinary, and at phone width
+           there is nothing to the left of the number but padding. */
+        .room-drawer-body ol.steps li.step::before {
+            content: attr(value) ".";
+            position: absolute; right: 100%; padding-right: .3rem;
+            color: #9CA3AF; font-weight: 700;
+            font-variant-numeric: tabular-nums;
+        }
+        .room-drawer-body ol.steps li.phase {
+            margin: .7rem 0 .3rem -1.3rem;
+            font-size: .7rem; font-weight: 800; letter-spacing: .06em;
+            text-transform: uppercase; color: #92400E;
+        }
+        .room-drawer-body ol.steps li.phase:first-child { margin-top: 0; }
 
         /* Photo upload tiles per room — placeholder UI for now (next batch) */
         .photo-tray { margin-top: .85rem; padding-top: .85rem; border-top: 1px dashed #E5E7EB; }
@@ -1199,7 +1226,15 @@
                     // below supplies its own) and carries each phase title
                     // through as a PHASE heading line. It returns [] for every
                     // empty shape, which keeps the drawer hidden as before.
-                    $stepLines    = \App\Support\WorksheetInstallSteps::lines($room['install_steps'] ?? null);
+                    // 261011-f9l — rows(), not lines(). A phase title is a
+                    // HEADING, not an install step: counting it made a
+                    // 2-phase / 3-action room advertise "Install Steps (5)",
+                    // and numbering it meant an engineer's "step 7" was not
+                    // the 7th thing they do. The count below is the ACTION
+                    // count; the ordinals are assigned to action rows only,
+                    // in one continuous sequence across the whole room.
+                    $stepRows     = \App\Support\WorksheetInstallSteps::rows($room['install_steps'] ?? null);
+                    $stepCount    = count(\App\Support\WorksheetInstallSteps::stepsOnly($stepRows));
                     $roomKey      = strtolower(trim((string) ($room['name'] ?? '')));
                     // 46.7-02 — this room's row out of the ONE page-level derivation.
                     // The sticky bar walks the same array, so the bar and this panel
@@ -2034,16 +2069,22 @@
                     @endif
 
                     {{-- INSTALL STEPS drawer (amber) --}}
-                    @if(! empty($stepLines))
+                    @if($stepCount > 0)
                         <details class="room-drawer amber">
                             <summary>
-                                <span>✅ Install Steps ({{ count($stepLines) }})</span>
+                                <span>✅ Install Steps ({{ $stepCount }})</span>
                                 <span class="chev">▾</span>
                             </summary>
                             <div class="room-drawer-body">
                                 <ol class="steps">
-                                    @foreach($stepLines as $step)
-                                        <li>{{ $step }}</li>
+                                    @php $stepNo = 0; @endphp
+                                    @foreach($stepRows as $row)
+                                        @if($row['kind'] === 'heading')
+                                            <li class="phase">{{ $row['text'] }}</li>
+                                        @else
+                                            @php $stepNo++; @endphp
+                                            <li class="step" value="{{ $stepNo }}">{{ $row['text'] }}</li>
+                                        @endif
                                     @endforeach
                                 </ol>
                             </div>

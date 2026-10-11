@@ -576,7 +576,13 @@
                     // so the shared normaliser is now the only reader. It
                     // returns '' for every empty shape, which is what keeps the
                     // "being generated" chip below.
-                    $installStepsText = \App\Support\WorksheetInstallSteps::text($room['install_steps'] ?? null);
+                    // 261011-f9l — rows(), not text(). d62 joined everything
+                    // into one pre-wrap block, which meant the office view
+                    // could not number the actions without numbering the
+                    // phase headings too, so it ended up numbering nothing.
+                    // Each action now carries its ordinal, continuous across
+                    // the whole room, and a heading carries none.
+                    $installStepRows = \App\Support\WorksheetInstallSteps::rows($room['install_steps'] ?? null);
                 @endphp
                 @if(! empty($worksBullets) || $worksDescription !== '')
                     <div class="room-section-hdr">Engineer Work Summary</div>
@@ -593,8 +599,18 @@
 
                 {{-- Section B: Install Steps --}}
                 <div class="room-section-hdr">Install Steps</div>
-                @if($installStepsText !== '')
-                    <div style="font-size:.875rem;line-height:1.6;color:var(--text);white-space:pre-wrap;">{{ $installStepsText }}</div>
+                @if(! empty($installStepRows))
+                    <div style="font-size:.875rem;line-height:1.6;color:var(--text);">
+                        @php $officeStepNo = 0; @endphp
+                        @foreach($installStepRows as $installRow)
+                            @if($installRow['kind'] === 'heading')
+                                <div data-install-phase style="margin:.7rem 0 .35rem;font-size:.72rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#92400E;">{{ $installRow['text'] }}</div>
+                            @else
+                                @php $officeStepNo++; @endphp
+                                <div data-install-step="{{ $officeStepNo }}" style="display:flex;gap:.45rem;align-items:baseline;margin:.15rem 0;"><span style="min-width:1.4rem;text-align:right;color:var(--text-muted);font-weight:700;font-variant-numeric:tabular-nums;">{{ $officeStepNo }}.</span><span style="white-space:pre-wrap;">{{ $installRow['text'] }}</span></div>
+                            @endif
+                        @endforeach
+                    </div>
                 @else
                     <div style="display:inline-flex;align-items:center;gap:.4rem;background:#FEF3C7;color:#92400E;padding:.3rem .85rem;border-radius:20px;font-size:.78rem;font-weight:700;">
                         Install steps being generated…

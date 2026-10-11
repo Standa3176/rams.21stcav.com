@@ -477,6 +477,35 @@ class WorksheetInstallStepsShapeTest extends TestCase
         );
     }
 
+    /**
+     * A real room has more than nine actions, and the sequence must not
+     * restart at a phase boundary — the point of "one continuous sequence
+     * across the whole room". Two-digit ordinals are the ordinary case.
+     */
+    public function test_ordinals_pass_nine_and_never_restart_at_a_phase_boundary(): void
+    {
+        $phases = [
+            ['step' => 1, 'title' => 'First Fix', 'items' => array_map(fn ($n) => "First fix action {$n}", range(1, 7))],
+            ['step' => 2, 'title' => 'Second Fix', 'items' => array_map(fn ($n) => "Second fix action {$n}", range(1, 5))],
+        ];
+
+        $content = $this->engineer($this->worksheet($phases))->assertOk()->getContent();
+
+        $this->assertStringContainsString('Install Steps (12)', $content);
+        $this->assertSame(
+            array_merge(
+                [['phase', null]],
+                array_map(fn ($n) => ['step', (string) $n], range(1, 7)),
+                [['phase', null]],
+                array_map(fn ($n) => ['step', (string) $n], range(8, 12)),
+            ),
+            $this->engineerStepRows($content),
+            'the ordinals must continue 8,9,10,11,12 after the second heading, not restart at 1'
+        );
+
+        $this->assertStringContainsString('<li class="step" value="10">Second fix action 3</li>', $content);
+    }
+
     /** No empty numbered row when there is nothing to number (D-08). */
     public function test_an_empty_shape_renders_no_numbered_row_on_either_surface(): void
     {
