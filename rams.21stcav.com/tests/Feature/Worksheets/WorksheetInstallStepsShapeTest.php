@@ -160,6 +160,13 @@ class WorksheetInstallStepsShapeTest extends TestCase
 
     // ── Shape (c): nested phase list, the generator's AI-empty fallback ──────
 
+    /**
+     * 2 phases, 3 actions — the fixture the whole of 261011-f9l turns on.
+     * The drawer must say 3, the ordinals must run 1..3, and the two headings
+     * must carry no ordinal at all.
+     */
+    private const SHAPE_C_ACTION_COUNT = 3;
+
     /** @var list<array{step: int, title: string, items: list<string>}> */
     private const SHAPE_C = [
         ['step' => 1, 'title' => 'Pre-Start & Access', 'items' => [
@@ -191,8 +198,11 @@ class WorksheetInstallStepsShapeTest extends TestCase
         $response = $this->engineer($this->worksheet(self::SHAPE_C));
 
         $response->assertOk();
-        // 2 phase headings + 3 items = 5 lines in the drawer.
-        $response->assertSee('Install Steps (5)');
+        // 261011-f9l — this asserted `(5)` (2 headings + 3 actions), which was
+        // the DEFECT written down as if it were the spec: the drawer counts
+        // install steps, and a heading is not one. STRENGTHENED to the action
+        // count; the full arithmetic lives in the dedicated test below.
+        $response->assertSee('Install Steps (' . self::SHAPE_C_ACTION_COUNT . ')');
         $response->assertSee('Confirm site access and working area availability for Boardroom');
         $response->assertSee('Review RAMS and toolbox talk with all engineers');
         $response->assertSee('Mount and secure 2x Sony FW-85BZ40H');
@@ -250,5 +260,235 @@ class WorksheetInstallStepsShapeTest extends TestCase
         $this->engineer($this->worksheet($steps))
             ->assertOk()
             ->assertDontSee(self::ENGINEER_DRAWER);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  261011-f9l — a heading is not a step: counting and numbering
+    //
+    //  261011-d62 left the phase title as an untagged line in the same list
+    //  as the actions. Asserting only that the heading TEXT is present passed
+    //  happily while the drawer said 5 for 3 steps and the <ol> numbered the
+    //  headings — which is why every assertion below is against MARKUP: the
+    //  per-row class and the per-row ordinal, not the words.
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /**
+     * The one `<ol class="steps">` the fixture's single room renders.
+     *
+     * Asserting exactly one match is part of the guard: two lists would mean
+     * the ordinals restart somewhere, and "step 7" would stop being unique
+     * within the room.
+     */
+    private function engineerStepsList(string $content): string
+    {
+        $found = preg_match_all('#<ol class="steps">(.*?)</ol>#s', $content, $m);
+
+        $this->assertSame(1, $found, 'the room must render exactly one ordered step list');
+
+        return $m[1][0];
+    }
+
+    /**
+     * Every row of that list as `[class, ordinal-or-null]`, in document order.
+     *
+     * @return list<array{0: string, 1: string|null}>
+     */
+    private function engineerStepRows(string $content): array
+    {
+        $list = $this->engineerStepsList($content);
+
+        $this->assertSame(
+            substr_count($list, '<li'),
+            preg_match_all('#<li class="(phase|step)"(?: value="(\d+)")?>#', $list, $m, PREG_SET_ORDER),
+            'every <li> in the step list must declare its kind as class="phase" or class="step"'
+        );
+
+        return array_map(
+            fn ($row) => [$row[1], ($row[2] ?? '') === '' ? null : $row[2]],
+            $m
+        );
+    }
+
+    /**
+     * SYMPTOM 1. The drawer advertises how many install steps there are. A
+     * phase heading is not an install step, so a 2-phase / 3-action room says
+     * 3 — not 5.
+     *
+     * ⚠ This assertion FAILED before the f9l fix: the drawer rendered
+     * `Install Steps (5)` from `count($stepLines)`.
+     */
+    public function test_the_engineer_drawer_count_is_the_action_count_not_the_row_count(): void
+    {
+        $response = $this->engineer($this->worksheet(self::SHAPE_C))->assertOk();
+
+        $response->assertSee('Install Steps (' . self::SHAPE_C_ACTION_COUNT . ')');
+        $response->assertDontSee('Install Steps (5)');
+    }
+
+    /**
+     * SYMPTOM 2. Ordinals run 1..N across the whole room over ACTIONS ONLY,
+     * and a heading carries none — so an engineer's "step 7" is the 7th thing
+     * they do. Asserted against the rendered markup, row by row.
+     */
+    public function test_engineer_ordinals_number_actions_only_and_run_continuously(): void
+    {
+        $rows = $this->engineerStepRows(
+            $this->engineer($this->worksheet(self::SHAPE_C))->assertOk()->getContent()
+        );
+
+        $this->assertSame(
+            [
+                ['phase', null],   // PHASE 1 — Pre-Start & Access
+                ['step', '1'],
+                ['step', '2'],
+                ['phase', null],   // PHASE 2 — Second Fix
+                ['step', '3'],     // continuous across the phase boundary, not restarted
+            ],
+            $rows,
+            'headings must carry no ordinal and the action ordinals must run 1..N across the whole room'
+        );
+    }
+
+    /**
+     * The displayed ordinal is the markup ordinal — one source of truth.
+     *
+     * `ol.steps` drops its native marker and prints `attr(value)` through
+     * `li.step::before`, so the numbers asserted above are literally the
+     * numbers an engineer reads. If this CSS went missing the list would show
+     * no numbers at all while the row assertions stayed green, so it is
+     * pinned here. Scoped to `ol.steps` — `ul.actions` must stay bulleted.
+     */
+    public function test_the_engineer_numbering_css_is_present_and_targets_action_rows_only(): void
+    {
+        $content = $this->engineer($this->worksheet(self::SHAPE_C))->assertOk()->getContent();
+
+        $this->assertStringContainsString('.room-drawer-body ol.steps { list-style: none; }', $content);
+        $this->assertStringContainsString('.room-drawer-body ol.steps li.step::before', $content);
+        $this->assertStringContainsString('content: attr(value) ".";', $content);
+
+        // The ordinal rule must not reach the heading rows or the bullets.
+        $this->assertStringNotContainsString('ol.steps li.phase::before', $content);
+        $this->assertStringNotContainsString('ul.actions li.step::before', $content);
+        $this->assertStringNotContainsString('ul.actions { list-style: none; }', $content);
+    }
+
+    /** The heading text survives, and stays escaped on this client-signed page. */
+    public function test_the_engineer_heading_rows_keep_their_escaped_phase_label(): void
+    {
+        $list = $this->engineerStepsList(
+            $this->engineer($this->worksheet(self::SHAPE_C))->assertOk()->getContent()
+        );
+
+        $this->assertStringContainsString('<li class="phase">PHASE 1 — Pre-Start &amp; Access</li>', $list);
+        $this->assertStringContainsString('<li class="phase">PHASE 2 — Second Fix</li>', $list);
+    }
+
+    /**
+     * Shapes (a) and (b) carry no headings, so they must number 1..N exactly
+     * as they did before f9l — the regression this task must not cause.
+     */
+    public function test_shape_a_still_numbers_one_to_n_on_the_engineer_link(): void
+    {
+        $rows = $this->engineerStepRows(
+            $this->engineer($this->worksheet(self::SHAPE_A))->assertOk()->getContent()
+        );
+
+        $this->assertSame([['step', '1'], ['step', '2']], $rows);
+    }
+
+    public function test_shape_b_still_numbers_one_to_n_on_the_engineer_link(): void
+    {
+        $response = $this->engineer($this->worksheet(self::SHAPE_B))->assertOk();
+
+        $this->assertSame(
+            [['step', '1'], ['step', '2'], ['step', '3']],
+            $this->engineerStepRows($response->getContent())
+        );
+        $response->assertSee('Install Steps (' . count(self::SHAPE_B) . ')');
+    }
+
+    // ── SYMPTOM 3 — the office view numbers its actions again ───────────────
+
+    /**
+     * Every office-view action row as `[kind, ordinal-or-null]`.
+     *
+     * @return list<array{0: string, 1: string|null}>
+     */
+    private function officeStepRows(string $content): array
+    {
+        preg_match_all(
+            '#<div data-install-(phase|step)(?:="(\d+)")?#',
+            $content,
+            $m,
+            PREG_SET_ORDER
+        );
+
+        return array_map(
+            fn ($row) => [$row[1], ($row[2] ?? '') === '' ? null : $row[2]],
+            $m
+        );
+    }
+
+    /**
+     * 261011-d62 stripped shape (a)'s own `1.` / `2.` text and left the office
+     * view with no numbering whatsoever. D-05: the surface supplies the
+     * ordinals, for all three shapes, headings excepted.
+     */
+    public function test_the_office_view_numbers_actions_only_for_the_nested_shape(): void
+    {
+        $content = $this->office($this->worksheet(self::SHAPE_C))->assertOk()->getContent();
+
+        $this->assertSame(
+            [
+                ['phase', null],
+                ['step', '1'],
+                ['step', '2'],
+                ['phase', null],
+                ['step', '3'],
+            ],
+            $this->officeStepRows($content),
+        );
+
+        // The ordinal an engineer reads sits in the row it belongs to.
+        $this->assertMatchesRegularExpression(
+            '#data-install-step="3"[^>]*>\s*<span[^>]*>3\.</span>\s*<span[^>]*>Mount and secure 2x Sony FW-85BZ40H</span>#s',
+            $content,
+            'office action row 3 must render the ordinal "3." beside its own text'
+        );
+
+        // And the heading is a heading: no ordinal span inside it.
+        $this->assertMatchesRegularExpression(
+            '#data-install-phase[^>]*>PHASE 1 — Pre-Start &amp; Access</div>#',
+            $content,
+            'the office heading row must carry its escaped label and no ordinal'
+        );
+    }
+
+    public function test_the_office_view_numbers_the_flat_shapes_one_to_n(): void
+    {
+        $this->assertSame(
+            [['step', '1'], ['step', '2']],
+            $this->officeStepRows($this->office($this->worksheet(self::SHAPE_A))->assertOk()->getContent()),
+        );
+
+        $this->assertSame(
+            [['step', '1'], ['step', '2'], ['step', '3']],
+            $this->officeStepRows($this->office($this->worksheet(self::SHAPE_B))->assertOk()->getContent()),
+        );
+    }
+
+    /** No empty numbered row when there is nothing to number (D-08). */
+    public function test_an_empty_shape_renders_no_numbered_row_on_either_surface(): void
+    {
+        foreach (['', null, [], '   ', [['step' => 1, 'title' => 'First Fix', 'items' => []]]] as $empty) {
+            $office = $this->office($this->worksheet($empty))->assertOk();
+            $office->assertSee(self::OFFICE_EMPTY_CHIP);
+            $this->assertSame([], $this->officeStepRows($office->getContent()));
+
+            $engineer = $this->engineer($this->worksheet($empty))->assertOk();
+            $engineer->assertDontSee(self::ENGINEER_DRAWER);
+            $this->assertStringNotContainsString('<li class="step"', $engineer->getContent());
+            $this->assertStringNotContainsString('<li class="phase"', $engineer->getContent());
+        }
     }
 }

@@ -182,4 +182,48 @@ class WorksheetDocxInstallStepsShapeTest extends TestCase
         $this->assertStringNotContainsString('Mount the Sony display', $xml);
         $this->assertStringNotContainsString('Pre-Start', $xml);
     }
+
+    // ── 261011-f9l — the DOCX makes the same heading/action distinction ──────
+    //
+    // The builder numbered every line it was given, so a phase heading got an
+    // ordinal of its own and the document read "1. PHASE 1 — Pre-Start",
+    // "2. Confirm site access" — the engineer's step 2 was the first thing
+    // they actually do. D-07: actions numbered continuously, headings not.
+
+    public function test_the_docx_numbers_actions_only_and_never_a_phase_heading(): void
+    {
+        $xml = $this->buildAndReadText(self::SHAPE_C);
+
+        // Continuous across the phase boundary: two phases, two actions, 1 and 2.
+        $this->assertStringContainsString('1. Confirm site access and working area availability for Boardroom.', $xml);
+        $this->assertStringContainsString('2. Terminate and test all structured cabling.', $xml);
+
+        // No ordinal is ever glued to a phase label.
+        $this->assertStringNotContainsString('. PHASE', $xml);
+
+        // And the pre-f9l numbering is gone: the heading was row 1, the first
+        // real action row 2.
+        $this->assertStringNotContainsString('2. Confirm site access', $xml);
+    }
+
+    public function test_the_docx_keeps_the_phase_headings_as_their_own_unnumbered_lines(): void
+    {
+        $xml = $this->buildAndReadText(self::SHAPE_C);
+
+        $this->assertStringContainsString('PHASE 1', $xml);
+        $this->assertStringContainsString('PHASE 2', $xml);
+        $this->assertStringContainsString('Second Fix', $xml);
+    }
+
+    /** Shapes (a) and (b) have no headings and must number 1..N as before. */
+    public function test_the_docx_still_numbers_the_flat_shapes_one_to_n(): void
+    {
+        $xmlA = $this->buildAndReadText(self::SHAPE_A);
+        $this->assertStringContainsString('1. Mount the Sony display centred at 1200mm AFFL', $xmlA);
+        $this->assertStringContainsString('2. Terminate the HDMI run at the table plate', $xmlA);
+
+        $xmlB = $this->buildAndReadText(self::SHAPE_B);
+        $this->assertStringContainsString('1. Install the display mounting bracket', $xmlB);
+        $this->assertStringContainsString('2. Hang and level the display', $xmlB);
+    }
 }
