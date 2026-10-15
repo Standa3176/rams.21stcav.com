@@ -85,24 +85,24 @@ Route::post('/logout', function () {
 Route::get('survey/{token}/confirmation', [PublicSurveyController::class, 'confirmation'])->name('survey.confirmation');
 Route::get('survey/{token}/download-form', [SurveyController::class, 'downloadForm'])->name('survey.download.form');
 Route::get('survey/{token}', [SurveyController::class, 'show'])->name('survey.show');
-Route::post('survey/{token}/step-save', [SurveyController::class, 'stepSave'])->name('survey.step.save')->middleware('throttle:60,1');
-Route::post('survey/{token}/save', [PublicSurveyController::class, 'save'])->name('survey.save')->middleware('throttle:30,1');
-Route::post('survey/{token}/submit', [PublicSurveyController::class, 'submit'])->name('survey.submit')->middleware('throttle:10,1');
-Route::post('survey/{token}/rooms/{room}/photos', [PublicSurveyController::class, 'uploadPhoto'])->name('survey.photos.upload')->middleware('throttle:30,1');
-Route::post('survey/{token}/rooms/{room}/complete', [PublicSurveyController::class, 'completeRoom'])->name('survey.room.complete')->middleware('throttle:60,1');
-Route::post('survey/{token}/rooms/{room}/uncomplete', [PublicSurveyController::class, 'uncompleteRoom'])->name('survey.room.uncomplete')->middleware('throttle:60,1');
+Route::post('survey/{token}/step-save', [SurveyController::class, 'stepSave'])->name('survey.step.save')->middleware('throttle:survey-step-save');
+Route::post('survey/{token}/save', [PublicSurveyController::class, 'save'])->name('survey.save')->middleware('throttle:survey-save');
+Route::post('survey/{token}/submit', [PublicSurveyController::class, 'submit'])->name('survey.submit')->middleware('throttle:survey-submit');
+Route::post('survey/{token}/rooms/{room}/photos', [PublicSurveyController::class, 'uploadPhoto'])->name('survey.photos.upload')->middleware('throttle:survey-photo-write');
+Route::post('survey/{token}/rooms/{room}/complete', [PublicSurveyController::class, 'completeRoom'])->name('survey.room.complete')->middleware('throttle:survey-status-write');
+Route::post('survey/{token}/rooms/{room}/uncomplete', [PublicSurveyController::class, 'uncompleteRoom'])->name('survey.room.uncomplete')->middleware('throttle:survey-status-write');
 Route::post('survey/{token}/rooms/{room}/questions/{question}', [PublicSurveyController::class, 'answerQuestion'])
     ->name('survey.question.answer')
-    ->middleware('throttle:120,1');
+    ->middleware('throttle:survey-question-write');
 Route::get('survey/{token}/photos/{photo}', [PublicSurveyController::class, 'servePhoto'])->name('survey.photos.serve');
-Route::patch('survey/{token}/photos/{photo}', [PublicSurveyController::class, 'updatePhoto'])->name('survey.photos.update')->middleware('throttle:60,1');
+Route::patch('survey/{token}/photos/{photo}', [PublicSurveyController::class, 'updatePhoto'])->name('survey.photos.update')->middleware('throttle:survey-status-write');
 
 // Engineer reference files — public download (quick task 260601-r4c).
 // Cross-tenant 403 guard lives in the controller (file->project_id must
 // match $survey->project_id) BEFORE any storage I/O. Implicit route-model
 // binding resolves {file} to App\Models\ProjectReferenceFile.
 Route::get('survey/{token}/files/{file}', [PublicSurveyController::class, 'downloadReferenceFile'])
-    ->name('public-survey.files.serve')->middleware('throttle:60,1');
+    ->name('public-survey.files.serve')->middleware('throttle:survey-file-read');
 
 /*
 |--------------------------------------------------------------------------

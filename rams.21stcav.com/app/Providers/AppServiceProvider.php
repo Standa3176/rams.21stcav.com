@@ -302,5 +302,109 @@ class AppServiceProvider extends ServiceProvider
             fn (Request $request) => Limit::perMinute(120)
                 ->by((string) $request->route('token') ?: $request->ip())
         );
+
+        // ── Quick task 261015-mcp: the same per-token conversion for the public
+        //    SURVEY engineer routes ────────────────────────────────────────────
+        // Reported 2026-10-14: "engineers could not use the survey engineer link
+        // at all". Same defect, same cause, other link. 260919-fq8 above
+        // converted the worksheet routes after the 2026-09-18 "signature didn't
+        // work" incident and the survey routes were simply never done — they
+        // still carried bare `throttle:N,1`, which Laravel keys on the CLIENT IP
+        // for an unauthenticated request. Every engineer behind one site guest
+        // wifi, or one mobile carrier NAT, shared a single bucket.
+        //
+        // It surfaced on 14 Oct because 261011-lvf repaired 81 dead $watch
+        // registrations, so the per-room debounced autosave — which had never
+        // actually fired — now fires every ~600 ms of typing pause. One engineer
+        // alone emits 20-40 step-saves a minute; two on one IP cleared 60 in
+        // seconds. 261011-tax then made the resulting 429 present as a
+        // persistent "Needs a connection" on full signal, i.e. as a dead link.
+        //
+        // ⚠️ The autosave is NOT the thing to turn down. Saving while typing is
+        // what stops engineers losing a day's capture on site. The LIMITS were
+        // wrong, not the saving.
+        //
+        // The `?: $request->ip()` fallback is load-bearing on every one of these
+        // for exactly the reason stated above the worksheet block: without it a
+        // request that reaches these routes with no token resolves to an
+        // empty-string key, i.e. one shared unlimited bucket for every such
+        // request.
+        //
+        // 240/min, and it is a data-loss argument rather than a security one.
+        // This is THE path that was failing. A debounced autosave firing on a
+        // 600 ms typing pause is, by construction, capable of ~100 calls a
+        // minute from one engineer typing continuously across the step fields,
+        // and the offline drain retrying held drafts when signal returns stacks
+        // on top of that. 60 was never a sustainable ceiling for it. The sibling
+        // SCC app's equivalent autosave route (`pmv-engineer-save`) runs 240 for
+        // the same reason. Nothing expensive sits behind this route — no AI
+        // call, no file I/O, one JSON column write — so a leaked token has no
+        // costly worst case to bound, and the per-token key means the ceiling
+        // now bounds ONE survey rather than one building.
+        RateLimiter::for(
+            'survey-step-save',
+            fn (Request $request) => Limit::perMinute(240)
+                ->by((string) $request->route('token') ?: $request->ip())
+        );
+        // The full-form save. Deliberately NOT given the autosave's 240: this is
+        // the engineer pressing Save, which is a deliberate act an order of
+        // magnitude rarer than a debounced keystroke, so it belongs in the
+        // ordinary status-write band (60) rather than the autosave band. Raised
+        // from the old 30 only because that 30 was an IP-shared number sized for
+        // a whole site; per-token, 60 is the house default for a deliberate
+        // write and keeps this limiter in step with its siblings.
+        RateLimiter::for(
+            'survey-save',
+            fn (Request $request) => Limit::perMinute(60)
+                ->by((string) $request->route('token') ?: $request->ip())
+        );
+        // 30/min, matching `worksheet-sign` above and for the reason stated
+        // there: per-token keying already removes the cross-engineer collision,
+        // but an engineer alone can still exhaust a 10/min budget by tapping a
+        // stuck submit button mid-retry — which presents identically to the
+        // reported incident, just self-inflicted instead of shared. 30/min still
+        // leaves this the tightest write limiter in the survey block, since a
+        // submit is a rare deliberate action and not a polling loop.
+        RateLimiter::for(
+            'survey-submit',
+            fn (Request $request) => Limit::perMinute(30)
+                ->by((string) $request->route('token') ?: $request->ip())
+        );
+        // Room photo upload. Mirrors `worksheet-photo-write` exactly — same
+        // 30/min budget, same kind of route — so the two links cannot drift.
+        // Unchanged numeric budget from the old IP-based default, now per-token.
+        RateLimiter::for(
+            'survey-photo-write',
+            fn (Request $request) => Limit::perMinute(30)
+                ->by((string) $request->route('token') ?: $request->ip())
+        );
+        // Covers room complete / uncomplete and the photo PATCH. Mirrors
+        // `worksheet-status-write`: deliberate button taps, 60/min. Unchanged
+        // numeric budget, now per-token.
+        RateLimiter::for(
+            'survey-status-write',
+            fn (Request $request) => Limit::perMinute(60)
+                ->by((string) $request->route('token') ?: $request->ip())
+        );
+        // Per-question answer write. 120/min — the OLD numeric budget, carried
+        // over unchanged and only re-keyed, exactly as the worksheet conversion
+        // did for its unchanged routes. It sits above the status-write band
+        // because an engineer answering a room questionnaire taps through
+        // question after question in one burst, and being 429'd half way down a
+        // room loses the rest of that capture.
+        RateLimiter::for(
+            'survey-question-write',
+            fn (Request $request) => Limit::perMinute(120)
+                ->by((string) $request->route('token') ?: $request->ip())
+        );
+        // Engineer reference-file download (quick task 260601-r4c). 60/min, the
+        // old numeric budget carried over unchanged and only re-keyed — the same
+        // treatment, and the same number, its worksheet counterpart
+        // (`public-worksheet.files.serve` on `worksheet-status-write`) gets.
+        RateLimiter::for(
+            'survey-file-read',
+            fn (Request $request) => Limit::perMinute(60)
+                ->by((string) $request->route('token') ?: $request->ip())
+        );
     }
 }

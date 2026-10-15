@@ -192,6 +192,21 @@ class SurveyEngineerThrottleTest extends TestCase
             .'and unauthenticated — an unlimited bucket is not an acceptable fix for this outage.'
         );
 
+        // The burst must have drained the budget the route's OWN limiter
+        // declares — not some other bucket it is accidentally sharing, and not
+        // a smaller one left behind by stale route caching. Compared against
+        // the resolved limiter rather than a hard-coded number, so re-tuning
+        // the budget does not need this test edited.
+        $declared = $this->declaredBudgetFor('survey.step.save', $tokenA);
+
+        $this->assertSame(
+            $declared + 1,
+            $attempts,
+            "Survey A was rate limited after {$attempts} autosaves, but the limiter on "
+            ."survey.step.save declares a budget of {$declared}/min. The route is not actually "
+            .'drawing on the limiter it names.'
+        );
+
         // ── The assertion the outage is about ────────────────────────────────
         // Same test client, therefore the same client IP as engineer A.
         $this->assertSame(
@@ -308,6 +323,44 @@ class SurveyEngineerThrottleTest extends TestCase
             ."\nThat is the 2026-10-14 outage. Each must use a named per-token limiter, as the "
             .'`worksheet-*` routes already do. Do NOT fix this by removing the throttle.'
         );
+    }
+
+    /**
+     * The per-minute budget the named route's own limiter resolves to for a
+     * given token.
+     */
+    private function declaredBudgetFor(string $routeName, string $token): int
+    {
+        $route = RouteFacade::getRoutes()->getByName($routeName);
+
+        $this->assertNotNull($route, "Route {$routeName} is gone.");
+
+        $name = null;
+        foreach ($route->gatherMiddleware() as $middleware) {
+            if (is_string($middleware) && str_starts_with($middleware, 'throttle:')) {
+                $arg = substr($middleware, strlen('throttle:'));
+                if (preg_match('/^\d+\s*,\s*\d+$/', $arg) !== 1) {
+                    $name = $arg;
+                }
+            }
+        }
+
+        $this->assertNotNull($name, "Route {$routeName} carries no NAMED throttle limiter.");
+
+        $request = Request::create("/survey/{$token}/step-save", 'POST');
+        $request->setRouteResolver(fn () => (clone $route)->bind($request));
+
+        $limit = RateLimiter::limiter($name)($request);
+        $limit = is_array($limit) ? ($limit[0] ?? null) : $limit;
+
+        $this->assertInstanceOf(Limit::class, $limit);
+        $this->assertSame(
+            $token,
+            (string) $limit->key,
+            "Limiter `{$name}` is not keyed on the {token} route parameter."
+        );
+
+        return (int) $limit->maxAttempts;
     }
 
     /**
